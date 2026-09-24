@@ -99,16 +99,20 @@ can serve a tool the core has not verified. That property is tested, not assumed
                 │
      ┌──────────▼───────────────────────────────────────────────────────┐
      │ transport   stateless Streamable HTTP on the official SDK;       │
-     │             served revision probed and recorded (§2.3)           │
+     │             served revision probed and recorded (§2.3); Origin  │
+     │             and Host validated; body, time, concurrency capped   │
      │ auth-rs     401 + WWW-Authenticate → protected-resource metadata │
      │             → JWKS verify → audience must equal this resource    │
      │             → principal {iss, sub, client_id} handed downstream  │
-     │ rate-limit  per-principal budget; a trip is an audit event       │
+     │ tripwire    read-burst detector: loud audit event, no refusal    │
+     │ rate-limit  per-principal budget: 429 + Retry-After on breach   │
      │                                                                  │
      │ ┌─ registration + PIN GATE ────────────────────────────────────┐ │
      │ │ canonicalize the ten-field object → hash → compare to the    │ │
      │ │ committed manifest → MATCH: register · DRIFT/UNPINNED: refuse│ │
      │ └──────────────────────────────────────────────────────────────┘ │
+     │ validate    every call checked against its pinned input_schema   │
+     │             (additionalProperties:false default); output capped  │
      │ capability  four-rung ladder + untrusted_input_facing + scope;   │
      │             Rule-of-Two obligation computed, never bypassed      │
      │ containment containment_domain (a sink SET or null); exec is    │
@@ -120,7 +124,8 @@ can serve a tool the core has not verified. That property is tested, not assumed
      │             duration); mint/merge/exec above the line            │
      │ provenance  class-5 envelope: sign, then verify through three    │
      │             fail-closed gates (signature → allowlist → floor)    │
-     │ audit       append-only, hash-chained; args hashed never stored  │
+     │ audit       append-only, hash-chained; args as keyed digests;    │
+     │             signed checkpoints to an anchor sink                 │
      │ ops         /health is the only bearer-free route               │
      └──────────────────────────────────────────────────────────────────┘
 ```
@@ -183,6 +188,23 @@ port adds it, is approval-only, and the edition's documents say so rather than i
 | Node version | **24.21.0**, pinned in CI and in the engines field. | The proving ground's version (§2.1). Bumping it is a commit. |
 | Conformance suite for third parties | **A later phase, decided now** (roadmap P7). | High value, large scope; deciding it deliberately prevents drift into it. |
 | Hosted demo | **No.** | Northstar non-goal. |
+| Manifest schema | **From the first manifest:** `manifest_version`, and a `build` block with slots for the commit, a distribution digest, a signature, and a key id — populated as *unenforced* until the release-integrity control lands (§8). | A manifest is a consumer-facing schema; adding fields later is a migration for every port pinned by commit. Slots cost nothing; migrations cost every consumer. |
+| Key identity and rotation | **Every signing or verification allowlist entry carries a key id (`kid`) and a validity window** — provenance authors, manifest signers, audit checkpoint keys. Rotation is adding an entry with a new window, never editing one. | Rotation bolted on later always breaks the allowlist format; designed in, it is an append. |
+| Approval binding | **A grant binds to (principal, tool, canonical argument digest, nonce, expiry) and records the approver; it is single-use, and redemption is a separate audited event from the grant.** **The approval channel is never reachable by the tool-calling principal.** | Without argument binding an approval for one call authorises another; without channel separation a prompt-injected model can approve itself — the confused-deputy loop the gate exists to break. |
+| Audit argument digests | **Keyed** — an HMAC over the canonical argument object with a server key named in the environment, the key id prefixed to the digest. Never a bare hash. | A bare hash of a low-entropy argument (a path, a service name) is reversible by dictionary; the "never stored" claim would be false. Keyed digests keep correlation (equal arguments, equal digest) without reversal. |
+| Audit store and anchoring | **Host editions write audit rows to the operating system's log facility** (the system journal on Linux, the Event Log on Windows) as the primary store, because the service user can append there and cannot truncate it; the teaching and development backend is a JSON-lines file. **Every row hashes its predecessor; every N rows or T minutes a checkpoint** (head hash, row count, timestamp) is signed with the provenance signer and emitted to an anchor sink — the system log by default, a remote sink by configuration. An `audit verify` command checks chain and checkpoints. | A hash chain a same-privilege attacker can truncate and re-chain is decoration. Tamper evidence needs a store with different ownership or an anchor the attacker cannot reach; the OS log gives the first for free, the checkpoint gives the second. |
+| Tripwire and rate limit | **Two controls, not one.** The *tripwire* detects read bursts and emits a loud audit event without refusing (the reference node's design). The *rate limit* is a per-principal budget that refuses with `429` and `Retry-After` on breach. | The genesis draft conflated them under "never a refusal that would itself be a denial of service". A per-principal refusal denies only that principal; a hostile token holder must meet an actual limit. Corrected. |
+| Transport hardening | **Required, not optional:** `Origin` validated against an allowlist and `Host` checked (DNS rebinding); request body size capped; a per-call tool timeout; a concurrency cap; the protocol-version header handled per the served revision. Each has a negative test. | Origin validation is a MUST in the transport specification; the rest is the layer a reference is judged on first and mentioned last. |
+| Runtime validation and output caps | **Every call is validated against its pinned `input_schema` before the handler runs, with `additionalProperties: false` as the default; tool results are capped in size.** | Pinning proves the schema was not changed; it does not validate the call. Results flow back into the model as untrusted input, so their shape is bounded even though no control here is a prompt-injection defence. |
+| Where OS primitives live | **The core defines the interfaces — `Cage`, `ApprovalNotifier`, `AuditStore` — and an edition may export only tool definitions, a manifest, a deploy scaffold, and registered implementations of those interfaces.** The supply-boundary test enforces exactly that enumeration. | Northstar N1's scope note. Gives the boundary test a rule instead of a judgement. |
+| Headless approval path | **The core ships a confirm-URL backend** — a one-time link plus a short code, served by the node itself on a route reachable only out-of-band, with a pluggable notifier — alongside the test and console backends. | A console backend is useless for a service; every host edition needs a real path, and this is the shape the reference node converged on. |
+| File fence | **Resolve the real path of the root and of the candidate, require the candidate to sit beneath the root after resolution, and open without following a final symlink.** The remaining time-of-check race is documented, not hidden. | A prefix check on the requested string is defeated by a symlink inside the root — the classic fence failure. |
+| Windows service identity | **A virtual service account, never LocalSystem.** | Least privilege. The fleet's current choice is the fleet's; the reference defaults to the safe one. |
+| Key-set fetching | **JWKS cached with a TTL; one refetch on an unknown `kid`; a fetch failure with no valid cache answers `401`, never accepts; clock-skew tolerance is a stated constant.** | Each of these is a fail-open when left to a library default. |
+| Server-initiated requests | **The reference initiates no sampling and no elicitation.** If a future edition needs either, it is gated like an `elevated` tool and ruled here first. | Both invert the trust direction — the server asks the model to act — and neither has a control in the standard yet. |
+| Supply chain in CI | **A software bill of materials produced on every run; signed build provenance on tagged releases; automated dependency updates that keep action pins as commit digests; a vulnerability audit that reports.** | "Pinned by SHA" is a claim; a bill of materials and a provenance attestation are evidence. |
+| Governance | **`SECURITY.md` pointing at the platform's private vulnerability reporting (no address, so the leak gate stays honest); `CODEOWNERS`; `CHANGELOG.md`; version tags with the commit beside them so consumers pin either.** | A public artifact of process needs a front door for disclosure and a way to name a version. |
+| Test discipline for parsers | **Property-based tests on the canonicalizer and the envelope parser** (key-order independence, Unicode normalization forms, surrogates, byte-order marks, the non-breaking space that is M5); **a control-deletion job in CI** that stubs each control and asserts the suite fails. | Parser-shaped code gets fuzzed or it gets found; and N5's falsification ("a red-proof that still passes when the control is deleted") is a gate only if something runs it. |
 
 ## 6. Runtime and deployment
 
@@ -230,6 +252,22 @@ before registration (N2). Every gate input inside the hash (N3).
 - *No control here is a prompt-injection defence.* The standard's own §0 says so; believing
   otherwise is its primary failure mode.
 
+### 7.1 Threat model — who each control is for
+
+A control with no adversary is ceremony. This table is the map; a control missing from it, or an
+adversary with no control, is a finding.
+
+| Adversary | Capability assumed | Controls that answer it |
+|---|---|---|
+| A prompt-injected model (confused deputy) | Calls any tool it can see, with any arguments, at any rate; cannot reach the approval channel | Pin gate (only reviewed tools are visible); capability ladder and Rule-of-Two; `containment_domain` + reach; approval binding and channel separation; runtime validation; output caps; tripwire |
+| A compromised or impostor client | Presents tokens minted for another server; replays; forges `Origin` | Audience equality; `401` + resource metadata; transport `Origin`/`Host` validation; per-principal rate limit |
+| A hostile authenticated principal | Holds a valid token; hammers the read surface; probes for reach | Rate limit (`429`); tripwire; audit with keyed digests; caller entitlement (deferred, P6); containment |
+| A stolen bearer token | Full use until expiry | Short token lifetime (authorization-server policy, outside this repository); audience binding limits the blast radius to one node; audit for detection; rate limit |
+| A compromised dependency | Runs code in the process at install or at runtime | `ignore-scripts`; actions and dependencies pinned by digest; bill of materials and provenance so the change is visible; the supply-boundary and control-deletion tests so a substituted control is caught in CI |
+| An attacker with write access to the deployed tree | Edits a handler body or the manifest in place | Verify-before-register catches definition drift; the `build` block and release-integrity control (deferred) catch body drift; audit checkpoints anchored outside the tree make the edit's timing evident. **Until release integrity lands this adversary is only partially answered, and this section says so.** |
+| An attacker who can truncate the audit file | Same privilege as the service | OS-log store the service user cannot truncate; signed checkpoints to an anchor sink; `audit verify` |
+| A forged inter-node message | Sends a well-formed message claiming an author | Class-5 provenance: signature, author allowlist with key ids, effect floor |
+
 **The unpinned-authority sweep applies from phase 1.** Every security decision in the core — auth,
 capability gating, approval, ceiling, rate limit — lists its inputs, and each is either inside the
 canonical hash, inside a second pinned artifact, or documented as out of scope with its own named
@@ -256,11 +294,18 @@ where the build reports.
 | Approval gate; grant ≠ redemption; expiry | §3 (elevated confirm) | `approval` | Unapproved `elevated` call → not executed; expired grant → refused | planned — P2 |
 | Capability ceiling and tiered windows | §3, §8 #11 (the elevated instance) | `ceiling` | A window opened for one principal authorises another → red; exec/mint/merge under a window → refused | planned — P2 |
 | Message provenance, three gates | §2 class 5, §3, #16, §8 #12 | `provenance` | Unsigned → rejected; signed by an unlisted author → rejected; a valid signature requesting an above-floor effect → rejected | planned — P2 (envelope by spike) |
-| Append-only hash-chained audit, args hashed | §8, §11 | `audit` | An argument value appearing in any audit row → test red; a broken chain → detected | planned — P2 |
-| Rate limit, per principal | §8 #9, the reference node's audit sub-tier | `rate-limit` | A burst → one loud audit event; no refusal that would itself be a denial of service | planned — P2 |
 | No URL credential path | §4, #11 | whole tree | `grep` for a query-string token path finds nothing | planned — P0 (gate) |
 | Leak gate over tree and history | N6 | `.github/workflows` + script | Gate self-test proves it goes red on a planted identifier | planned — P0 |
 | Linux per-process cage (fixture) | §3, §8 #1 (containment discharge) | `host-linux/cage` | Fixture tool attempting egress from inside the cage → blocked | planned — P3 |
+| Transport hardening (`Origin`/`Host`, body cap, timeouts, concurrency, protocol-version header) | §B; transport specification MUST | `transport` | Forged `Origin` → rejected; oversized body → rejected; a handler that never returns → call times out and is audited | planned — P1 |
+| Runtime input validation against the pinned schema; output size cap | §3, §4 | `pinning/validate` | An extra property → rejected before the handler; an oversized result → truncated and flagged | planned — P1 |
+| Tripwire (read burst, loud, no refusal) | §8 #9 | `tripwire` | A burst → exactly one loud audit event; no refusal | planned — P2 |
+| Rate limit (per principal, refuses) | §8 #9 | `rate-limit` | Over budget → `429` with `Retry-After`; another principal unaffected | planned — P2 |
+| Audit keyed digests, OS-log store, signed checkpoints, `audit verify` | §8, §11 | `audit` | A bare argument value in any row → red; a truncated chain → `audit verify` reports it; a checkpoint with a bad signature → rejected | planned — P2 |
+| Manifest `build` block and release-integrity check | §8 #12, the reference node's A2/A5 | `pinning/manifest`, `release` | Slots present from P1; **enforcement deferred** — trigger: the first fleet port that deploys from a release, at which point a digest mismatch at start must refuse | deferred — trigger named |
+| Supply chain: bill of materials, provenance on tags, dependency automation, audit report | §8 #12 (integrity of what runs) | `.github/workflows` | A run without the bill-of-materials artifact → red; a tag without provenance → red | planned — P0 (`-0002`) |
+| Control-deletion job | N5 | `.github/workflows`, `test/deletion` | Any single control stubbed out → the suite fails | planned — P2 |
+| Property-based tests on parsers | §3, §8 #8 | `pinning/canonical`, `provenance` | A key-order permutation or a Unicode form that changes the hash → red | planned — P1 |
 | Caller entitlement | §1 (self-controlled clients), decision #15 | `entitlement` | Principal calling a tool outside its map → refused; map edited without re-pin → drift | deferred — P6, trigger named in roadmap |
 
 ## 9. Open questions
@@ -273,6 +318,8 @@ where the build reports.
 | Whether the Windows edition registers through a service wrapper or a scheduled task | Spike at P4 | The Windows deploy scaffold |
 | Whether the fleet's template set is upgraded in place or replaced by "consume the core" | The gate, at P5 | The template-upgrade phase's shape, nothing before it |
 | Whether and when to publish to a registry | The gate | Nothing; consumption by commit works without it |
+| Whether a running node attests its own distribution digest at start (self-attestation with the deployer's key) or relies on the deploy loop alone | The gate, when the release-integrity trigger fires | Nothing before that trigger |
+| Whether external contributions are accepted beyond issues and documentation | The gate | `CONTRIBUTING.md` in `CSR-WO-0002` ships a conservative default and says it is a default |
 
 ## 10. Amendments
 
