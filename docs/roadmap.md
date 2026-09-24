@@ -86,6 +86,9 @@ design depends on measured and recorded.
 - `CSR-WO-0000` — repository skeleton: workspaces, TypeScript configuration, test runner, lint,
   Node pinned to the version in `architecture.md` §2.1, an empty `packages/core` that builds, CI
   running the suite on every push and pull request.
+- `CSR-WO-0000a` — skeleton corrections from review: supported lint major; inline suppressions
+  forbidden in control source and reviewable by config elsewhere; `dist/` build with exports from
+  it, tests still on source (`architecture.md` §5 *How fleet ports consume this*, §10).
 - `CSR-WO-0001` — the leak gate: a script with the sanitisation rules the fleet's public
   failure-notes repository already uses (owned domains, tunnel and tenant hostnames, device and
   operator paths, addresses, identifiers, token and key shapes), run over the working tree **and**
@@ -296,6 +299,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | Number as built | What it actually was | What was planned |
 |---|---|---|
 | *(genesis pull request, unnumbered)* | The four steering documents | — (precedes the first work order, deliberately; recorded so the absence of a number is not read as an omission) |
+| `CSR-WO-0000a` | Skeleton corrections from the `-0000` review: supported lint major, suppression policy, built `dist/` exports | Not planned; inserted as a refinement under `-0000` because all three are corrections to the skeleton the review exposed, and a port must never consume raw source (`architecture.md` §10) |
 
 ## Amendments
 
