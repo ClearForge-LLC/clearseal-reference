@@ -102,6 +102,14 @@ invariant nobody can test is a wish.
 | **7** | No edition ships a tool of capability class `arbitrary_exec`. The core models the rung — it refuses such a tool a containment domain at construction — and the documents say why exec is absent. | Find an `arbitrary_exec` entry in any edition's manifest; or an `arbitrary_exec` tool that was granted a non-null containment domain |
 | **8** | Secrets by name only. Environment-variable names and blank templates live here; a live credential value never does. | Find a live credential in code, config, fixture, log, URL, test vector, or work order |
 
+**What counts as a control under N1.** A control is a *policy and its decision point* — the code
+that decides whether a tool registers, a call proceeds, a message is trusted, an event is recorded.
+Two things are not second controls: an operating-system enforcement primitive (a Linux process cage,
+a Windows service boundary) implemented in an edition behind an interface the core defines and
+calls; and a test oracle in a second language whose only job is to generate vectors the core is
+checked against. The first is the same control reaching a different platform; the second never
+serves a request. Everything else that decides is in the core or it is a violation.
+
 **Why N1 is the project and not N2.** The reference node already proves N2; a second node could
 prove it again by copying. What no node can prove alone is that the *next* node will run the same
 mechanism rather than a re-derivation of it. N1 is what turns a standard with one adopter into a
@@ -167,6 +175,7 @@ Each is plausible rather than catastrophic, which is what makes it worth writing
 | Date | Change | Rationale |
 |---|---|---|
 | 2026-09-24 | Created. Eight invariants ratified at genesis; N1 marked as the project; N7 recorded as a ruling with its reason. | First northstar for this repository. Written from the planning session of the same day, in which the monorepo shape (one core, three editions), the no-exec ruling, and the merge-gate arrangement were settled. |
+| 2026-09-24 | N1's scope stated: a control is a policy and its decision point; OS enforcement primitives behind core interfaces in editions, and second-language test oracles, are not second controls. Re-ratified by the gate at merge. | Without the boundary, the first Linux cage commit and the first Python vector generator would each read as an N1 violation and be relitigated in a work order — the exact place an invariant should never be decided. Raised in the maturity review before any build began. |
 
 ## 8. Provenance
 
