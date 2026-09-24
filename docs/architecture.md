@@ -37,7 +37,7 @@ reported as blocked with the harness that will produce it — never estimated.
 
 | Fact | Value | How measured |
 |---|---|---|
-| Repository state | One commit on `main`: license, notice, gitignore, README stub. `main` requires a pull request, linear history, no force-push, no deletion. Squash merges only; branches auto-delete on merge. | Created this session; protection read back from the branch-protection API after it was set |
+| Repository state | *At genesis:* one commit on `main` — license, notice, gitignore, README stub. `main` requires a pull request, linear history, no force-push, no deletion. Squash merges only; branches auto-delete on merge. *Since:* the steering documents merged as the second commit (§10, first amendment); the row is left as the genesis measurement. | Created this session; protection read back from the branch-protection API after it was set |
 | Continuous integration | None yet. No workflow exists; therefore no required status check is set on `main`. | `ls .github/` — absent |
 | Standard of record | ClearSeal v0.8 public edition at the commit pinned in the header, one commit old; it mirrors the full standard's v0.8 text with deployment-specific material omitted and numbering preserved. | Both editions cloned and diffed; the differences are the changelog narrative, the node matrix, and status lines — no control text |
 | The reference node (the standard's one adopter) | 26 pinned tools; manifest carries the ten hashed fields including `containment_domain`; 5 tools `elevated`; capability classes 16 `read_only` / 9 `state_change` / 1 `arbitrary_exec`; 63 test files, 964 test functions; a TypeScript canonicalizer kept byte-compatible with its Python one, exercised by a cross-language determinism test. | Its manifest parsed with `python3 -c` and its tests counted with `grep -c 'def test_'` on a clone taken this session |
@@ -282,6 +282,7 @@ Undocumented drift is a defect, not a shortcut.**
 | Date | Change | Rationale |
 |---|---|---|
 | 2026-09-24 | Created. Ground truth measured (§2), including four corrections to written beliefs; shape, seams, rulings, posture, and traceability recorded at genesis with every control *planned*. | First architecture for this repository, written from the same-day planning session after the reading in `northstar.md` §8. |
+| 2026-09-24 | §2.1 "Repository state" annotated: the one-commit figure was true at genesis; the steering documents then merged as `main`'s second commit (`2b96f08`, pull request #1). No ruling changed. | The row is a measurement with a date, not a standing claim, and the first reader after the merge would otherwise take it for a stale one. Recorded as an amendment rather than silently edited, because that is what the table is for. |
 
 ## 11. Provenance
 
