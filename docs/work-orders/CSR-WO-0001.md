@@ -42,8 +42,10 @@ rules that repository's own gate runs.
    - credential shapes — platform token prefixes, JWT bodies, private-key blocks, `AKIA`-style
      cloud keys, `Bearer <opaque>` in prose, and **a query-string token parameter on any URL**
      (the §8 *No URL credential path* row becomes this rule);
-   - e-mail addresses other than the `example.` reserved domains and the platform's no-reply
-     domain.
+   - e-mail addresses other than the `example.` reserved domains, the platform's no-reply
+     domain, and any `noreply@` / `no-reply@` local part (a vendor's tooling adds a
+     `Co-Authored-By` no-reply trailer to the builder's commits; a no-reply address is not a
+     contactable identifier, and history is scanned).
    Each rule has a name, a regex, and a one-line reason in the script, because the next person to
    add a rule copies the shape of the last one.
 3. **Allowlist, narrow and justified.** A committed `.leak-gate-allow` file, one entry per line as
