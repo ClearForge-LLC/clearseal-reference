@@ -29,7 +29,9 @@ rules that repository's own gate runs.
 1. **`scripts/leak-gate.mjs`** — plain Node, no dependencies, importing only `node:` modules.
    Modes: `--tree` (every file `git ls-files` reports, skipping binaries by extension list and by a
    NUL-byte probe), `--history` (for every commit in `git rev-list HEAD`, the `+` lines of
-   `git show --format= --unified=0 <sha>`), and `--self-test`. Exit code non-zero on any finding.
+   `git show --format= --unified=0 <sha>` **and the full commit message** from
+   `git log -1 --format=%B <sha>` — trailers included, because a tooling-added session or
+   machine trailer is an identifier and the diff never contains it), and `--self-test`. Exit code non-zero on any finding.
 2. **The rule set**, ported from the public source named in Grounds and extended:
    - owned and infrastructure hostnames — any subdomain of the organization's domains, any tunnel
      provider hostname, any tenant hostname of a hosted authorization server, any tailnet name;
@@ -56,7 +58,8 @@ rules that repository's own gate runs.
 5. **`--self-test`.** Builds a temporary tree containing one planted example per rule, runs `--tree`
    against it, and asserts a finding for each rule *by name*; then runs against a clean synthetic
    tree and asserts zero. Also plants one shape into a temporary git repository's history behind a
-   revert and asserts `--history` finds it — that proves the revert does not hide it.
+   revert and asserts `--history` finds it — that proves the revert does not hide it — and
+   plants one shape in a commit *message* only, asserting `--history` finds that too.
 6. **CI job `leak-gate`** in `ci.yml`: `permissions: contents: read`; checkout with full history
    (`fetch-depth: 0` — the history mode needs every commit); runs `--self-test`, then `--tree`,
    then `--history`, in that order, on `ubuntu-latest` only (the scan is platform-neutral). The
@@ -132,6 +135,9 @@ Fresh subagent if available; otherwise yourself, framed as an attack on the fini
    incremental scanning against the merge base in a later work order, not a weaker scan.
 7. Check every file added for anything N6 forbids — including the rule reasons, which want to
    quote a real example.
+8. Make a commit whose only identifier is in a trailer line of its message, on the throwaway
+   branch; confirm `--history` catches it. (`-0000`'s builder found a tooling-added session
+   trailer on its first commit; this rule exists because of that.)
 
 ## 6. Upward-feedback directive
 
