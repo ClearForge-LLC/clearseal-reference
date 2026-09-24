@@ -1,0 +1,6 @@
+clearseal-reference
+Copyright 2026 ClearForge LLC
+
+This product is a reference implementation of the ClearSeal standard
+(https://github.com/ClearForge-LLC/ClearSeal-public), which is licensed
+separately under CC BY 4.0. The standard is cited, not embedded.
