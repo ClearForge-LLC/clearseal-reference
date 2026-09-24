@@ -3,6 +3,7 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+.eslintcache
 
 # environment and secrets — secrets are referenced by NAME only in this repo;
 # a real value never lands in a tracked file (see docs/northstar.md once it exists)
