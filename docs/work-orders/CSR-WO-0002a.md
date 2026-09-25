@@ -39,7 +39,11 @@ to change it; nothing else may), `.npmrc`, `package.json`, `scripts/`.
    wired as the **first** step of `npm run check`, so the suite itself refuses a wrong runtime even
    where an install did not run. `scripts/README.md` gains a paragraph saying which guarantee lives
    where (install: `.npmrc`; suite: `check-node`; host install scripts: `npm ci --engine-strict`).
-4. **`FEEDBACK.md`** per §6.
+4. **Provenance workflow packs `packages/*` only.** `npm pack --workspaces` also packs the private
+   spike (`private` blocks publishing, not packing), so a tag release would carry a spike tarball
+   (`-0100` FEEDBACK finding 3). Narrow the pack step to the `packages/*` workspaces and prove it
+   with the dry run's file list. This is the one workflow edit this work order may make.
+5. **`FEEDBACK.md`** per §6.
 
 ## 2. Invariants
 
@@ -49,8 +53,8 @@ to change it; nothing else may), `.npmrc`, `package.json`, `scripts/`.
   Node); each new self-test example is shown to fire.
 
 **Protected surfaces — must diff to empty:** the four steering documents, `LICENSE`, `NOTICE`,
-`packages/**`, `scripts/test.mjs`, `scripts/check-directives.mjs`, `.github/workflows/**`,
-`.github/dependabot.yml`, the governance files.
+`packages/**`, `scripts/test.mjs`, `scripts/check-directives.mjs`, `.github/workflows/ci.yml`,
+`.github/dependabot.yml`, the governance files. (`provenance.yml`: the pack step only.)
 
 ## 3. Tests / acceptance
 
@@ -67,7 +71,7 @@ to change it; nothing else may), `.npmrc`, `package.json`, `scripts/`.
 - **Any other gate rule.** One exemption per finding; nothing speculative.
 - **Widening either exemption** beyond the exact shapes above.
 - **`CODEOWNERS`.** Human track (team creation), then the architect.
-- **Touching the workflows or the bot configuration.**
+- **Touching `ci.yml` or the bot configuration.** (`provenance.yml`'s pack step is in scope; nothing else in it.)
 
 ## 5. Adversarial pass
 

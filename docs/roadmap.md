@@ -145,9 +145,11 @@ teaching edition through the only registration path there will ever be.
   the supply-boundary test that fails if an edition exports anything other than tool definitions, a
   manifest, a deploy scaffold, or a registered implementation of a core interface.
 - `CSR-WO-1005` — transport hardening and runtime validation: `Origin` and `Host` checks, body cap,
-  per-call timeout, concurrency cap, protocol-version header; every call validated against its
-  pinned schema with `additionalProperties: false` by default; result size capped. Each with a
-  negative test.
+  per-call timeout, concurrency cap, batch refusal, bounded stateless `GET` stream, protocol-version
+  header; every call validated against its pinned schema with `additionalProperties: false` by
+  default; result size capped. Each limit is enforced by the core's own layer and asserted by its
+  own test, so an SDK bump that adds or removes a default changes nothing silently (measured in
+  `-0100`: a patch release added two protections).
 **Exit gate:** each of N2, N3, and N4's falsification rows runs as a test and is proven able to fail
 by deleting the control it guards; a hand-edited description leaves that tool absent from
 `tools/list` on restart; `curl -i` unauthenticated returns `401` with a `WWW-Authenticate` header
