@@ -58,10 +58,14 @@ with the section anchor. That file is reviewed *with* the code; a MUST not in it
    `tools/call` / `resources/read` / `prompts/get` and must equal `params.name` / `params.uri`
    after Base64-sentinel decoding (`=?base64?…?=`, case-sensitive markers); any mismatch or invalid
    characters → `400` `-32020` with a message naming the header, never the secret-shaped value.
-   `Mcp-Param-*` headers: the reference declares no `x-mcp-header` on any tool, so none is
-   recognized; unrecognized ones are ignored (forwarded semantics), and a *recognized* one can only
-   exist if a future tool declares it — the registry refuses `x-mcp-header` annotations at
-   construction in this WO (a ruling to lift later needs a reason).
+   `Mcp-Param-*` headers: **implemented fully on the server side** (`architecture.md` §5,
+   *Completeness bar*): the registry validates `x-mcp-header` annotations against every constraint
+   in the spec's Schema Extension section (non-empty, token syntax, unique case-insensitively,
+   primitive types only, statically reachable through `properties` only) and refuses a tool whose
+   annotation breaks one; at call time a recognized `Mcp-Param-{Name}` must be present when the
+   value is in the body, absent when it is `null` or missing, decoded from the Base64 sentinel when
+   encoded, compared numerically for integers, and any mismatch is `400` `-32020`. Unrecognized
+   `Mcp-Param-*` headers are ignored. No shipped tool declares one; a test fixture tool does.
 6. **Dispatch (modern era).** `server/discover` (MUST): `resultType: "complete"`,
    `supportedVersions`, `capabilities`, `serverInfo` (name and version from the package, no
    host identity), `instructions`, `ttlMs`, `cacheScope`. `tools/list` with `ttlMs`/`cacheScope`;
@@ -86,8 +90,9 @@ with the section anchor. That file is reviewed *with* the code; a MUST not in it
    to the handler. `requestState` is produced and consumed only through a core helper that
    **HMACs** it with a server key named in env — a state the client echoes back is untrusted until
    its MAC verifies; a tampered or foreign state → refused. No approval logic here (`-2001`).
-10. **Limits, all in this layer, all asserted:** body byte cap; parse depth cap; concurrency cap
-    (a configured maximum of in-flight requests; excess → `503` with `Retry-After`); per-call
+10. **Limits, all in this layer, all asserted** (defaults per `architecture.md` §5: body 1 MiB,
+    parse depth 64, in-flight 32, handler timeout 30 s, result 256 KiB — each configurable by name):
+    body byte cap; parse depth cap; concurrency cap (excess → `503` with `Retry-After`); per-call
     handler timeout (a handler that never returns → the call ends with a JSON-RPC error and an audit
     event — audit is a seam here, a log line is acceptable until `-2002`); result size cap; header
     count and size caps beyond Node's defaults are *not* re-implemented (record Node's).

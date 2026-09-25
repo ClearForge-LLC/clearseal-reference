@@ -114,8 +114,8 @@ design depends on measured and recorded.
   fleet's existing verifier contract for interoperability. STOP.
 **Exit gate:** CI is green on a pull request that changes a source file; the leak gate's self-test
 exits non-zero on every planted shape and zero on the tree; `grep` across the tree for a
-query-string token path returns nothing; the three §2.3 rows for these spikes are replaced with
-measured values; every CI run publishes a bill-of-materials artifact and a tag publishes a
+query-string token path returns nothing; the §2.3 rows for `-0100` and `-0102` are replaced with measured values (`-0101` was
+resequenced into P1 after `-1005`; its row stays blocked until it runs); every CI run publishes a bill-of-materials artifact and a tag publishes a
 provenance attestation; the dependency-update configuration exists and has opened at least one
 pull request; `main` shows the `test` and `leak-gate` checks as required in its protection.
 
@@ -328,6 +328,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | 2026-09-24 | Created. P0–P4 scoped to work-order level; P5 scoped; P6 and P7 stated as intent with their spikes named. | First roadmap for this repository, from the same-day planning session. P6 is trigger-gated rather than sequenced because its only justification is a second principal, which no consumer has yet. |
 | 2026-09-24 | Maturity review folded in: `CSR-WO-0002` (governance and supply chain) added to P0; `-1005` (transport hardening and runtime validation) added to P1; `-2002` narrowed to audit, `-2007` (tripwire and rate limit as two controls) and `-2008` (control-deletion job) added to P2; acceptance lines added to `-1000`, `-1001`, `-1003`, `-1004`, `-2001`, `-2005`, `-3000`, `-4001`; P0, P1, P2, P3 and P4 exit gates extended; a maintenance cadence added. | Same review as the architecture's second amendment: what changes a schema or an interface is decided before P1; the rest becomes acceptance lines while the work orders are still unwritten. |
 | 2026-09-25 | P1 reordered: `-1005` first and redefined as the core's own `2026-07-28` transport (the official SDK measured unable to serve it, no 2.x published); `-0101` resequenced after `-1005` and re-aimed at MRTR, since the revision deprecates elicitation. | The gate's direction that the reference serves the current stateless revision, after the `-0100` spike; see `architecture.md` §10. |
+| 2026-09-25 | P0 exit gate amended: `-0101` is no longer a P0 clause; `v0.1` is cut at P0 exit per the gate's ruling on first tags. | The gate's rulings on the open choices, same day. |
 
 ## Provenance
 
