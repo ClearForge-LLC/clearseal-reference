@@ -23,12 +23,13 @@ export default defineConfig(
     },
   },
   {
-    // The Node globals the root JavaScript uses. `no-undef` is live on these files: under
-    // `defineConfig`, typescript-eslint's override that switches it off applies to TypeScript only.
+    // `no-undef` is OFF on every linted file, deliberately; do not re-enable it "for safety". Every
+    // file this config lints is type-checked (the project service refuses a file outside a
+    // tsconfig), and TypeScript's checker reports an undefined name more accurately than
+    // `no-undef` can. Turning it on needs a hand-kept list of globals: a second source of truth
+    // that drifts from the real one, the same two-copies problem N1 forbids for controls.
     files: ["**/*.js", "**/*.mjs", "**/*.cjs"],
-    languageOptions: {
-      globals: { Buffer: "readonly", console: "readonly", performance: "readonly", process: "readonly" },
-    },
+    rules: { "no-undef": "off" },
   },
   // Suppression policy. Everywhere: a disable directive that suppresses nothing is an error, and
   // scripts/check-directives.mjs (run by `npm run lint`) requires every directive to carry a

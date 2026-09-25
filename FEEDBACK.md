@@ -14,6 +14,28 @@ repository's write deploy key. A short-lived token was minted **only** to open t
 kept in a mode-0600 scratch file for that one API call, never written to git config or a remote,
 and **deleted** straight after.
 
+## Architect review of PR #8: two rulings, both applied on this branch
+
+| # | Ruling | What changed | Proof |
+|---|---|---|---|
+| 1 | **`no-undef` OFF on the root JavaScript; the hand-kept globals list removed.** Every linted file is type-checked (the project service refuses a file outside a tsconfig), and TypeScript's checker is the more accurate one. A globals list is a second source of truth that drifts: the same two-copies argument as N1. | `eslint.config.js`: the JavaScript block sets `"no-undef": "off"`, with a comment saying why and not to re-enable it "for safety". TypeScript files already had it off through typescript-eslint, so it is off on every linted file. The globals list is gone | Below: a typo'd identifier in `scripts/` fails `npm run typecheck` (TS2552, exit 2), so `npm run check` fails. ESLint's output carries no `no-undef` entry |
+| 2 | **File-wide and block-wide disables FORBIDDEN everywhere, reason or not.** Only `eslint-disable-line` and `eslint-disable-next-line` with a `-- reason` are honoured outside control source. A file-wide disable suppresses an unknown set of findings at an unknown set of lines, so its scope is not reviewable. | `scripts/check-directives.mjs` accepts only the two line-scoped kinds, each with a reason. It rejects `eslint-disable` (file- or block-wide), its `eslint-enable` pair, inline rule configuration, and `global`/`globals`/`exported`, with or without a reason | Below: five negative cases fail `npm run lint`, and two positive cases pass |
+
+Findings 2 and 8 are resolved by these rulings.
+
+**Proof 1: an undefined name is still caught, by the type checker**
+
+```
+
+```
+
+**Proof 2: the directive policy, negative and positive cases** (each in a scratch file in `scripts/`,
+suppressing a real finding, removed after):
+
+```
+
+```
+
 ## Crossed or parked
 
 **Nothing crossed. No §7 condition fired.**
@@ -22,9 +44,7 @@ and **deleted** straight after.
 - The consumer needs no build step.
 - No protected surface changed.
 
-**One finding needs a decision** (finding 2): the config migration made `no-undef` live on the root
-JavaScript for the first time, which flagged `scripts/leak-gate.mjs`. As WO §4 requires, the gate
-was **not edited**; the two Node globals it uses are declared in config instead.
+Two findings needed a decision (2 and 8). **Both are now ruled and applied** (the section above).
 
 ## Gates line
 
@@ -59,9 +79,11 @@ Schema: `finding · where · type · recommendation · decision-needed`.
    offers `noInlineConfig`, `reportUnusedDisableDirectives` and `reportUnusedInlineConfigs`, but
    nothing that requires a description. So, per WO §1.2 and with no plugin,
    `scripts/check-directives.mjs` does it, run by `npm run lint`.
-   - **Which comments count:** any comment whose trimmed text starts with `eslint-disable…`,
-     `eslint` (rule configuration), `global`, `globals` or `exported`. `eslint-enable` only
-     restores, so it needs no reason.
+   - **Which comments count, and the policy** (as ruled in review 2): every comment whose trimmed
+     text opens with a directive kind ESLint recognises. Only `eslint-disable-line` and
+     `eslint-disable-next-line` are allowed, and each needs a reason. `eslint-disable` (file- or
+     block-wide), `eslint-enable`, inline rule configuration, `global`, `globals` and `exported`
+     are rejected, reason or not.
    - **What a reason is:** ESLint's own separator (whitespace, two or more dashes, whitespace),
      followed by text containing a letter or digit.
    - **How it reads files:** every `//` and every `/*` is treated as a comment start, overlapping,
@@ -78,10 +100,9 @@ Schema: `finding · where · type · recommendation · decision-needed`.
    measured.) `defineConfig()` intersects `files`, so the override is back to TypeScript only, and
    `no-undef` flagged 23 uses of `Buffer` and `performance` in `scripts/leak-gate.mjs`. Per WO §4,
    the gate is **not edited**. The config's JavaScript-globals block declares the Node globals the
-   root JavaScript uses (`Buffer`, `console`, `performance`, `process`). · `eslint.config.js:25-32`
-   · risk · Keep `no-undef` on (stricter; this is what was built), or switch it off for
-   type-checked JavaScript, since `checkJs` already reports undefined names. ·
-   **decision-needed: yes**
+   root JavaScript uses (`Buffer`, `console`, `performance`, `process`). · `eslint.config.js` · risk
+   · **Ruled (review 1): `no-undef` off and the globals list removed**; TypeScript reports undefined
+   names (proven above). · decision-needed: no
 3. **`--max-warnings 0` is part of the suppression policy.** ESLint reports a directive that
    `noInlineConfig` ignores as a **warning** ("has no effect…"), not an error. §3.3(a) fails
    because the ignored directive leaves the real error standing and because of
@@ -109,9 +130,9 @@ Schema: `finding · where · type · recommendation · decision-needed`.
    entries are the public registry. · `package-lock.json` · note · None. · decision-needed: no
 8. **A reasoned file-wide `/* eslint-disable -- reason */` outside control source switches off
    every rule in that file**, including `no-floating-promises`, even in `scripts/test.mjs`, the N5
-   gate. The policy as written allows it (it has a reason). · policy · scope-question · Rule
-   whether a file-wide disable is acceptable in `scripts/`, or should be refused like control
-   source. · **decision-needed: yes**
+   gate. The policy as first written allowed it (it had a reason). · policy · scope-question ·
+   **Ruled (review 2): file-wide and block-wide disables are forbidden everywhere**, reason or
+   not; the checker rejects them (proven above). · decision-needed: no
 9. **Files that are gitignored but present locally** are linted by `eslint .` but skipped by the
    directive check. They cannot exist in a CI checkout. · `scripts/check-directives.mjs` · note ·
    Accept. · decision-needed: no
