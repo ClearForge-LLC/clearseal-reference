@@ -60,6 +60,17 @@ const ORG_DOMAINS = String.raw`(?:clearforge\.dev|clearuniverse\.net)`;
 // ruling on CSR-WO-0001 §7). Exact addresses only: any other address at an org domain is a finding.
 const ROLE_IDENTITIES = new Set(["claude@clearforge.dev", "architect@clearforge.dev"]);
 
+// CSR-WO-0002a: the two public-reference shapes the dependency bot's commits carry.
+// A Signed-off-by trailer whose signer NAME is the platform's dependency bot; the whole line up to
+// the address must be exactly this, so neither a different name nor extra text before it passes.
+const BOT_SIGNOFF = /^\s*Signed-off-by: dependabot\[bot\] <$/;
+// The text before a 40-hex SHA that sits in the path of a platform commit or compare URL:
+// https://github.com/<owner>/<repo>/commit/<sha> or .../compare/<ref>...<ref> (either ref a SHA).
+// The host is exactly github.com (a following "/" is required, so a lookalike host cannot match),
+// and only the commit and compare path shapes qualify.
+const PLATFORM_COMMIT_URL =
+  /(?:^|[^\w.-])https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(?:commit\/|compare\/(?:[\w.-]{1,100}\.\.\.?)?)$/;
+
 // A hostname label may not continue leftwards into this match: `\b` would let `_` through.
 const HOST_START = String.raw`(?<![A-Za-z0-9-])`;
 // A token may not be the tail of a longer alphanumeric run, but may follow `_`, `=`, `:` or `/`.
@@ -179,9 +190,12 @@ const RULES = [
     name: "long-hex",
     pattern: /\b[0-9a-f]{40,}\b/gi,
     reason: "forty or more hex characters is a key, a secret, or a hash that pins something private",
-    exempt: (match, before) => match.length === 40 && /(?:^|[^\w./-])[\w.-]+\/[\w.-]+@$/.test(before),
+    exempt: (match, before) =>
+      match.length === 40 &&
+      (/(?:^|[^\w./-])[\w.-]+\/[\w.-]+@$/.test(before) || PLATFORM_COMMIT_URL.test(before)),
     exemptReason:
-      "an action pin (owner/repo@<40-hex>) is a public reference by construction (architect's ruling)",
+      "an action pin (owner/repo@<40-hex>) is a public reference by construction (architect's ruling); " +
+      "so is a full SHA in the path of a platform commit or compare URL, and only there (CSR-WO-0002a)",
   },
 
   // Credential shapes.
@@ -257,6 +271,10 @@ const RULES = [
     reason: "an e-mail address is a contactable account identifier",
     maskChars: 0,
     exempt: (match, before) => {
+      // The dependency bot's own sign-off trailer, by signer NAME: the same address under any other
+      // name is still a finding (CSR-WO-0002a).
+      // `before` is at most 512 characters; shorter means it truly starts at the start of the line.
+      if (before.length < 512 && BOT_SIGNOFF.test(before)) return true;
       // A URL whose authority carries a user and password is url-userinfo's finding; reporting it
       // here too would mask the password's first characters as if they were an address.
       if (/\b[a-z][\w+.-]{0,31}:\/\/[^\s/@:"'<>]{1,256}:$/i.test(before)) return true;
@@ -275,7 +293,8 @@ const RULES = [
     exemptReason:
       "example.* reserved domains, the platform no-reply domain and noreply@/no-reply@ local parts " +
       "are not contactable; the two listed role identities are neither a person nor a deployment " +
-      "and are already public (architect's ruling); credentials in a URL's authority are url-userinfo's finding",
+      "and are already public (architect's ruling); credentials in a URL's authority are url-userinfo's finding; " +
+      "the platform dependency bot's Signed-off-by trailer is the bot's public signature (CSR-WO-0002a)",
   },
 ];
 
@@ -716,6 +735,9 @@ const lower = (n) => Array.from({ length: n }, () => "abcdefghijklmnopqrstuvwxyz
 const hex = (n) => randomBytes(Math.ceil(n / 2)).toString("hex").slice(0, n);
 const octet = () => String(randomInt(1, 255));
 const orgDomain = () => ["clearforge", "dev"].join(".");
+/** The vendor address the dependency bot signs with, assembled so this file never holds the trailer. */
+const botAddress = () => ["support", "github.com"].join("@");
+const botTrailer = () => ["Signed-off-by: dependabot[bot] <", botAddress(), ">"].join("");
 /** @param {string[]} parts */
 const dot = (...parts) => parts.join(".");
 
@@ -768,7 +790,13 @@ const PLANTED = {
   ipv4: () => [dot("203", "0", "113", octet())],
   "mac-address": () => [Array.from({ length: 6 }, () => hex(2)).join(":"), Array.from({ length: 6 }, () => hex(2)).join("-")],
   uuid: () => [randomUUID()],
-  "long-hex": () => [hex(48), `not a pin ${hex(40)}`],
+  "long-hex": () => [
+    hex(48),
+    `not a pin ${hex(40)}`,
+    `https://${dot("github", "com")}/some-org/some-repo/tree/${hex(40)}`,
+    `https://${dot("github", "com", "example", "net")}/some-org/some-repo/commit/${hex(40)}`,
+    `https://${dot("gitlab", "com")}/some-org/some-repo/-/commit/${hex(40)}`,
+  ],
   "github-token": () => [
     `${"gh"}${"p_"}${alnum(36)}`,
     `${"gh"}${"s_"}${alnum(36)}`,
@@ -816,7 +844,7 @@ const PLANTED = {
     `https://example.net/blob?sv=1&${"si"}g=${alnum(24)}`,
   ],
   "url-userinfo": () => [`${"https"}://${lower(6)}:${alnum(20)}@api.example.net/v1`],
-  email: () => [`${lower(6)}@${dot(lower(8), "test")}`],
+  email: () => [`${lower(6)}@${dot(lower(8), "test")}`, `Signed-off-by: Not The Bot <${botAddress()}>`],
 };
 
 /** Near-misses that must NOT fire: the exemptions and ordinary prose. */
@@ -840,6 +868,10 @@ const CLEAN = () =>
     "An invalid address like 192.168.1.300 is not an address.",
     `A grep for "?${"to"}ken=" in prose is not a URL.`,
     "typescript-eslint@8.70.1 and @types/node@24.13.6 are dependencies.",
+    botTrailer(),
+    `- [Commits](https://github.com/some-org/some-repo/compare/${hex(40)}...${hex(40)})`,
+    `- [Commits](https://github.com/some-org/some-repo/compare/v1.2.3...${hex(40)})`,
+    `see https://github.com/some-org/some-repo/commit/${hex(40)} for the change`,
   ].join("\n");
 
 /**
@@ -959,6 +991,59 @@ function selfTest() {
       "a non-role address at the org domain was exempted",
     );
 
+    // 3b. CSR-WO-0002a exemptions: the exact shapes pass; every lookalike still fires.
+    /** @param {string} line */
+    const rulesOn = (line) => {
+      /** @type {Finding[]} */
+      const out = [];
+      scanLine(line, "x", "x:1", out);
+      return out.map((f) => f.rule);
+    };
+    check(
+      rulesOn(botTrailer()).length === 0,
+      "clean  the dependency bot's own Signed-off-by trailer (signer dependabot[bot])",
+      "the bot's Signed-off-by trailer was flagged",
+    );
+    check(
+      rulesOn(`Signed-off-by: Not The Bot <${botAddress()}>`).includes("email"),
+      "fired  email on the bot's address under a different signer name (lookalike)",
+      "the bot's address passed under another signer name",
+    );
+    check(
+      rulesOn(`Signed-off-by: dependabot[bot] <${botAddress()}> and ${lower(5)}@${dot(lower(6), "test")}`).includes("email"),
+      "fired  email on a second address after the bot's trailer on the same line (lookalike)",
+      "an address after the bot's trailer passed",
+    );
+    check(
+      rulesOn(`${" ".repeat(600)}Signed-off-by: dependabot[bot] <${botAddress()}>`).includes("email") ||
+        rulesOn(`x${" ".repeat(600)}Signed-off-by: dependabot[bot] <${botAddress()}>`).includes("email"),
+      "fired  email when the trailer is not at the start of an untruncated line (lookalike)",
+      "a padded trailer passed",
+    );
+    const sha = hex(40);
+    check(
+      rulesOn(`https://github.com/o/r/commit/${sha}`).length === 0 &&
+        rulesOn(`https://github.com/o/r/compare/${hex(40)}...${sha}`).length === 0 &&
+        rulesOn(`https://github.com/o/r/compare/v1.0.0...${sha}`).length === 0,
+      "clean  a full SHA in a platform commit URL and in either ref of a platform compare URL",
+      "a platform commit or compare URL SHA was flagged",
+    );
+    check(
+      rulesOn(`https://github.com/o/r/tree/${sha}`).includes("long-hex"),
+      "fired  long-hex on the same SHA in a /tree/ path of the platform host (lookalike)",
+      "a /tree/ path SHA passed",
+    );
+    check(
+      rulesOn(`https://${dot("github", "com", "example", "net")}/o/r/commit/${sha}`).includes("long-hex"),
+      "fired  long-hex on the same SHA in a commit URL on a lookalike host (lookalike)",
+      "a lookalike-host SHA passed",
+    );
+    check(
+      rulesOn(sha).includes("long-hex") && rulesOn(`commit ${sha}`).includes("long-hex"),
+      "fired  long-hex on the same SHA outside any URL (lookalike)",
+      "a bare SHA passed",
+    );
+
     // 4. Clean synthetic tree of near-misses and exemptions: zero findings.
     const clean = newRepo(root, "clean");
     writeFileSync(path.join(clean, "README.md"), `${CLEAN()}\n`);
@@ -1017,6 +1102,11 @@ function selfTest() {
     const reverted = commitAll(hist, "add a note");
     gitIn(hist, ["revert", "--no-edit", "HEAD"]);
     const trailer = commitAll(hist, `tidy\n\nReported-by: A Person <${PLANTED.email?.()[0] ?? ""}>`);
+    const botShaped = commitAll(
+      hist,
+      `chore(deps): bump a thing\n\n- [Commits](https://github.com/some-org/some-action/compare/${hex(40)}...${hex(40)})\n\n${botTrailer()}`,
+    );
+    const botLookalike = commitAll(hist, `chore: not the bot\n\nSigned-off-by: Not The Bot <${botAddress()}>`);
     writeFileSync(path.join(hist, "plus.md"), `++ ${privateIp()}\n`);
     const plusplus = commitAll(hist, "a line that starts with two plus signs");
     writeFileSync(path.join(hist, "nul.md"), Buffer.concat([Buffer.from(`reached ${privateIp()}\n`), Buffer.from([0])]));
@@ -1047,6 +1137,11 @@ function selfTest() {
      * @param {string} prefix
      */
     const found = (rule, prefix) => history.findings.some((f) => f.rule === rule && f.where.startsWith(prefix));
+    check(
+      !history.findings.some((f) => f.where.startsWith(`${botShaped}:`)) && found("email", `${botLookalike}:(message)`),
+      `clean  a bot-shaped commit (compare URL of two SHAs + the bot's trailer) passes --history (${botShaped}); the same address signed by another name fires (${botLookalike})`,
+      "--history flagged a bot-shaped commit, or passed the lookalike",
+    );
     check(found("private-ip", reverted), `fired  private-ip behind a revert (${reverted})`, "--history missed a shape a later revert removed");
     check(found("email", `${trailer}:(message)`), `fired  email in a commit-message trailer only (${trailer})`, "--history missed a message-only trailer");
     check(found("private-ip", plusplus), `fired  private-ip on an added line starting with "++" (${plusplus})`, "--history misread a ++ line as a header");
