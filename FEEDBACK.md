@@ -1,339 +1,174 @@
-# FEEDBACK: CSR-WO-1005 (the transport, owned)
+# FEEDBACK: CSR-WO-0101 (spike: which in-flight approval transports the real client honours)
 
-Branch `wo/CSR-WO-1005`, cut from `main` at `92ef214` (`v0.1`). Parked as one unmerged pull
-request. Built on Node v24.21.0.
+Branch `wo/CSR-WO-0101`, cut from `main` at `72893ac`, which has `-1005` merged, so the spike runs
+on `packages/core/src/transport`. **Spike: I built the harness, measured the local half, and
+stopped.** The server never left loopback in my hands, and nothing here says how it gets exposed.
+Parked as one unmerged pull request. Built on Node v24.21.0.
 
-`SPEC-MAP.md` was committed before any code (`9677367`). Every commit carries the role identity
-as author and committer. `leak-gate --tree` and `--history` were clean before every push.
+Per the WO's 2026-09-25 rewrite and the kickoff, **no SDK anywhere**: the WO's "SDK half" is
+this "local half", measured on the core's own transport.
 
-## Served revision, measured (for `architecture.md` §2.1)
+## The two-part table
 
-`test/transport/eras.test.ts` "WO §1.13 VR-1 DS-2" starts the server, sends `server/discover`,
-and asserts the answer:
+**Local half** (measured by the builder, `node spikes/0101-approval/probe.ts`, a scripted raw
+HTTP client on loopback):
 
-```
-DISCOVER {"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2026-07-28","2025-11-25"],"capabilities":{"tools":{}},"instructions":"A ClearSeal reference node. Tools are pinned before they are listed.","ttlMs":60000,"cacheScope":"public","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"@clearseal/core","version":"0.0.0"}}}}
-HEALTH {"status":"ok","version":"0.0.0","protocolVersions":["2026-07-28","2025-11-25"]}
-```
+| Transport | Era | Carried locally? | Client behaviour (scripted) | Latency | Completed? | Notes |
+|---|---|---|---|---|---|---|
+| (a) MRTR-carried elicitation | `2026-07-28` | **yes** | `input_required` with an `elicitation/create` form request and a sealed `requestState`; the retry carries `inputResponses` plus the echoed state | 63 ms + 2 ms (two round trips; human time excluded) | **yes** (accept) | **Every answer here was produced by the script itself, with no human** (see the opinion) |
+| (a) MRTR: decline | `2026-07-28` | yes | decline, and accept with `approve:false`, both → `REFUSED via mrtr` (`isError`) | 1 ms | refused, as it should be | **The same sealed state re-presented with accept → APPROVED**: the state is not single-use, so a decline is not final (finding B1) |
+| (a) MRTR without the elicitation capability | `2026-07-28` | **no** | `400`, `-32021`, `requiredCapabilities: {elicitation: {}}`: the core refuses before the tool asks | 1 ms | no | A state replayed for another action → `400 -32602`. Principal binding cannot be exercised with one static principal |
+| (a) MRTR-carried elicitation | `2025-11-25` | **no** | `500 -32603`, "The tool needs input, which the legacy revision cannot carry" | 1 ms | no | `2025-11-25` has no MRTR; its elicitation is a server→client request on SSE, which the core does not send. **If the hosted client speaks `2025-11-25`, path (a) cannot work on this core** |
+| (b) Tasks extension | both | **not offered** | The tool returns `NOT OFFERED …` (`isError`); `tasks/get` → `404 -32601` | 1 ms | n/a | Implementable from its text (`ext-tasks` schema v2 at `6c0997f` defines `tasks/get`/`update`/`cancel`), but **not on the core transport as merged** (see below) |
+| (c) Out-of-band grant | `2026-07-28` | **yes** | `PENDING via grant` (no code in the reply); the code appears only in the server log; redeem → `APPROVED via grant` | 1 ms + 1 ms (two calls) | **yes**; second use → refused | It is plain tool results, with no protocol feature needed |
+| (c) Grant refusals | `2026-07-28` | yes | wrong action → `REFUSED … not for this call`; after TTL → `REFUSED … the code is expired`; reuse → `REFUSED … unknown or already used` | — | refused, as it should be | 0 grants live after the run |
+| (c) Out-of-band grant | `2025-11-25` | **yes** | issue and redeem both work | 3 ms + 3 ms | **yes** | Works on both eras: it needs only `tools/call` |
 
-**`supportedVersions` = `["2026-07-28", "2025-11-25"]`**: `2026-07-28` natively, and
-`2025-11-25` as a pure function with no session. The conformance suite agrees: its
-`server-stateless` scenario reads the same list from the `-32022` error data.
+**Client half** (for the operator, blank; `spikes/0101-approval/OPERATOR-PROTOCOL.md` §5 has
+the full setup table as well):
 
-## Conformance suite
+| Transport | Carried by the client? | Client behaviour | Latency | Completed? | Notes |
+|---|---|---|---|---|---|
+| (a) MRTR: approve | | | | | |
+| (a) MRTR: decline | | | | | |
+| (a) MRTR: cancel | | | | | |
+| (b) Tasks extension | | | | n/a | |
+| (c) grant: issue and redeem | | | | | |
+| (c) grant: second redemption | | | | | |
+| Protocol revision the client used | | | | | |
 
-`modelcontextprotocol/conformance` at <https://github.com/modelcontextprotocol/conformance/commit/7169291ec0b68eb370fddcd9947313ab0d5e4156> (2026-09-11),
-built locally with `--ignore-scripts`.
+**Why Tasks is not offered.** Offering it needs three changes to `packages/core`, which this WO
+protects:
+1. `server/discover` returns fixed capabilities (`{tools: {}}`), so the extension cannot be
+   advertised.
+2. The core refuses a `resultType` other than `complete` or `input_required` (`500`, "unknown
+   result type").
+3. `tasks/get`, `tasks/update` and `tasks/cancel` are not routed (`404 -32601`).
 
-It runs headless, needs no credentials, and makes no connections beyond loopback (measured with
-`strace`). It **cannot send an `Authorization` header**, so the run uses
-`packages/core/test/conformance/fixture-server.ts`. That file starts the real transport with the
-tools the scenarios call and a test-only admit-all verifier. It is never shipped.
+This is a "not offered", not a flag-and-stop. The kickoff says to record it that way when the path
+cannot be implemented here.
 
-```
-node packages/core/test/conformance/fixture-server.ts 3999
-node <suite>/dist/index.js server --url http://127.0.0.1:3999/mcp --requirements 2026-07-28   → Total: 140 passed, 45 failed
-node <suite>/dist/index.js server --url http://127.0.0.1:3999/mcp --requirements 2025-11-25   → Total: 48 passed, 19 failed
-```
-
-Both runs exit 1. **Every failing scenario covers something this WO leaves out** (listed below).
-There are no transport failures.
-
-The run was done twice: once before the adversarial fixes and once after. The per-scenario
-results are identical (`diff` empty).
-
-**Scored at `2026-07-28` (50 scenarios):**
-
-| Result | Scenarios |
-|---|---|
-| ✓ pass | server-stateless 25/0 (5 subscription checks SKIPPED because discover advertises no `listChanged`), tools-list, tools-call-simple-text, -image, -audio, -embedded-resource, -mixed-content, -error, server-sse-multiple-streams, sep-2164-resource-not-found (MUST passed; 2 SHOULD warnings, resources), dns-rebinding-protection, input-required-result: basic-elicitation, basic-sampling, basic-list-roots, request-state, multiple-input-requests, multi-round, missing-input-response, result-type, unsupported-methods, tampered-state, capability-check, ignore-extra-params, validate-input |
-| ✗ expected: resources | resources-list, -read-text, -read-binary, -templates-read |
-| ✗ expected: prompts | prompts-list, -get-simple, -get-with-args, -get-embedded-resource, -get-with-image; input-required-result-non-tool-request (needs a prompt) |
-| ✗ expected: completion | completion-complete |
-| ✗ expected: SSE | tools-call-with-progress (progress notifications need an SSE response) |
-| ✗ expected: resources and prompts lists | caching (4/3). The tools-list hints, ttl ≥ 0 and cacheScope checks pass; the prompts, resources and templates list checks fail with `-32601` |
-
-**Not scored at `2026-07-28`:**
-- ✓ json-schema-2020-12 8/0; ✓ http-header-validation 14/0; ✓ http-custom-header-server-validation 10/0.
-- ✗ tasks-\* ×9 (extension, not implemented); ✓ tasks-status-notifications (always skipped).
-
-**Scored at `2025-11-25` (33 scenarios):**
-- ✓ server-initialize (INFO: no session id), ping, tools-list, the six tools-call content and error
-  scenarios, dns-rebinding-protection, and server-sse-multiple-streams (0/0: a session WARNING only).
-- ✗ expected:
-  - logging-set-level and tools-call-with-logging (logging);
-  - completion-complete;
-  - resources ×6, including subscribe and unsubscribe;
-  - prompts ×5;
-  - tools-call-with-progress, tools-call-sampling, tools-call-elicitation,
-    elicitation-sep1034-defaults and elicitation-sep1330-enums. These need SSE or server→client
-    requests on SSE, which `2025-11-25` allows and this JSON-only server does not send.
-- Not scored: ✓ server-session-lifecycle, json-schema-2020-12, server-sse-polling.
-
-**False-pass check.** I read the passes whose checks could succeed on any 4xx in `checks.json`,
-and they are real:
-- **dns-rebinding.** The evil `Host` got **403 "Host is not allowed"** and the valid one got 200.
-  Probed by hand, a foreign `Origin` with a good `Host` → 403.
-- **tampered-state.** The refusal is the transport's HMAC ("integrity check failed").
-- **server-stateless.** Each check carries its expected code: `-32602`, `-32022` with data, `-32020`, `-32021` with `requiredCapabilities`, and `404`/`-32601` for `initialize`, `ping`, `logging/setLevel` and `resources/(un)subscribe` under the modern header.
-
-**Vacuous ✓, not counted as passes:**
-- `2025` server-sse-multiple-streams: no checks, only a session WARNING.
-- tasks-status-notifications: always skipped.
-
-## WO §3.3 refusal table
-
-One `REFUSAL` line per case, pasted from `test/transport/refusals.test.ts` on the final code.
-
-| Case | Status | Content type | Code | Test (refusals.test.ts unless noted) |
-|---|---|---|---|---|
-| forged `Origin` | 403 | application/json | -32600 (no `id`) | "SH-2 SH-3 forged Origin" |
-| foreign `Host` | 403 | application/json | -32600 | "SH-4 foreign Host" |
-| missing version header | 400 | application/json | -32020 | "SH-20 SH-23 missing MCP-Protocol-Version" |
-| header/body mismatch: version | 400 | application/json | -32020 | "SH-21 version header does not match _meta" |
-| header/body mismatch: method | 400 | application/json | -32020 | "SH-24 Mcp-Method does not match method" |
-| header/body mismatch: name (plain) | 400 | application/json | -32020 | "SH-24 Mcp-Name does not match params.name (plain)" |
-| header/body mismatch: name (Base64 sentinel) | 400 | application/json | -32020 | "SH-31 Mcp-Name … (Base64 sentinel)" |
-| sentinel markers in the wrong case | 400 | application/json | -32020 | "SH-31 sentinel markers in the wrong case" |
-| unsupported version | 400 | application/json | -32022, `data: {supported, requested}` | "SH-22 VR-1 unsupported version" |
-| batch body | 400 | application/json | -32600 | "SH-9 batch body" |
-| response-shaped body | 400 | application/json | -32600 | "SH-9 response-shaped body" |
-| malformed JSON | 400 | application/json | -32700 | "malformed JSON" |
-| duplicate key | 400 | application/json | -32700 | "duplicate key" |
-| oversize body | 413 | application/json | -32600 | "oversize body"; edges in limits.test.ts |
-| over-depth body | 400 | application/json | -32600 | "over-depth body"; edges in limits.test.ts |
-| unknown method | 404 | application/json | -32601 | "SH-19 unknown method" |
-| unknown notification | 400 | application/json | -32601 (no `id`) | "SH-11 SH-13 unknown notification" |
-| `GET` | 405, `Allow: POST` | (no body) | — | "SH-42 GET" |
-| `DELETE` | 405, `Allow: POST` | (no body) | — | "SH-42 DELETE" |
-| `Mcp-Session-Id` present | 200; **no** `Mcp-Session-Id` in the response | application/json | — | "SH-43 Mcp-Session-Id present" |
-| `Last-Event-ID` present | 200 (ignored) | application/json | — | "SH-44 Last-Event-ID present" |
-| extra request property vs the tool schema | 400 | application/json | -32602 | "TL-10 D-7 extra request property" |
-| oversize result | 500 | application/json | -32603 | "oversize result"; edges in limits.test.ts |
-| handler timeout | 500 | application/json | -32603, plus a `handler-timeout` audit event | "handler timeout" |
-| concurrency overflow | 503, `Retry-After: 1` | application/json | -32603 | "concurrency overflow" (the held calls then complete with 200) |
-| tampered `requestState` | 400 | application/json | -32602 | "MR-4 tampered requestState" |
-| missing bearer | 401, `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource/mcp"` | application/json | -32600 | "AU-2 missing bearer" |
-| wrong bearer | 401, challenge plus `error="invalid_token"` | application/json | -32600 | "AU-2 wrong bearer" |
-
-Also refused, with tests: missing `_meta` (400/-32602); `_meta` at the top level (400/-32600,
-never read); `Accept` without `application/json` (406); a legacy request without the header
-(400/-32020).
-
-**Legacy exchange (§3.4)**, from eras.test.ts:
+## Raw messages (from `probe.ts`; `requestState` truncated, codes masked)
 
 ```
-LEGACY initialize 200 session=none {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"@clearseal/core","version":"0.0.0"},"instructions":"…"}}
-LEGACY notifications/initialized 202 body=""
-LEGACY tools/list 200 session=none tools=12
-LEGACY GET 405 Allow=POST
-REFUSEALL 401 Bearer resource_metadata="http://127.0.0.1:<port>/.well-known/oauth-protected-resource/mcp"
+no bearer          → 401 {"jsonrpc":"2.0","error":{"code":-32600,"message":"Unauthorized"}}
+wrong bearer       → 401 {"jsonrpc":"2.0","error":{"code":-32600,"message":"Unauthorized"}}
+
+mrtr first call    → {"resultType":"input_required","inputRequests":{"approval":{"method":"elicitation/create","params":{"mode":"form",
+                      "message":"Approve this action? rotate the demo key","requestedSchema":{"type":"object","properties":{"approve":
+                      {"type":"boolean","title":"Approve"}},"required":["approve"]}}}},"requestState":"<base64url payload>.<HMAC tag>"}
+mrtr retry+accept  → "APPROVED via mrtr (elicitation in an input_required round trip): \"rotate the demo key\". Waited 3 ms.
+                      Raw answer: {\"action\":\"accept\",\"content\":{\"approve\":true}}"
+mrtr decline       → "REFUSED via mrtr: \"delete the demo file\" was not approved. Waited 2 ms. Raw answer: {\"action\":\"decline\"}"  isError
+same state, accept → "APPROVED via mrtr … \"delete the demo file\". Waited 5 ms."        ← B1: the state is reusable
+no elicitation cap → 400 {"code":-32021,"message":"The request needs a client capability that was not declared","data":{"requiredCapabilities":{"elicitation":{}}}}
+legacy mrtr        → 500 {"code":-32603,"message":"The tool needs input, which the legacy revision cannot carry"}
+
+task               → "NOT OFFERED: the Tasks extension … is implementable from its text, but not on the core transport as merged …"  isError
+tasks/get          → 404 {"code":-32601,"message":"Method not found"}
+
+grant issue        → "PENDING via grant: a one-time code for \"restart the demo\" was issued out of band (not in this reply). …"
+server log         → [approval-spike] GRANT issued: code XXXXX-XXXXX for approve_via_grant action="restart the demo"; expires in 1.5 s; single use
+grant redeem       → "APPROVED via grant: \"restart the demo\". Redeemed 1 ms after it was issued."
+same code again    → "REFUSED via grant: the code is unknown or already used."   isError
+after the TTL      → "REFUSED via grant: the code is expired."                     isError
 ```
 
-## Red-proofs (N5): every limit and every refusal
+The probe uses a 1.5 s grant TTL so that expiry runs in seconds; the server's default is 120 s. A
+real 150 s run with the default TTL is under §5.4 below.
 
-A matrix script disables each check in turn, in a scratch copy of `packages/core`, runs the
-transport suite, and requires the test that names the check to go red. **62 of 62 go red** on the
-final code. The checks covered:
+## Opinion (builder's; the architect rules)
 
-- **HTTP layer:** Origin, Host, POST only, the concurrency cap, and the principal requirement.
-- **Auth:** the verifier's 401, the RefuseAll default, the verifier deadline, the slot taken after
-  auth, and the slot held until the handler settles.
-- **Framing:** Accept, the body cap (declared and streamed), duplicate keys, parse depth, lone
-  surrogates, batch, response-shaped bodies, extra JSON-RPC members, and a missing version header.
-- **Headers:**
-  - version: unsupported version, `_meta` required, header = `_meta`;
-  - mirrored names: `Mcp-Method`, `Mcp-Name`, sentinel case;
-  - `Mcp-Param-*`: required, must match, and absent when there is no value (D-4).
-- **Dispatch:** unknown method, unknown notification, argument validation, the root
-  `unevaluatedProperties` default, the result cap, and the handler timeout.
-- **Request state:** its MAC, its binding, its expiry, and its binding to the arguments.
-- **Capabilities:** an undeclared capability (-32021).
-- **`x-mcp-header` rules:** reachability, token syntax, uniqueness, and primitive type.
-- **Schema checks:** external `$ref`, the schema-reader guard, root type, schema depth, schema
-  nodes, and the keyword-aware walk.
-- **Other adversarial fixes:** the validation deadline, legacy and notification header checks,
-  one Host, origin-form only, one Authorization, one Content-Type, no content coding, chunked only,
-  masked handler errors, `requested` not echoed, the raw-path match, and Origin on `/health`.
+**Only (c) passes the channel-separation rule in architecture §5 *Approval binding*.**
+- **(a), MRTR elicitation, cannot meet it on any client.** The token holder both receives the input
+  request and answers it, and the server cannot tell a human's answer from the client's. The probe
+  approved every MRTR call itself in 1–5 ms, with no human present.
+  - At best, (a) is the prior's lower tier, "a human is present", and only if the hosted client
+    provably shows the prompt to a human. The operator's `NO PROMPT SEEN` and `Waited N ms` cells
+    measure exactly that.
+  - Even then, B1 means a decline is not final until `-2001` makes the state single-use.
+  - It is also unreachable if the hosted client speaks `2025-11-25`.
+- **(c), the out-of-band grant, works on both eras with no client support at all.** Its channel is
+  separate only if the notifier delivers where the calling principal cannot read. The log stands in
+  for that here, and C2 shows why that is not good enough for `elevated`.
+- **(b) is not offered.** Offering it needs three core changes, for a path the prior says to use
+  "only if the hosted client uses it".
 
-Three things are worth knowing about how the proof was made:
-- **The handler-timeout row goes red by hanging.** With the race removed, the `slow` fixture never
-  returns, and the run is killed at the matrix's 180 s limit. It never passes.
-- **An earlier version of the matrix wrapped checks as `if (false && a || b)`.** That parses as
-  `(false && a) || b`, so any check containing `||` was never actually disabled. It is now
-  `if (false) if (…)`.
-- **The batch and response-shaped refusals are enforced by two or three checks.** Those two tests
-  now also assert the refusal reason, so the specific check goes red on its own.
+## Adversarial pass (fresh subagent, WO §5)
 
-## Adversarial pass (WO §5, fresh subagent)
+I re-ran B1 and D1 myself before adopting them.
 
-I re-ran the headline probes myself before adopting them. **All were fixed, each with a test in
-`test/transport/adversarial.test.ts` and a row in the matrix.**
-
-| # | Finding | Severity | Fix |
+| # | Finding | Severity | Status |
 |---|---|---|---|
-| F1 | One unauthenticated connection pipelining requests it never reads held all 32 slots for about 90 s, and could renew them | DoS, pre-auth | The slot is now taken **after** authentication |
-| F2 | Argument validation was synchronous, outside the handler deadline, and super-linear for ordinary shapes. `uniqueItems` over 20k objects took 17 s and **blocked `/health`**; a recursive `anyOf` doubled per nesting level; z-schema's regex guard missed `(a\|a)*$` | DoS | Validation runs in **worker threads**, terminated at `validationTimeoutMs` (2 s) → 400/-32602. Measured: `VALIDATION-DEADLINE status=400 call=319ms health=1ms` |
-| F3 | A handler that timed out or was abandoned released its slot, so handler work grew without bound | DoS | The slot is held until the response closes **and** the handler settles |
-| F4 | A verifier verdict of `ok: true` with no principal, or `ok: "yes"`, dispatched | **fail-open** | Dispatch requires `ok === true` and a non-empty principal id. Anything else → 500 plus an audit event |
-| F5 | A verifier that never answers held a slot forever | DoS | `verifierTimeoutMs` (5 s) → 503; no slot is held while authenticating |
-| F6 | The schema walk treated property **names** `const`/`default`/`examples` as data keywords, so an external `$ref` under a property named `const` registered (it still failed closed at validation). It also falsely refused properties named `$ref` or `$schema` | spec deviation | Keyword-aware walk (`schema-walk.ts`), shared by the `$ref`, size and `x-mcp-header` checks |
-| F7 | `requestState` was not bound to the arguments: an approval for `file-A` was accepted on `file-B` | spec deviation (MRTR SHOULD) | A SHA-256 of the canonical arguments is sealed and compared |
-| F8 | On the legacy era, `Mcp-Param-*` was not checked; notifications skipped every header and `_meta` check | spec deviation | Legacy calls check every annotated header once any is present; `notifications/initialized` checks `Mcp-Method` and `_meta` |
-| F9 | Duplicate `Host` → first one wins; an absolute-form target bypassed the Host check | spec deviation (RFC 9112) | 400 for either |
-| F10 | Duplicate `Authorization`/`Content-Type` → first one wins | info | 400 / 415 |
-| F11 | `Content-Encoding: gzip`, and `Transfer-Encoding: gzip, chunked`, were parsed raw | info | 415 / 400 |
-| F12 | A handler that threw an error shaped like a `Refusal` passed through verbatim, including its code and a 300 KB message | info | Anything a handler throws → a fixed 500/-32603 |
-| F13 | The `-32022` data echoed up to 16 KiB of the version header | info (N6) | A value that is not version-shaped is replaced |
-| F14 | `/x/../mcp` and `/./mcp` routed to the endpoint | info | The raw path is matched exactly |
-| F15 | Audit labels were wrong after a disconnect | info | `client-disconnect`, and the timer is cleared |
-| F16 | `/health` and the metadata document did not check `Origin` | info | Checked |
-| F17 | A quoted `charset="utf-8"` was refused | info | Accepted |
-| F18 | SPEC-MAP claimed more than the code did (BI-16/17/18, MR-5, the in-flight row, SH-2, SH-37) | review | Rows corrected |
+| C1 | **MRTR approval needs no human.** A script holding the bearer answers its own elicitation: `APPROVED … "wipe the production database". Waited 1 ms` | channel separation | **Recorded, for `-2001`.** It is expected by construction. The protocol now records `Waited N ms` and `NO PROMPT SEEN` |
+| B1 | **One sealed `requestState` gives unlimited approvals, even after a decline.** Replaying it gave REFUSED, then APPROVED, then APPROVED. Re-asking reseals it with a fresh expiry, so approval age is not bounded by the 10-minute state TTL (49 min measured with an injected clock) | binding gap | **Recorded, for `-2001`.** It needs a single-use nonce consumed on the first answer, and `askedAt` enforced as a deadline. The probe now measures it (the table's decline row) |
+| B2 | **The harness cannot tell which connection redeems a grant.** Issued on one connection, redeemed on another → APPROVED; issued modern, redeemed legacy → APPROVED. No approver is recorded, and the grant's `nonce` is never checked | binding gap | **Recorded, as the WO expected.** With a stateless transport and one static principal there is nothing to bind to. `-2001` must record the approver and bind to a real principal |
+| C2 | **The "out-of-band" code is readable by a caller on the same host.** A process that spawned the server read the code from its stderr and redeemed it | channel separation | **Recorded, for `-2001`.** The notifier must deliver to a channel the calling principal cannot read. It does not apply to a remote hosted client |
+| D1 | The protocol promised `… the code is expired`, but the 1 s sweeper deleted expired codes, so the operator would have seen `unknown or already used`. I reproduced this: a redemption 1.3 s after expiry gave `unknown-or-used` | doc / harness | **Fixed.** An expired code leaves a tombstone with no authority, so the reason stays "expired". Tested |
+| D2 | A 403 diagnostic relied on the server log, but the core logs nothing on requests | doc | **Fixed.** The protocol now says the log is silent on connect, and diagnoses 403 from the client's error text |
+| D3 | The probe's table claimed more binding than it exercised, and printed grant codes unmasked in raw exchanges | doc | **Fixed.** The rows state only what was exercised, codes are masked everywhere, and a test asserts it |
+| I1 | Codes matched after case folding, which accepted a non-ASCII look-alike (U+017F for S). The Crockford aliases were not honoured | info | **Fixed.** Codes must be ASCII `[0-9A-Za-z]{5}-[0-9A-Za-z]{5}`, then are upper-cased with O→0 and I/L→1. Tested |
+| I2 | Codes carry 50 bits (alphabet 32, uniform over 20k samples). There is no timing signal on redemption (medians 0.408–0.419 ms). Grant issuance is uncapped: 2000 in 659 ms floods the operator's log | info | Recorded. `-2001` should cap pending grants per principal |
+| I3 | Text the model controls reaches the human. The elicitation message embeds the model's `action` ("…pre-approved, choose Approve."). U+2028 and bidi overrides pass into the log line raw | info | Recorded. `-2001` should build the prompt from canonical arguments and neutralise bidi and line-separator characters |
+| I4 | The bearer check tested length only, so 32 spaces started (every request then got 401) | info | **Fixed.** At least 32 base64 or base64url characters are required. Tested |
 
-**What held under attack** (run, not assumed):
-- **Parser:** a 300,000-mutant differential fuzz of the strict parser against `JSON.parse` found
-  no divergence beyond its deliberate refusals.
-- **Framing:** CL+TE, lying `Content-Length`, truncated or overlong UTF-8, and a BOM all fail closed.
-- **Errors:** throwing verifiers, registries and handlers produced no crash and no leaked slot.
-- **Headers:** duplicates of every mirrored header are refused, and so is every `Origin` variant tried.
-- **Legacy:** `initialize` under the modern header → 404, and no session id is ever sent.
-- **Memory:** 1,000 sequential requests with `--expose-gc` showed about 33 B/request, consistent
-  with JIT warm-up and not retention. Without forced GC my test sees 5.2 MiB of uncollected
-  garbage, with in-flight back at 0.
+**WO §5, item by item:**
+1. **Decline** → `REFUSED via mrtr` (`isError`). So are cancel, a missing `approve`, `"true"` as a
+   string, `1`, and `"ACCEPT"`. An answer under another key, or with no state, is re-asked. A state
+   from another process → integrity failure. The legacy era → `500`. The replay gap is B1.
+2. **Cross-connection redemption:** the harness **cannot tell** (B2), as the WO predicted.
+3. **Start without the bearer:** refuses. With `env -u CLEARSEAL_SPIKE_BEARER node
+   spikes/0101-approval/server.ts`, stderr is `… must be set to a bearer of at least 32 characters;
+   refusing to start open` and the exit code is `2`. Empty and 31-character bearers behave the same.
+4. **No grant survives expiry.** A real run with the default 120 s TTL and no traffic:
+   `size()=1` at 60 s and 119 s, `0` at 121 s and 155 s. Redeeming at 155 s is refused, and with
+   D1's fix the reason is now "expired". With an injected clock: redeemable at +119.999 s, gone at
+   +120.000 s.
 
-**§5 items 1–7:**
-1. Base64 `Mcp-Name` for a plain name → 200; wrong-case markers → 400/-32020.
-2. `_meta` at the top level → 400/-32600, never read.
-3. Exactly the cap → 200; cap+1 → 413; chunked over the cap → 413; chunked under → 200.
-4. cap+1 → 503 and the held calls complete. The pre-auth exhaustion (F1) is fixed.
-5. External `$ref` → registration refused, and nothing is fetched (network trap).
-6. A state replayed on another tool, on other arguments, or after its TTL → refused.
-7. Memory: as above.
+## Operator protocol, read cold by three fresh subagents (WO §3.5)
 
-## SPEC-MAP deviations and decisions needed
+The WO's bar is that someone not in the room can say what they would do at each step without
+asking a question. I measured it three times, each time with a subagent that had seen no earlier
+version:
 
-These are in full in `SPEC-MAP.md`:
+| Pass | Questions it would have had to ask | Blocking | What changed next |
+|---|---|---|---|
+| 1st draft | about 25 | 5 | The exposure step moved before setting `ALLOWED_HOSTS`; the log stays in the server's own terminal; the 403 guidance moved into registration; the client's own permission dialog is told apart from the server's prompt; timing and identifiers are defined; the 120 s warning is placed at the redemption step; every recorded item has a cell; the README and `.env.example` contradiction on the request-state key is resolved |
+| 2nd | 25 | 1 (a second shell does not inherit the exported bearer) | The bearer goes to the clipboard in shell 1 before the server starts; every cell and timing is defined per row; the hosted-client conversation, which holds codes, is deleted at the stop |
+| 3rd | 11 | **0** | All 11 minor points were then closed: Node checked in shell 1, the PR commit, a bearer-token field, non-403 errors, "Completed?" for refusal rows, stalled rows, a too-slow redemption, skipped optional rows, when Done stops, default ports, and macOS `lsof` |
 
-| # | Deviation | Decision-needed |
-|---|---|---|
-| D-1 | A legacy `initialize` **without** `MCP-Protocol-Version` is accepted. Under `2025-11-25` the header only follows `initialize`, and refusing it (WO §1.4's text) would make the legacy path unreachable for every conforming legacy client. The conformance suite's `server-initialize` confirms it | **yes** |
-| D-2 | Legacy semantics are served without a session (the versioning page says "scoped to the session"): the WO's ratified choice | no |
-| D-3 | Legacy era: mirrored headers are not required but are validated when present. A client can pick the legacy era per request, which is the spec's design; SH-40 tells intermediaries to distrust old versions | no |
-| D-4 | An `Mcp-Param-*` header sent when the body value is null or absent → refused. The spec says only that the server "MUST NOT expect" it | no |
-| D-5 | `LEGACY_PATH_REVIEW_BY = 2027-07-28`. The spec's deprecated-features registry gives no removal date for `2025-11-25`, so I set one year after the current revision, with a test that fails from that date | **yes** (confirm the date) |
-| D-6 | HTTP status for JSON-RPC errors after validation: client-caused → 400 (unknown tool, invalid arguments, bad state, validation timeout); server-side → 500 (timeout, oversize result, handler error). The spec fixes the status only where SPEC-MAP says | no |
-| D-7 | The root default is `unevaluatedProperties: false`, not `additionalProperties: false`. The two are identical for a flat schema, but only the first is right under root composition (tested). The advertised schema is unchanged | no |
+All three passes confirmed that the protocol never says how the server is exposed and never leads
+to an identifier being written down. The final text was not re-read by a fourth subagent after the
+last small edits.
 
-**SHOULDs not followed:**
-- **JSON-only responses (SH-12).** The spec permits them, since "server MUST return either"
-  JSON or SSE. So progress notifications (SSE) are not sent.
-- **SH-7 is enforced narrower.** The server requires only that `Accept` admits
-  `application/json`; it does not require `text/event-stream`.
-- **The request-state key is optional.** With no key, no state is issued or accepted (MR-4
-  fails closed), so a server with no MRTR tools needs no key.
+## Standard entries
 
-**New limits added beyond WO §1.10**, each named, defaulted and red-proofed:
-- `validationTimeoutMs` 2 s and `validationWorkers` 2 (F2);
-- `verifierTimeoutMs` 5 s (F5);
-- `requestTimeoutMs` 30 s, replacing Node's 300 s `requestTimeout`, which bounds a slow-drip body.
-
-**Node's own header limits**, recorded rather than re-implemented (§1.10), measured on v24.21.0:
-`maxHeaderSize` 16,384 B, `maxHeadersCount` null (Node's internal 2000), `headersTimeout` 60 s.
-
-## Validator measurement
-
-The measurement was delegated. I re-ran the chosen candidate's suite myself: **`zschema/formatOff:
-pass 1252/1252`**. I also checked its tree, the absence of code generation, and its remote-ref
-behaviour.
-
-The test suite is JSON-Schema-Test-Suite `5b0ee16` (2026-09-21), `tests/draft2020-12/*.json`
-(required only). **Skipped identically for every candidate:** `refRemote.json`, plus 8 groups (18
-tests) whose `$ref` points at a remote document not embedded in the schema.
-
-| Candidate | Version | Packages | Install scripts | Size | Codegen | 2020-12 pass | Remote `$ref` |
-|---|---|---|---|---|---|---|---|
-| **z-schema** (chosen) | 12.4.6 | 5 (+ optional `commander`, CLI only) | none | 2.0 MB | none | **1252/1252** (format as annotation) | never fetched; unresolved → invalid |
-| @hyperjump/json-schema | 1.17.8 | 12 | none | 0.9 MB | none | 1248 | **fetches by default** (http, https, file) until plugins are removed process-wide |
-| json-schema-library | 11.6.2 | 10 | none | 3.9 MB | none | 1250 (formats off) | lazy failure at validate |
-| @exodus/schemasafe | 1.3.0 | 1 | none | 0.1 MB | **yes** | 1215 (spec mode) | compile throws |
-| @cfworker/json-schema | 4.1.1 | 1 | none | 0.2 MB | none | 1203 | lazy failure |
-| ajv (`dist/2020`) | 8.20.0 | 5 | none | 1.3 MB | **yes** | 1196 (strict: false) | compile throws |
-| jsonschema | 1.5.0 | 1 | none | 0.1 MB | none | 978 | throws at validate |
-
-Dependency listing, from `npm ls -w packages/core --all`:
-
-```
-@clearseal/core@0.0.0 -> ./packages/core
-└─┬ z-schema@12.4.6
-  ├── commander@15.0.0      (optional; the CLI)
-  ├── punycode@2.3.1
-  ├─┬ safe-regex2@5.1.1
-  │ └── ret@0.5.0
-  └── validator@13.15.35
-```
-
-`grep -c hasInstallScript package-lock.json` → 0.
-
-**Caveats:**
-- The 2020-12 line is recent: 12.0.0 is from 2026-02, with one maintainer.
-- Its ReDoS guard refuses some legitimate patterns (the common Base64 regex, lookbehind) and
-  misses some unsafe ones. The worker deadline (F2) is the real bound.
-- Its schema reader is a process-global static. The transport refuses to compile or validate if
-  anything has installed one (red-proofed).
-
-## Specification-page disagreements (the schema page wins)
-
-- **`UnsupportedProtocolVersion`.** `schema.ts`, the versioning page and `basic/index` all say
-  **`-32022`** at `ab3a39c`. `changelog.mdx` item 12 records the renumbering from **`-32004`**, as
-  it does `HeaderMismatch` `-32001` → `-32020` and `MissingRequiredClientCapability` `-32003` →
-  `-32021`. A page still carrying the pre-renumber code is what the WO saw; `-32022` is used.
-- **`serverInfo` placement.** WO §1.6 lists `serverInfo` as a field of the discover result.
-  `schema.ts` and the discover page place it at `_meta["io.modelcontextprotocol/serverInfo"]`, and
-  the code follows the schema.
-- **The conformance suite still names `2026-07-28` "draft"** (`LATEST_SPEC_VERSION = '2025-11-25'`),
-  so `--requirements 2026-07-28` must be passed explicitly. This is recorded for whoever automates
-  the run.
-
-## Gates line
+**Gates line**
 
 | Gate | Result |
 |---|---|
-| `npm run check` | exit 0 on v24.21.0: `packages/core` 135 tests in 9 files; the spike's 69 |
-| CI | green on both runners on the pushed commits, with this file's commit on the PR. The first push failed on Windows (`URL.pathname` → `D:\D:\…` in the no-SDK test); fixed with `fileURLToPath` |
-| No SDK | `eras.test.ts` "WO §1.15" walks `packages/` for `@modelcontextprotocol/sdk`: none |
-| Built output | `dist/` smoke test: the validation worker resolves as `.js` and validates |
-| Leak gate | `--tree` and `--history` clean before every push |
+| `npm run check` | exit 0 on v24.21.0: core 135, spike 0102 69, spike 0101 8 tests |
+| Tests pinned to the probe | `test/approval.test.ts` runs the probe and asserts every row it states, including the B1 measurement and the masking of codes |
+| Leak gate | `--tree` and `--history` clean before every push, checked by exit code |
 | Credentials | pushes over the repository's write deploy key. A short-lived token was minted **only** to open this pull request, kept in a mode-0600 scratch file for that call, and **deleted** straight after |
-| Protected surfaces | the steering documents, `LICENSE`, `NOTICE`, `scripts/**`, `.github/**`, `spikes/**` and the governance files diff **empty** against `main`. Changed: `packages/core/**`, `CHANGELOG.md` (the WO entry and the dependency's reason), `.env.example` (new: key names only), and `package-lock.json` |
+| Protected surfaces | the steering documents, `LICENSE`, `NOTICE`, `packages/**`, `scripts/**`, `.github/**` and `spikes/0100-protocol/**` diff **empty** against `main`. Changed outside the spike: the root `package.json` (workspace entry and test glob), `package-lock.json`, and `.env.example` (names only) |
+| Exposure | none. Every server in this work bound 127.0.0.1, including the subagents' (they checked `ss -ltnp` afterwards) |
 
-## What did not work, and why
+**What did not work, and why**
+- **The first spike tests hung for 60 s after passing.** `startSpike` created its validation pool
+  before a start-refusal check, and an unclosed pool keeps the process alive.
+  - Fixed by moving every check ahead of resource creation.
+  - **A finding for the core:** a `ValidationPool` that is never closed keeps a process alive past
+    a 10 s timeout, despite `unref()` (measured with a two-line script). The core is protected here.
+- **My first `pkill` pattern matched its own shell and killed it.** I no longer use `pkill` with
+  patterns.
+- **The operator protocol took three drafts** (table above), and the first cold reader would have
+  been blocked five times.
 
-- **The first red-proof matrix wrapped checks as `if (false && a || b)`.** That parses as
-  `(false && a) || b`, so six checks were "disabled" without effect. The misses exposed it; the
-  wrapper is now `if (false) if (…)`.
-- **The first F1 regression test was too weak.** 2,000 pipelined requests fit in socket buffers,
-  so nothing piled up, and the matrix showed that the test passed with the fix removed. It now
-  pipelines 60,000.
-- **The first adversarial-regression F7 test used a fixture that accepts no arguments.**
-  Rewritten with `approve_target`.
-- **`http.request` will not send two `Host` headers,** so that case uses a raw socket.
-- **Windows:** `new URL(...).pathname` is not a path. See the gates line.
-- **I pushed one commit that the leak gate had refused.** I piped the gate into `tail`, so its exit
-  status was lost and `&&` went ahead. The finding was the conformance suite's full commit SHA,
-  written bare in this file. It is a public reference, but the gate refuses 40-hex outside a
-  platform commit URL. That tip commit (this file's, before any pull request existed) was amended
-  to use the URL form and replaced with `--force-with-lease`. From then on, the gate's exit status
-  was checked on its own before every push.
-
-## What was deliberately not built
-
-- **The following are recorded as out of scope, and each fails closed:** SSE responses,
-  `subscriptions/listen`, progress, resources, prompts, completion, logging, and the tasks
-  extension.
-- **No real verifier, JWKS or audience check** (`-1003`); **no pinning** (`-1001`); **no approval
-  semantics or single-use state** (`-2001`); **no audit or rate limit** (`-2002`/`-2007`). A log
-  line marks the audit seam.
-- **No shipped tool.** Every tool is a test fixture.
-- **The conformance run is not in CI.** It needs a 230 MB suite build and a fixed port; it is
-  reproducible from the fixture server and the two commands above.
+**What was deliberately not built**
+- **No `ApprovalBackend`, no notifier, no single-use MRTR state, and no approver record.** These are
+  `-2001`'s; B1, B2, C1 and C2 are the input for it.
+- **No Tasks implementation.** It needs core changes, recorded above.
+- **The server was never exposed, never registered anywhere, and the operator half was not run.**
+- **No OAuth.** The static bearer is a spike device, and the README's first line says the harness is
+  never to be left running.
