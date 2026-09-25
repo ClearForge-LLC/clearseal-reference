@@ -68,6 +68,14 @@ An entry therefore has to keep earning its place, in each mode that reads it. Ea
 is a review item**: a glob that matches everything also silences everything that rule would ever
 find. Say why in the justification, and expect the review to ask.
 
+## Which Node guarantee lives where
+
+The reference runs on exactly the Node version in `.node-version`, and three places hold that
+line. **Install:** `.npmrc`'s `engine-strict=true` and the exact `engines.node` pin make `npm ci`
+refuse any other Node. (The dependency bot still regenerates the lockfile under that pin; this was
+measured.) **Suite:** `scripts/check-node.mjs` runs first in `npm run check` and refuses any other
+Node, even when no install ran. **Host install scripts:** they run `npm ci --engine-strict`.
+
 ## Known limitations
 
 The gate matches one line at a time against text. It does **not** claim to catch:

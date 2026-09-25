@@ -15,7 +15,7 @@
     "lint": "eslint --max-warnings 0 . && node scripts/check-directives.mjs",
     "build": "npm run build --workspaces",
     "test": "node scripts/test.mjs",
-    "check": "npm run typecheck && npm run lint && npm run build && npm run test",
+    "check": "node scripts/check-node.mjs && npm run typecheck && npm run lint && npm run build && npm run test",
     "leak-gate": "node scripts/leak-gate.mjs --self-test && node scripts/leak-gate.mjs --tree && node scripts/leak-gate.mjs --history"
   },
   "devDependencies": {
