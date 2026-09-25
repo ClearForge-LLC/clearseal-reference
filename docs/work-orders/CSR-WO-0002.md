@@ -31,8 +31,11 @@ dependency* and *An attacker with write access to the deployed tree*; §8 row *S
 > creates a team with write access and the architect changes the three lines. (3) A tag ruleset
 > restricting `v*` creation, update and deletion to repository admins and the architect's app was
 > set by the architect at merge, closing the finding that any write access could cut a release.
-> (4) Engine strictness moves out of `.npmrc` (`CSR-WO-0002a`) so the bot can regenerate the
-> lockfile; the guarantee moves to an explicit check in `npm run check` and to host install scripts.
+> (4) Engine strictness: first ruled to move out of `.npmrc`; then measured — the bot regenerated
+> the lockfile under the exact pin within minutes of merge — so `.npmrc` stays and `CSR-WO-0002a`
+> only adds an explicit check to `npm run check`. The bot's first two pull requests were majors
+> (a TypeScript major outside the pinned peer range; a `@types/node` major ahead of the runtime),
+> closed by the architect with the reason on each; both failed the leak gate as predicted.
 
 ## 1. Scope — numbered, specific
 
