@@ -99,6 +99,10 @@ design depends on measured and recorded.
   default, the tagging convention; CI gains a bill-of-materials artifact on every run, signed build
   provenance on tags, a reporting vulnerability audit, and automated dependency updates that keep
   action pins as commit digests (`architecture.md` §5, rows *Supply chain in CI* and *Governance*).
+- `CSR-WO-0002a` — corrections from review: the leak gate admits the platform bot's `Signed-off-by`
+  trailer and full SHAs inside platform compare/commit URLs (public references by construction),
+  with self-test cases; `engine-strict` leaves `.npmrc`, an explicit Node check joins
+  `npm run check`, host install scripts pass `--engine-strict` themselves.
 - `CSR-WO-0100` — spike: install the official SDK at a pinned version, start a stateless server,
   probe the negotiated protocol revision and whether `server/discover` is reachable; record the
   result in `architecture.md` §2.3. STOP.
@@ -305,6 +309,7 @@ Divergence between what was planned and what was built. **History is left as wri
 |---|---|---|
 | *(genesis pull request, unnumbered)* | The four steering documents | — (precedes the first work order, deliberately; recorded so the absence of a number is not read as an omission) |
 | `CSR-WO-0000a` | Skeleton corrections from the `-0000` review: supported lint major, suppression policy, built `dist/` exports | Not planned; inserted as a refinement under `-0000` because all three are corrections to the skeleton the review exposed, and a port must never consume raw source (`architecture.md` §10) |
+| `CSR-WO-0002a` | Corrections from the `-0002` review: the gate admits the platform bot's commit shapes; engine strictness moves from `.npmrc` to an explicit check | Not planned; inserted because the bot's commits would fail the gate and its lockfile regeneration would fail the exact engine pin — both discovered by the builder before the first bot run |
 
 ## Amendments
 

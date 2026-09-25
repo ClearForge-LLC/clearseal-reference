@@ -22,6 +22,18 @@ dependency* and *An attacker with write access to the deployed tree*; §8 row *S
 
 **Cadence:** build. One PR, left unmerged for review.
 
+> **As-built amendment (2026-09-25).** (1) The `/goal` text in §8 carried the clause *"dependency-update
+> automation that has opened a pull request"*, which can only be true after `main` carries the bot's
+> configuration — a clause past the builder's authority boundary. The goal hook looped on it until
+> its cap. The architect's error; the phase gate keeps the clause because a human checks it after
+> merge, but no builder goal carries it again. (2) `CODEOWNERS` cannot name an organization — the
+> platform requires a user or a team. Merged as written (protects nothing, harms nothing); the gate
+> creates a team with write access and the architect changes the three lines. (3) A tag ruleset
+> restricting `v*` creation, update and deletion to repository admins and the architect's app was
+> set by the architect at merge, closing the finding that any write access could cut a release.
+> (4) Engine strictness moves out of `.npmrc` (`CSR-WO-0002a`) so the bot can regenerate the
+> lockfile; the guarantee moves to an explicit check in `npm run check` and to host install scripts.
+
 ## 1. Scope — numbered, specific
 
 1. **`SECURITY.md`.** Supported versions (currently: `main` only, until the first tag); how to
