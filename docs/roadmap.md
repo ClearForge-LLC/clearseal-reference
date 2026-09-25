@@ -202,6 +202,9 @@ would need proven as a fixture.
   `AuditStore` backend.
 - `CSR-WO-3001` — the deploy scaffold: the service unit template, the dedicated non-root user, the
   `0600` environment file, the idempotent install script, `.env.example`.
+  The install script installs from the lockfile only, refuses on an extraneous or missing package,
+  and prints the installed bill-of-materials digest; `/health` reports it (`architecture.md` §5,
+  *Dependencies*).
 - `CSR-WO-3002` — spike, then build: the per-process cage fixture — service-manager sandboxing
   alone or a namespace tool, decided by measurement — and a fixture tool that attempts egress from
   inside it.
@@ -222,6 +225,8 @@ that points outside it is refused; audit rows are present in the system journal 
   service account, never LocalSystem; the install script; a lint that rejects non-ASCII bytes, a
   byte-order mark, or shell chaining in any script the edition ships; the Event Log `AuditStore`
   backend.
+  The install script has the same lockfile-only, refuse-on-drift, print-the-digest behaviour as
+  the Linux one.
 - `CSR-WO-4002` — acceptance on the proving ground, operator present.
 **Exit gate:** CI runs the edition's suite on a Windows runner; on the proving ground the install
 script completes, the `401`/`200` probes pass from another machine, and the service answers again
