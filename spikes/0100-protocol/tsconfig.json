@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The SDK's own declarations use DOM types (HeadersInit in shared/transport.d.ts), which the
+    // repository's Node-only lib rejects. Measured, not assumed: CSR-WO-0100 FEEDBACK.
+    "lib": ["ES2024", "DOM"]
+  },
+  "include": ["*.ts"]
+}
