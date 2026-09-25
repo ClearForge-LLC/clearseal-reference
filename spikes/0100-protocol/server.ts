@@ -12,6 +12,8 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 
 export interface SpikeServer {
   port: number;
+  /** The most HTTP requests this server has had in flight at once (instrumentation for the probe). */
+  peakInFlight: () => number;
   close: () => Promise<void>;
 }
 
@@ -29,18 +31,32 @@ function mcpServer(): Server {
         description: "Returns its input.",
         inputSchema: { type: "object", properties: { text: { type: "string" } } },
       },
+      {
+        name: "sleep",
+        description: "Waits `ms` milliseconds, then returns; lets the probe hold requests in flight.",
+        inputSchema: { type: "object", properties: { ms: { type: "number" } } },
+      },
     ],
   }));
-  server.setRequestHandler(CallToolRequestSchema, (request) => ({
-    content: [{ type: "text", text: JSON.stringify(request.params.arguments ?? {}) }],
-  }));
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (request.params.name === "sleep") {
+      const ms = Number(request.params.arguments?.["ms"] ?? 0);
+      await new Promise((resolve) => setTimeout(resolve, ms));
+    }
+    return { content: [{ type: "text", text: JSON.stringify(request.params.arguments ?? {}) }] };
+  });
   return server;
 }
 
 /** Starts the server on 127.0.0.1 and an ephemeral port. Stateless: a fresh server and transport per request. */
 export async function startServer(options: SpikeOptions): Promise<SpikeServer> {
   let port = 0;
+  let inFlight = 0;
+  let peak = 0;
   const http = createServer((req: IncomingMessage, res: ServerResponse) => {
+    inFlight++;
+    peak = Math.max(peak, inFlight);
+    res.on("close", () => inFlight--);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       ...(options.dnsRebindingProtection
@@ -70,6 +86,7 @@ export async function startServer(options: SpikeOptions): Promise<SpikeServer> {
   port = (http.address() as AddressInfo).port;
   return {
     port,
+    peakInFlight: () => peak,
     close: () => new Promise<void>((resolve) => http.close(() => resolve())),
   };
 }
