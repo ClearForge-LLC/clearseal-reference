@@ -294,6 +294,7 @@ Schema: `finding · where · type · recommendation · decision-needed`.
 | Loopback | the server binds `127.0.0.1` on an ephemeral port only. The stability pass saw exactly one listener, with no wildcard or IPv6 bind |
 | Protected surfaces | `git diff origin/main...HEAD --stat -- docs README.md LICENSE NOTICE packages scripts .github eslint.config.js tsconfig.json tsconfig.base.json` is **empty**. The root `package.json` change is the one workspace entry (`"spikes/0100-protocol"`); the lockfile gained the SDK's tree |
 | Leak gate | `--tree` and `--history` clean before every push. Identity: role only on every commit |
+| Credentials | none in the spike. Pushes went over the repository's write deploy key. A short-lived token was minted **only** to open this pull request, kept in a mode-0600 scratch file for that one API call, and **deleted** straight after |
 | CI | the run for the final commit shows on the PR |
 
 ## What did not work, and why
