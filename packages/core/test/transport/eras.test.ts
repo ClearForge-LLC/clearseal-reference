@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { after, before, describe, it } from "node:test";
 
 import { LEGACY_PATH_REVIEW_BY } from "../../src/transport/config.ts";
@@ -124,7 +125,7 @@ void describe("WO §1.11: the shipped verifier refuses everything", () => {
 
 void describe("WO §1.15: no SDK import anywhere in packages/", () => {
   void it("no file under packages/ imports @modelcontextprotocol/sdk, and no package depends on it", () => {
-    const root = new URL("../../../", import.meta.url).pathname;
+    const root = fileURLToPath(new URL("../../../", import.meta.url));
     const offenders: string[] = [];
     const walk = (dir: string): void => {
       for (const entry of readdirSync(dir)) {
