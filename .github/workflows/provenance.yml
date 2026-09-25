@@ -1,0 +1,93 @@
+name: provenance
+
+# Packs every workspace package and attests its build provenance. On a pushed v* tag (the
+# architect's, at a phase boundary) the tarballs and the attestation are attached to a release. A
+# pull request that changes what gets packed, or this file, runs it as a dry run: pack and attest,
+# never release.
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - .github/workflows/provenance.yml
+      - packages/**
+      - package.json
+      - package-lock.json
+      - tsconfig*.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Everything that runs dependency code (install, compile, pack) runs here, with no identity
+  # token in scope: a compromised dependency can break the build but cannot mint a signing token.
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+      - run: npm ci
+      - run: npm run build
+      - run: mkdir release && npm pack --workspaces --pack-destination release
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tarballs
+          path: release/
+          if-no-files-found: error
+
+  # Attests the tarballs the build job produced. It runs no npm and no repository code; the
+  # identity token and attestation write are granted to this job only, and nothing is stored.
+  attest:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: tarballs
+          path: release
+      - id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/*.tgz
+      - env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE" release/provenance.sigstore.json && ls -l release
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release
+          path: release/
+          if-no-files-found: error
+
+  release:
+    needs: attest
+    # Guard: only a pushed v* tag creates a release. A dry run stops after the attestation.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release
+          path: release
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME" release/*
+          --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME"
+          --notes "Packed tarballs and their build-provenance attestation. See CHANGELOG.md.
+          Verify a tarball against THIS tag and this workflow, not merely this repository
+          (pull-request dry runs attest too): gh attestation verify <tarball> --repo
+          $GITHUB_REPOSITORY --source-ref refs/tags/$GITHUB_REF_NAME --signer-workflow
+          $GITHUB_REPOSITORY/.github/workflows/provenance.yml"

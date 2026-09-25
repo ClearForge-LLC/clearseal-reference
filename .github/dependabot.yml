@@ -1,0 +1,20 @@
+# Dependency-update automation (CSR-WO-0002 §1.9). Weekly and grouped. Minor and patch updates
+# arrive together; a major update arrives alone, because each is a decision with a reason. For
+# GitHub Actions, Dependabot keeps the commit-digest pin and rewrites the trailing version comment,
+# which is the pin style the repository set in CSR-WO-0000.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-and-patch:
+        update-types: [minor, patch]
