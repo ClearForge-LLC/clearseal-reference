@@ -188,6 +188,10 @@ red-proof, and the teaching edition demonstrates every rung except exec.
   `Retry-After` and leaves other principals untouched.
 - `CSR-WO-2008` — the control-deletion job: each control stubbed out in turn, the suite required to
   fail for each; wired into CI as its own job.
+- `CSR-WO-2009` — the *resources* and *prompts* primitives (`resources/list`, `resources/read`,
+  `prompts/list`, `prompts/get`, their list TTLs and `Mcp-Name` mirroring), pinned and validated
+  like tools, so the official conformance suite's remaining scored scenarios pass; SSE progress and
+  `completion` stay out until a tool needs them. Ruled under the completeness bar.
 - `CSR-WO-2003` — the capability ceiling and tiered windows, defaulted-safe.
 - `CSR-WO-2004` — message provenance: the envelope the spike ruled, signing by a small isolated
   signer interface, verification through three fail-closed gates.
@@ -329,6 +333,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | 2026-09-24 | Maturity review folded in: `CSR-WO-0002` (governance and supply chain) added to P0; `-1005` (transport hardening and runtime validation) added to P1; `-2002` narrowed to audit, `-2007` (tripwire and rate limit as two controls) and `-2008` (control-deletion job) added to P2; acceptance lines added to `-1000`, `-1001`, `-1003`, `-1004`, `-2001`, `-2005`, `-3000`, `-4001`; P0, P1, P2, P3 and P4 exit gates extended; a maintenance cadence added. | Same review as the architecture's second amendment: what changes a schema or an interface is decided before P1; the rest becomes acceptance lines while the work orders are still unwritten. |
 | 2026-09-25 | P1 reordered: `-1005` first and redefined as the core's own `2026-07-28` transport (the official SDK measured unable to serve it, no 2.x published); `-0101` resequenced after `-1005` and re-aimed at MRTR, since the revision deprecates elicitation. | The gate's direction that the reference serves the current stateless revision, after the `-0100` spike; see `architecture.md` §10. |
 | 2026-09-25 | P0 exit gate amended: `-0101` is no longer a P0 clause; `v0.1` is cut at P0 exit per the gate's ruling on first tags. | The gate's rulings on the open choices, same day. |
+| 2026-09-25 | `-2009` (resources and prompts primitives) added to P2 under the completeness bar, after `-1005`'s conformance run showed every remaining failure was an unimplemented primitive. | The gate's ruling; sequenced after the controls so the primitives inherit pinning and validation rather than predating them. |
 
 ## Provenance
 
