@@ -37,6 +37,10 @@ export interface TransportOptions {
   verifier?: Verifier;
   /** MRTR requestState key (CLEARSEAL_REQUEST_STATE_KEY). Without it, state is refused. */
   requestStateKey?: Uint8Array;
+  /** The validation pool the registry's validators run in. Once handed over, the transport owns
+   *  it: close() closes it, and resolves only after its workers have exited. An open pool's worker
+   *  message ports keep a process alive despite unref() (CSR-WO-1005a, from -0101's finding). */
+  validationPool?: { close(): Promise<void> };
   /** The audit seam (-2002). A log line until then. */
   audit?: (event: string, fields: Record<string, string | number>) => void;
   /** Server identity for serverInfo and /health: the package's name and version, nothing else. */
@@ -146,7 +150,14 @@ function hostAllowed(host: string | undefined, allowed: readonly string[]): bool
 }
 
 export async function startTransport(options: TransportOptions): Promise<RunningTransport> {
-  const config = resolveConfig(options.config);
+  let config: TransportConfig;
+  try {
+    config = resolveConfig(options.config);
+  } catch (err) {
+    // A server refused at configuration still owns the pool it was handed (1005a adversarial F2).
+    await options.validationPool?.close();
+    throw err;
+  }
   const { limits } = config;
   const verifier = options.verifier ?? new RefuseAllVerifier();
   const now = options.now ?? Date.now;
@@ -323,13 +334,19 @@ export async function startTransport(options: TransportOptions): Promise<Running
     });
   });
 
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(config.port, config.host, () => {
-      server.off("error", reject);
-      resolve();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(config.port, config.host, () => {
+        server.off("error", reject);
+        resolve();
+      });
     });
-  });
+  } catch (err) {
+    // A server that never started still owns its pool.
+    await options.validationPool?.close();
+    throw err;
+  }
   const { port } = server.address() as AddressInfo;
   const authority = `${config.host.includes(":") ? `[${config.host}]` : config.host}:${String(port)}`;
   allowedHosts = (config.allowedHosts.length > 0 ? config.allowedHosts : [authority, `localhost:${String(port)}`]).map((h) => h.toLowerCase());
@@ -341,10 +358,12 @@ export async function startTransport(options: TransportOptions): Promise<Running
     url: `http://${authority}${config.endpointPath}`,
     config,
     inFlight: () => inFlight,
-    close: () =>
-      new Promise<void>((resolve) => {
+    close: async () => {
+      await new Promise<void>((resolve) => {
         server.close(() => resolve());
         server.closeAllConnections();
-      }),
+      });
+      await options.validationPool?.close();
+    },
   };
 }

@@ -291,7 +291,16 @@ function shapeResult(era: Era, binding: StateBinding, result: ToolResult, caps: 
   const name = binding.tool;
   if (!isPlainObject(result)) throw new Refusal(500, INTERNAL_ERROR, "The tool returned no result");
   if (result.resultType === "input_required") {
-    if (era !== MODERN_VERSION) throw new Refusal(500, INTERNAL_ERROR, "The tool needs input, which the legacy revision cannot carry");
+    if (era !== MODERN_VERSION) {
+      // The legacy revision has no MRTR, so this result cannot be carried to it. That is a clean
+      // refusal, never a 500 (CSR-WO-1005a). The 2025-11-25 schema defines only the standard
+      // codes and -32042 (URL elicitation, banned in 2026-07-28), so the code is -32601, whose
+      // JSON-RPC meaning is "the method does not exist / is not available": this tool is not
+      // available on this revision. The status is 400: the client can correct it by using the
+      // modern revision (SPEC-MAP LG-8).
+      ctx.audit("legacy-input-required", { tool: name });
+      throw new Refusal(400, METHOD_NOT_FOUND, `This tool needs a multi round-trip request, which protocol revision ${LEGACY_VERSION} cannot carry; use ${MODERN_VERSION}`, { requires: MODERN_VERSION });
+    }
     const out: Record<string, unknown> = { resultType: "input_required" };
     if (result.inputRequests !== undefined) {
       const required: Record<string, Record<string, never>> = {};

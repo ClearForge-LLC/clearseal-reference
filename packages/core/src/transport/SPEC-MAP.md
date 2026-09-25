@@ -149,7 +149,7 @@ the same annotation rules at registration (SH-27…SH-29).
 
 | ID | Anchor | Requirement | Level | Disposition |
 |---|---|---|---|---|
-| MR-1 | #supported-requests | `InputRequiredResult` only on `tools/call`, `resources/read`, `prompts/get` | MUST NOT | **impl**: only `tools/call` passes one through; the core serves neither of the others |
+| MR-1 | #supported-requests | `InputRequiredResult` only on `tools/call`, `resources/read`, `prompts/get` | MUST NOT | **impl**: only `tools/call` passes one through; the core serves neither of the others. Never on the legacy era (LG-8) |
 | MR-2 | #server-requirements-basic-workflow 2 | `inputRequests` keys unique; values are Elicit, CreateMessage or ListRoots requests | MUST | **impl**: other methods → `500`/`-32603` (a handler bug, never sent) |
 | MR-3 | #server-requirements-basic-workflow 3 | `requestState` is an opaque string | (definition) | **impl**: a sealed token, `base64url(payload).base64url(HMAC-SHA256)` |
 | MR-4 | #server-requirements-basic-workflow 4 | Treat `requestState` as attacker-controlled; protect its integrity (HMAC/AEAD); reject what fails verification | MUST | **impl**: HMAC-SHA256 under `CLEARSEAL_REQUEST_STATE_KEY` (named in `.env.example`, never valued). A tampered or foreign state → `400`/`-32602`. With no key configured, every `requestState` is refused, and a handler that asks for one fails closed |
@@ -178,6 +178,7 @@ the same annotation rules at registration (SH-27…SH-29).
 | LG-5 | lifecycle #initialized | `notifications/initialized` | (flow) | **impl**: `202`, no body, no state recorded |
 | LG-6 | basic/utilities/ping | `ping` → empty result | MUST | **impl** on the legacy era only; `2026-07-28` has no `ping`, so a modern `ping` is `404` |
 | LG-7 | transports #listening-for-messages-from-the-server | `GET` stream | MAY | **out**: `405` (SH-42) |
+| LG-8 | (no MRTR in `2025-11-25`) | A handler's `input_required` result cannot be carried to a legacy-era request | (N4) | **refuse**: `400`, `-32601`, message naming `2026-07-28`, `data: {requires: "2026-07-28"}`. The tool name is logged at the audit seam (`legacy-input-required`), and it is never a `500`. The code choice: the `2025-11-25` schema defines only the standard JSON-RPC codes and `-32042`, which is URL-elicitation-specific and which `2026-07-28` forbids emitting; `-32601`'s JSON-RPC meaning includes "is not available". It is also the code `2025-11-25` itself mandates for the same situation: a tool that needs an interaction mode the request does not use (`basic/utilities/tasks` §*Tool-Level Negotiation*, "`taskSupport` is `"required"` … Servers **MUST** return a `-32601`"). The status: the client can correct the request by using `2026-07-28` (D-6). CSR-WO-1005a |
 
 ## Limits (WO §1.10, architecture §5): all in this layer, all asserted
 

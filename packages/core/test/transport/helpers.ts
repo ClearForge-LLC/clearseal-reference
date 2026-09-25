@@ -129,6 +129,16 @@ export function fixtureTools(): Tool[] {
         Promise.resolve(ctx.state === undefined ? { resultType: "input_required" as const, state: { approved: args["target"] as string } } : text(`acting on ${String(args["target"])}`)),
     },
     {
+      name: "ask_big",
+      description: "MRTR with an oversized input request: on the legacy era the era refusal must win over the result cap.",
+      inputSchema: { type: "object" },
+      handler: () =>
+        Promise.resolve({
+          resultType: "input_required" as const,
+          inputRequests: { big: { method: "elicitation/create", params: { mode: "form", message: "x".repeat(400_000), requestedSchema: { type: "object" } } } },
+        }),
+    },
+    {
       name: "throws_refusal",
       description: "Throws a Refusal-shaped error with a long message; none of it may reach the client.",
       inputSchema: { type: "object" },
@@ -168,6 +178,7 @@ export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifie
     config: { ...opts.config, limits },
     ...(opts.verifier === null ? {} : { verifier: opts.verifier ?? new TestBearerVerifier() }),
     ...(opts.key === null ? {} : { requestStateKey: opts.key ?? randomBytes(32) }),
+    validationPool: pool,
     audit: (event) => audits.push(event),
   });
   return {
