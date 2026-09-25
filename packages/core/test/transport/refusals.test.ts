@@ -84,11 +84,13 @@ void describe("WO §3.3 refusals", () => {
   void it("SH-9 batch body → 400 -32600", async () => {
     const r = await raw(s.t, { headers: modernHeaders("server/discover"), body: JSON.stringify([modernBody("server/discover")]) });
     expectRefusal("batch body", r, 400, -32600);
+    assert.match(r.text, /Batch requests are not supported/);
   });
 
   void it("SH-9 response-shaped body → 400 -32600", async () => {
     const r = await raw(s.t, { headers: modernHeaders("server/discover"), body: JSON.stringify({ jsonrpc: "2.0", id: 1, result: {} }) });
     expectRefusal("response-shaped body", r, 400, -32600);
+    assert.match(r.text, /A JSON-RPC response is not accepted/);
   });
 
   void it("malformed JSON → 400 -32700", async () => {
