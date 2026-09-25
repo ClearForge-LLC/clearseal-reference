@@ -11,6 +11,14 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    # Majors for the compiler and the runtime's types are decisions with a reason, taken in a work
+    # order: typescript must stay inside typescript-eslint's peer range, and @types/node must track
+    # the pinned runtime major (24). The bot's first two PRs were exactly these; ruled 2026-09-25.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
