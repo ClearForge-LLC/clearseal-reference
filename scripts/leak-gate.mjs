@@ -3,7 +3,8 @@
 //
 //   node scripts/leak-gate.mjs --tree       every file `git ls-files` reports: its path and contents
 //   node scripts/leak-gate.mjs --history    every commit in `git rev-list HEAD`: added lines, the
-//                                           paths it touches, and its full message with trailers
+//                                           paths it touches, its full message with trailers, and
+//                                           its author and committer name and e-mail
 //   node scripts/leak-gate.mjs --self-test  prove every rule fires and every scan mechanism holds
 //
 // Exits non-zero on any finding, on a malformed or stale allow entry, on a shallow history, and on
@@ -645,8 +646,18 @@ function scanHistory(cwd) {
     // The full message, trailers included: a tooling-added trailer never appears in the diff.
     // Read from the raw commit object, not `--format=%B`, which stops at a NUL byte.
     const raw = git(cwd, ["cat-file", "commit", sha]);
-    const body = raw.indexOf("\n\n") === -1 ? "" : raw.slice(raw.indexOf("\n\n") + 2);
+    const split = raw.indexOf("\n\n");
+    const body = split === -1 ? "" : raw.slice(split + 2);
     body.split(/\r?\n/).forEach((line, i) => scanLine(line, "(message)", `${short}:(message):${String(i + 1)}`, findings));
+    // Author and committer identity, name and e-mail, under the same rules (architect's ruling on
+    // the CSR-WO-0001 review): an identity is an account identifier whether it sits in a trailer or
+    // a header. The timestamp and zone are not scanned; the role-identity exemption applies.
+    for (const header of (split === -1 ? raw : raw.slice(0, split)).split("\n")) {
+      const identity = /^(author|committer) (.*) \d+ [+-]\d{4}$/.exec(header);
+      if (identity?.[1] !== undefined && identity[2] !== undefined) {
+        scanLine(identity[2], `(${identity[1]})`, `${short}:(${identity[1]})`, findings);
+      }
+    }
     // --text: an attribute (`-diff`, `binary`) or a NUL byte must not turn added lines into
     // "Binary files differ". --no-textconv / --no-ext-diff: scan what git stores, not a rendering.
     const diff = git(cwd, [
@@ -691,7 +702,7 @@ function scanHistory(cwd) {
 // ---------------------------------------------------------------------------------------------
 // Self-test: every rule fires on every planted example; clean input passes; and each scan
 // mechanism that could silently pass is made to go red: history behind a revert, a message-only
-// trailer, a NUL-truncated message, a `-diff` attribute, a NUL byte, a `++` content line, an evil
+// trailer, an author or committer identity, a NUL-truncated message, a `-diff` attribute, a NUL byte, a `++` content line, an evil
 // merge, a path, a symlink, UTF-16 and UTF-32, local config and replace refs, a shallow clone,
 // masking, output escaping, crafted long lines, and stale, malformed or self-excusing allows.
 // ---------------------------------------------------------------------------------------------
@@ -1051,6 +1062,47 @@ function selfTest() {
       history.findings.some((f) => f.rule === "private-ip" && f.where.startsWith(`${merge}:merged.md:`)),
       `fired  private-ip added by an evil merge, with its path (${merge})`,
       "--history missed or mislocated an evil merge's own line",
+    );
+
+    // 6a. Author and committer identity: one planted shape per field (name, e-mail, for each of
+    // author and committer); a role identity in either field passes.
+    const ident = newRepo(root, "identity");
+    const cleanAuthor = "Self Test <selftest@example.com>";
+    /**
+     * @param {string} author
+     * @param {string} committerName
+     * @param {string} committerEmail
+     * @param {string} message
+     */
+    const commitAs = (author, committerName, committerEmail, message) => {
+      writeFileSync(path.join(ident, "log.md"), `${message}\n`);
+      gitIn(ident, ["add", "-A"]);
+      gitIn(ident, ["-c", `user.name=${committerName}`, "-c", `user.email=${committerEmail}`, "commit", "-q", "--author", author, "-m", message]);
+      return gitIn(ident, ["rev-parse", "--short=7", "HEAD"]).trim();
+    };
+    const authorName = commitAs(`Build on ${dot(lower(6), orgDomain())} <selftest@example.com>`, "Self Test", "selftest@example.com", "author name");
+    const authorEmail = commitAs(`A Person <${PLANTED.email?.()[0] ?? ""}>`, "Self Test", "selftest@example.com", "author email");
+    const committerName = commitAs(cleanAuthor, `Runner ${privateIp()}`, "selftest@example.com", "committer name");
+    const committerEmail = commitAs(cleanAuthor, "Self Test", PLANTED.email?.()[0] ?? "", "committer email");
+    const role = commitAs(`Claude (builder) <claude@${orgDomain()}>`, "Claude (architect)", `architect@${orgDomain()}`, "role identities");
+    const identity = scanHistory(ident);
+    /**
+     * @param {string} rule
+     * @param {string} where
+     */
+    const fired = (rule, where) => identity.findings.some((f) => f.rule === rule && f.where === where);
+    check(
+      fired("owned-host", `${authorName}:(author)`) &&
+        fired("email", `${authorEmail}:(author)`) &&
+        fired("private-ip", `${committerName}:(committer)`) &&
+        fired("email", `${committerEmail}:(committer)`),
+      `fired  on each identity field: author name (${authorName}), author e-mail (${authorEmail}), committer name (${committerName}), committer e-mail (${committerEmail})`,
+      "--history missed a shape in an author or committer name or e-mail",
+    );
+    check(
+      !identity.findings.some((f) => f.where.startsWith(role)) && identity.findings.length === 4,
+      `clean  role identities as author and committer pass (${role}); only the four planted fields fired`,
+      `role identities were flagged, or identity scanning over-fired (${String(identity.findings.length)} findings)`,
     );
 
     // 6b. A message hidden behind a NUL byte, in a commit object git itself would not write.
