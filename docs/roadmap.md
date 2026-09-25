@@ -101,8 +101,8 @@ design depends on measured and recorded.
   action pins as commit digests (`architecture.md` §5, rows *Supply chain in CI* and *Governance*).
 - `CSR-WO-0002a` — corrections from review: the leak gate admits the platform bot's `Signed-off-by`
   trailer and full SHAs inside platform compare/commit URLs (public references by construction),
-  with self-test cases; `engine-strict` leaves `.npmrc`, an explicit Node check joins
-  `npm run check`, host install scripts pass `--engine-strict` themselves.
+  with self-test cases; an explicit Node check joins `npm run check` (`.npmrc` stays — measured:
+  the bot regenerates the lockfile under the exact pin).
 - `CSR-WO-0100` — spike: install the official SDK at a pinned version, start a stateless server,
   probe the negotiated protocol revision and whether `server/discover` is reachable; record the
   result in `architecture.md` §2.3. STOP.

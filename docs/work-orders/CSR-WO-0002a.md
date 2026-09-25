@@ -31,11 +31,14 @@ to change it; nothing else may), `.npmrc`, `package.json`, `scripts/`.
    `…/compare/<ref>...<ref>` where a ref may be a full SHA. The same SHA outside such a URL, or in a
    URL on any other host, still fires. Planted examples for the exempt shape and for both
    lookalikes.
-3. **Engine strictness:** remove `engine-strict=true` from `.npmrc` (keep `save-exact`,
-   `ignore-scripts`, `fund`). Add `scripts/check-node.mjs`: reads `.node-version`, compares to
-   `process.version`, exits non-zero with both values on mismatch. Wire it as the **first** step
-   of `npm run check`. `scripts/README.md` gains a paragraph: why strictness lives here, and that
-   host install scripts (P3, P4) run `npm ci --engine-strict` themselves.
+3. **Engine strictness — measured, so the ruling changed before this work order ran:** the bot
+   opened its first two pull requests within minutes of the configuration merging, lockfile
+   regenerated, with `engine-strict=true` in place. The pin does *not* block the bot. So
+   **`.npmrc` is left exactly as it is.** What is added: `scripts/check-node.mjs` — reads
+   `.node-version`, compares to `process.version`, exits non-zero with both values on mismatch —
+   wired as the **first** step of `npm run check`, so the suite itself refuses a wrong runtime even
+   where an install did not run. `scripts/README.md` gains a paragraph saying which guarantee lives
+   where (install: `.npmrc`; suite: `check-node`; host install scripts: `npm ci --engine-strict`).
 4. **`FEEDBACK.md`** per §6.
 
 ## 2. Invariants
@@ -55,8 +58,8 @@ to change it; nothing else may), `.npmrc`, `package.json`, `scripts/`.
 2. A synthetic commit on a throwaway branch with a bot-shaped `Signed-off-by` and a compare URL in
    its message passes `--history`; the throwaway branch is deleted after (as in `-0001`).
 3. `check-node.mjs` exits non-zero under a different Node and zero under 24.21.0; paste both.
-4. `npm ci` no longer refuses under a different Node (that is the point), but `npm run check`
-   does; paste.
+4. `npm ci` still refuses under a different Node (`.npmrc` unchanged), and so does `npm run check`
+   even when the install was skipped; paste both.
 5. All CI jobs green; the `test` and `leak-gate` job definitions unchanged.
 
 ## 4. Scope fence
@@ -92,7 +95,7 @@ entries.
 `/goal` text:
 > A branch `wo/CSR-WO-0002a` off current `main` where the leak gate admits exactly the platform
 > bot's `Signed-off-by` trailer and full SHAs inside platform commit/compare URLs — with lookalike
-> self-tests proving neither exemption widened — `engine-strict` is gone from `.npmrc`, an explicit
+> self-tests proving neither exemption widened — `.npmrc` unchanged, an explicit
 > Node check runs first in `npm run check` and is shown to fail on the wrong Node, CI is green, and
 > the work is parked as one unmerged pull request. Stop at parked.
 
@@ -100,6 +103,6 @@ Kickoff:
 > Sync: `git fetch origin && git checkout -b wo/CSR-WO-0002a origin/main`; confirm
 > `.github/dependabot.yml` exists on the base. Cadence: **build**. Read
 > `docs/work-orders/CSR-WO-0002a.md` in full and `-0002`'s as-built note. Two narrow gate
-> exemptions with lookalike proofs; strictness moves to `scripts/check-node.mjs`; nothing else.
+> exemptions with lookalike proofs; `check-node.mjs` joins `npm run check`; `.npmrc` stays; nothing else.
 > This WO may edit `scripts/leak-gate.mjs`; no other WO could. Leak gate before every push.
 > Flag-and-stop: WO §7. Report the PR link and the self-test lines for the four new examples.
