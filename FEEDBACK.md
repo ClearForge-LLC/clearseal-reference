@@ -1,293 +1,330 @@
-# FEEDBACK: CSR-WO-0002 (governance and supply chain)
+# FEEDBACK: CSR-WO-0100 (spike: what the official SDK actually serves in stateless mode)
 
-Branch `wo/CSR-WO-0002`, cut from `main` at `4e51bc2` (CSR-WO-0000a merged; `.github/workflows/ci.yml`
-present). Parked as one unmerged pull request, #9. It was opened as a draft early, because the
-provenance workflow's guarded dry run can only run on a pull request until that workflow exists on
-`main`, and marked ready with this file.
+## Proposed `architecture.md` §2.3 row (verbatim, to replace row one)
 
-Built on **Node v24.21.0**. Every commit carries the role identity as both author and committer, and
-`node scripts/leak-gate.mjs --tree` and `--history` were clean before every push. Pushes went over
-the repository's write deploy key. A short-lived token was minted **only** for the pull-request API
-calls (open, then mark ready and update the description), kept in a mode-0600 scratch file, never
-written to git config or a remote, and **deleted** after the last call.
+The measurement moves from "blocked" to measured. Every value below comes from
+`node spikes/0100-protocol/probe.ts` on this branch (**SDK `@modelcontextprotocol/sdk` 1.30.1, Node
+v24.21.0**). The finding id in brackets is the probe line that produced it.
 
-## Crossed or parked: two items need the architect, and neither can be completed from this branch
+| Measurement | Measured value | Harness that produced it |
+|---|---|---|
+| Which protocol revisions the official TypeScript SDK actually serves in stateless mode, and whether `server/discover` is reachable | **SDK 1.30.1 serves `2025-11-25` as its latest revision, and does not serve `2026-07-28`.** Its supported list is `2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05, 2024-10-07` [`sdk.SUPPORTED_PROTOCOL_VERSIONS`]. **`initialize` never refuses a revision.** Offered any supported one, it echoes it back. Offered `2026-07-28` or an unknown one, it answers HTTP 200 and counter-offers `2025-11-25` [`initialize.offer.*`]. After initialize, an `MCP-Protocol-Version` header outside the list is **refused, HTTP 400, JSON-RPC -32000**. That includes `2026-07-28`, and the check runs before the method is looked up [`header.mcp-protocol-version.*`, `header-gate.before-dispatch`]. A request with no header is served as `2025-03-26` [`sdk.DEFAULT_NEGOTIATED_PROTOCOL_VERSION`]. **`server/discover` is not reachable: HTTP 200 carrying JSON-RPC -32601 "Method not found"**, with or without a version header [`server/discover*`]. Stateless mode (`sessionIdGenerator: undefined`) runs on the pinned Node: no session header is ever set, and a client-supplied session id is ignored [`session.*`]. | Phase-0 spike `CSR-WO-0100`: `node spikes/0100-protocol/probe.ts`. The SDK is pinned exactly at 1.30.1 in `spikes/0100-protocol/package.json`. The result was identical across three runs, and every value was re-measured against 1.30.0 (unchanged for this row). |
 
-1. **`CODEOWNERS` protects nothing as written.** A CODEOWNERS owner must be a user or an
-   organization team (`@org/team`) with write access; **an organization handle is not a valid
-   owner.** The platform's validator (`codeowners/errors`) reports `Unknown owner` on all three
-   lines. The organization lists **no teams**, and none has access to this repository. The WO's
-   fallback, a personal handle, is exactly what N6 and §7 forbid, so it was not used. In addition,
-   the default-branch ruleset has `require_code_owner_review: false`, so even a valid file would
-   not gate merges today. · `CODEOWNERS:4-6` · bug (§7-adjacent: the organization handle is not
-   usable) · Create an organization team (for example `maintainers`) with write access to this
-   repository; the change here is then `@ClearForge-LLC` → `@ClearForge-LLC/<team>` on three lines.
-   Turn on code-owner review in the ruleset if the file is meant to gate merges. ·
-   **decision-needed: yes**
-2. **The dependency-update gate clause (§3.6) cannot be met before this merges.** The platform's
-   dependency bot reads `.github/dependabot.yml` **only from the default branch.** Measured:
-   - no bot pull request exists;
-   - the repository has never had a dependency-update run;
-   - the pull request shows no bot check.
+**For §5 (*Transport hardening*), measured on the same run and not part of the row:**
+- **DNS-rebinding protection is off by default.** A foreign `Origin` and a non-loopback `Host` are both served. With the SDK's `enableDnsRebindingProtection: true` plus exact allowlists, both are refused with 403, and so is `localhost:<port>`.
+- **The body limit is 4 MiB by default in 1.30.1, and absent in 1.30.0.**
+- **There is no concurrency limit.** 200 overlapping requests all succeeded, with 200 in flight.
+- **JSON-RPC batches are accepted, capped at 100 in 1.30.1 and uncapped in 1.30.0.**
+- **Stateless `GET` opens an event stream that never closes.**
 
-   The configuration's keys are all valid per the documented schema (checked in the adversarial
-   pass), but "accepted by the platform" can only be shown after merge. · `.github/dependabot.yml` ·
-   scope-question · Merge; the first weekly run then opens pull requests (the tree has candidates,
-   for example `@types/node` and a TypeScript major). Or land `dependabot.yml` ahead in its own
-   small PR. Findings 3 and 4 predict what that first run will hit. · **decision-needed: yes**
+Details are in the table.
 
-Nothing else is crossed. No step needed a stored secret; the attestation uses the job's identity
-token. The attestation action pins to a commit SHA, and so does the action it wraps. No protected
-surface changed.
+## Crossed or parked
+
+**Nothing crossed. No §7 condition fired.**
+- The SDK runs stateless on the pinned Node.
+- Its whole tree installs under `ignore-scripts=true` (**0** install scripts in the spike's tree).
+- The server binds `127.0.0.1` on an ephemeral port only, and was never exposed.
+- No credential exists or was needed.
+- The only root change is the one workspace entry.
+
+## Findings
+
+Legend:
+- `[wire]` means the value came from an HTTP exchange with the running server.
+- `[static]` means it came from the installed package or the lockfile.
+- **Stable?** means byte-identical across three consecutive runs of the final probe, after ephemeral
+  ports are normalised to `<port>`.
+- **Version-sensitive?** compares one run against the previous release, **1.30.0**.
+- Timings are separate lines, not findings (below the table).
+
+| finding | value | command or request | stable across runs? | version-sensitive? |
+|---|---|---|---|---|
+| `sdk.version` [static] | 1.30.1 | package.json of the SDK module this probe imports | yes | yes (reads 1.30.0 on 1.30.0) |
+| `node.version` [static] | v24.21.0 | process.version | yes | no |
+| `sdk.LATEST_PROTOCOL_VERSION` [static] | 2025-11-25 | import from @modelcontextprotocol/sdk/types.js | yes | no |
+| `sdk.SUPPORTED_PROTOCOL_VERSIONS` [static] | 2025-11-25,2025-06-18,2025-03-26,2024-11-05,2024-10-07 | import from @modelcontextprotocol/sdk/types.js | yes | no |
+| `sdk.DEFAULT_NEGOTIATED_PROTOCOL_VERSION` [static] | 2025-03-26 | import from @modelcontextprotocol/sdk/types.js (used when a request carries no MCP-Protocol-Version header) | yes | no |
+| `initialize.offer.2025-11-25` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-11-25 | POST / initialize protocolVersion=2025-11-25 | yes | no |
+| `initialize.offer.2025-06-18` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-06-18 | POST / initialize protocolVersion=2025-06-18 | yes | no |
+| `initialize.offer.2025-03-26` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-03-26 | POST / initialize protocolVersion=2025-03-26 | yes | no |
+| `initialize.offer.2024-11-05` [wire] | HTTP 200 text/event-stream; result protocolVersion=2024-11-05 | POST / initialize protocolVersion=2024-11-05 | yes | no |
+| `initialize.offer.2024-10-07` [wire] | HTTP 200 text/event-stream; result protocolVersion=2024-10-07 | POST / initialize protocolVersion=2024-10-07 | yes | no |
+| `initialize.offer.2026-07-28` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-11-25 | POST / initialize protocolVersion=2026-07-28 | yes | no |
+| `initialize.offer.1999-01-01` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-11-25 | POST / initialize protocolVersion=1999-01-01 | yes | no |
+| `header.mcp-protocol-version.absent` [wire] | HTTP 200 text/event-stream; result | POST / tools/list, MCP-Protocol-Version absent | yes | no |
+| `header.mcp-protocol-version.matching` [wire] | HTTP 200 text/event-stream; result | POST / tools/list, MCP-Protocol-Version = 2025-11-25 | yes | no |
+| `header.mcp-protocol-version.architecture-target` [wire] | HTTP 400 application/json; error code=-32000 message="Bad Request: Unsupported protocol version: 2026-07-28 (supported versions: 2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05, 2024-10-07)" | POST / tools/list, MCP-Protocol-Version = 2026-07-28 | yes | no |
+| `header.mcp-protocol-version.unknown` [wire] | HTTP 400 application/json; error code=-32000 message="Bad Request: Unsupported protocol version: 1999-01-01 (supported versions: 2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05, 2024-10-07)" | POST / tools/list, MCP-Protocol-Version = 1999-01-01 | yes | no |
+| `server/discover` [wire] | HTTP 200 text/event-stream; error code=-32601 message="Method not found" | POST / server/discover, no MCP-Protocol-Version header | yes | no |
+| `server/discover.with-latest-header` [wire] | HTTP 200 text/event-stream; error code=-32601 message="Method not found" | POST / server/discover, MCP-Protocol-Version = 2025-11-25 | yes | no |
+| `header-gate.before-dispatch` [wire] | HTTP 400 application/json; error code=-32000 message="Bad Request: Unsupported protocol version: 2026-07-28 (supported versions: 2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05, 2024-10-07)" | POST / server/discover, MCP-Protocol-Version = 2026-07-28 (the header check answers before the method is looked up) | yes | no |
+| `origin.foreign.protection-off(default)` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-11-25 | raw POST initialize, Host loopback, Origin: http://evil.example | yes | no |
+| `host.non-loopback.protection-off(default)` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-11-25 | raw POST initialize, Host: evil.example, no Origin | yes | no |
+| `control.loopback-no-origin.protection-off(default)` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-11-25 | raw POST initialize, Host 127.0.0.1:<port>, no Origin | yes | no |
+| `control.matching-origin.protection-off(default)` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-11-25 | raw POST initialize, Host 127.0.0.1:<port>, Origin http://127.0.0.1:<port> | yes | no |
+| `host.localhost.protection-off(default)` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-11-25 | raw POST initialize, Host localhost:<port>, no Origin | yes | no |
+| `origin.foreign.protection-on` [wire] | HTTP 403 application/json; error code=-32000 message="Invalid Origin header: http://evil.example" | raw POST initialize, Host loopback, Origin: http://evil.example | yes | no |
+| `host.non-loopback.protection-on` [wire] | HTTP 403 application/json; error code=-32000 message="Invalid Host header: evil.example" | raw POST initialize, Host: evil.example, no Origin | yes | no |
+| `control.loopback-no-origin.protection-on` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-11-25 | raw POST initialize, Host 127.0.0.1:<port>, no Origin | yes | no |
+| `control.matching-origin.protection-on` [wire] | HTTP 200 text/event-stream; result protocolVersion=2025-11-25 | raw POST initialize, Host 127.0.0.1:<port>, Origin http://127.0.0.1:<port> | yes | no |
+| `host.localhost.protection-on` [wire] | HTTP 403 application/json; error code=-32000 message="Invalid Host header: localhost:<port>" | raw POST initialize, Host localhost:<port>, no Origin | yes | no |
+| `session.header-on-initialize` [wire] | absent | POST / initialize: response header mcp-session-id | yes | no |
+| `session.client-supplied-id` [wire] | HTTP 200 text/event-stream; result; response mcp-session-id=absent | POST / tools/list with mcp-session-id: client-invented-session | yes | no |
+| `session.GET-stream` [wire] | HTTP 200 text/event-stream; STREAM STILL OPEN after 1.5 s; body="" | GET / Accept: text/event-stream (read 1.5 s, then aborted) | yes | no |
+| `session.DELETE` [wire] | HTTP 200 -; response ended; body="" | DELETE / (read 1.5 s, then aborted) | yes | no |
+| `limit.body-10MB.declared-length` [wire] | HTTP 413 application/json; error code=-32000 message="Payload Too Large: Request body must not exceed 4194304 bytes"; response 125 bytes | POST / tools/call echo, 10485855-byte body with Content-Length | yes | **yes**: 1.30.0 answers HTTP 200 and echoes all 10,485,871 bytes |
+| `limit.body-10MB.chunked` [wire] | HTTP 413 application/json; error code=-32000 message="Payload Too Large: Request body must not exceed 4194304 bytes" | raw POST tools/call echo, the same 10485855 bytes chunked, no Content-Length | yes | **yes**: 1.30.0 answers HTTP 200 |
+| `limit.connections-200` [wire] | HTTP 200 ×200; server peak in flight 1 | 200 simultaneous POST / initialize | yes | no |
+| `limit.concurrency-200-overlapping` [wire] | HTTP 200 ×200; server peak in flight 200 | 200 simultaneous POST / tools/call sleep 500 ms (requests genuinely overlap) | yes | no |
+| `error.malformed-json` [wire] | HTTP 400 application/json; error code=-32700 message="Parse error: Invalid JSON" | POST / body `{not json` | yes | no |
+| `error.unknown-method` [wire] | HTTP 200 text/event-stream; error code=-32601 message="Method not found" | POST / method no/such/method | yes | no |
+| `error.missing-jsonrpc` [wire] | HTTP 400 application/json; error code=-32700 message="Parse error: Invalid JSON-RPC message" | POST / request without the jsonrpc member | yes | no |
+| `input.notification-unknown-method` [wire] | HTTP 202 -; empty body | POST / notification (no id) for an unknown method | yes | no |
+| `input.batch-of-2` [wire] | HTTP 200 text/event-stream; result + result | POST / JSON-RPC batch of two tools/list | yes | no |
+| `input.batch-empty` [wire] | HTTP 202 -; empty body | POST / empty batch [] | yes | no |
+| `input.batch-of-101` [wire] | HTTP 400 application/json; error code=-32600 message="Invalid Request: Batch must not exceed 100 messages" | POST / batch of 101 tools/list | yes | **yes**: 1.30.0 answers HTTP 200 with 101 results |
+| `input.empty-body` [wire] | HTTP 400 application/json; error code=-32700 message="Parse error: Invalid JSON" | POST / empty body | yes | no |
+| `input.content-type-text-plain` [wire] | HTTP 415 application/json; error code=-32000 message="Unsupported Media Type: Content-Type must be application/json" | POST / tools/list, Content-Type: text/plain | yes | no |
+| `input.accept-json-only` [wire] | HTTP 406 application/json; error code=-32000 message="Not Acceptable: Client must accept both application/json and text/event-stream" | POST / tools/list, Accept: application/json (no text/event-stream) | yes | no |
+| `deps.install-paths` [static] | 96 | npm ls --all --workspace @clearseal/spike-0100-protocol --parseable, minus the root and the workspace link | yes | no |
+| `deps.distinct-name-at-version` [static] | 92 | the same paths, de-duplicated by name and version from each package.json | yes | no |
+| `deps.tree-lines` [static] | 167 \| npm ls --all --workspace @clearseal/spike-0100-protocol | wc -l (non-blank; includes deduped and unmet-optional lines) | yes | no |
+| `deps.sdk-direct` [static] | @hono/node-server,ajv,ajv-formats,content-type,cors,cross-spawn,eventsource,eventsource-parser,express,express-rate-limit,hono,jose,json-schema-typed,pkce-challenge,raw-body,zod,zod-to-json-schema | dependencies in the SDK's package.json | yes | no |
+| `deps.sdk-peer` [static] | @cfworker/json-schema,zod | peerDependencies in the SDK's package.json | yes | no |
+| `deps.install-scripts` [static] | 0 | package-lock.json hasInstallScript, restricted to the spike's install paths (ignore-scripts=true would suppress them) | yes | no |
+
+Timings from the final run (three runs varied by under 10%, and they are not findings):
+
+```
+TIMING limit.body-10MB.declared | 21 ms | as below
+TIMING limit.body-10MB.chunked | 24 ms | as below
+TIMING limit.connections-200 | 294 ms | as below
+TIMING limit.concurrency-200-overlapping | 679 ms | as below
+```
+
+**Command lines behind the dependency counts:**
+- `npm ls --all --workspace @clearseal/spike-0100-protocol --parseable` prints 98 lines: the root
+  project, the workspace link, and **96** install paths (`deps.install-paths`).
+- Those paths hold **92** distinct name-and-version pairs (`deps.distinct-name-at-version`). The four
+  duplicates are nested copies.
+- The plain tree listing has **167** non-blank lines (`deps.tree-lines`). That includes lines
+  marked `deduped`, and `UNMET OPTIONAL DEPENDENCY @cfworker/json-schema` (an optional peer that is
+  not installed).
+- Installing the SDK reported `added 87 packages`. That is the new packages only; the tree shares
+  some packages the repository already had.
+
+## Raw exchanges (WO §3.3 and §3.4)
+
+**How to read this section:**
+- `>>>` is the request, and `<<<` the response status, headers and body, verbatim.
+- `<port>` replaces the ephemeral port.
+- The Host and Origin cases were sent over a raw socket, because `fetch` cannot set `Host`.
+- `initialize` never refuses. The refusal on the wire is the `MCP-Protocol-Version` header check,
+  pasted as "refusal".
+- The four Origin/Host combinations are each case with the SDK's DNS-rebinding protection off
+  (the default) and on.
+
+```
+--- initialize offering LATEST (2025-11-25)
+>>> POST / {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}
+<<< HTTP 200
+cache-control: no-cache, no-transform
+content-length: 170
+content-type: text/event-stream
+x-accel-buffering: no
+
+event: message
+data: {"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"spike-0100","version":"0.0.0"}},"jsonrpc":"2.0","id":1}
+
+--- initialize offering the architecture's target revision (2026-07-28): counter-offered, not refused
+>>> POST / {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2026-07-28","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}
+<<< HTTP 200
+cache-control: no-cache, no-transform
+content-length: 170
+content-type: text/event-stream
+x-accel-buffering: no
+
+event: message
+data: {"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"spike-0100","version":"0.0.0"}},"jsonrpc":"2.0","id":1}
+
+--- refusal: post-initialize request with MCP-Protocol-Version 2026-07-28
+>>> POST / {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}; MCP-Protocol-Version: 2026-07-28
+<<< HTTP 400
+content-length: 198
+content-type: application/json
+
+{"jsonrpc":"2.0","error":{"code":-32000,"message":"Bad Request: Unsupported protocol version: 2026-07-28 (supported versions: 2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05, 2024-10-07)"},"id":null}
+
+--- server/discover
+>>> POST / {"jsonrpc":"2.0","id":2,"method":"server/discover","params":{}}
+<<< HTTP 200
+cache-control: no-cache, no-transform
+content-length: 100
+content-type: text/event-stream
+x-accel-buffering: no
+
+event: message
+data: {"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"Method not found"}}
+
+--- origin.foreign, protection-off(default)
+>>> POST / initialize; Host loopback, Origin: http://evil.example
+<<< HTTP 200
+cache-control: no-cache, no-transform
+content-type: text/event-stream
+x-accel-buffering: no
+content-length: 170
+
+event: message
+data: {"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"spike-0100","version":"0.0.0"}},"jsonrpc":"2.0","id":1}
+
+--- host.non-loopback, protection-off(default)
+>>> POST / initialize; Host: evil.example, no Origin
+<<< HTTP 200
+cache-control: no-cache, no-transform
+content-type: text/event-stream
+x-accel-buffering: no
+content-length: 170
+
+event: message
+data: {"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{}},"serverInfo":{"name":"spike-0100","version":"0.0.0"}},"jsonrpc":"2.0","id":1}
+
+--- origin.foreign, protection-on
+>>> POST / initialize; Host loopback, Origin: http://evil.example
+<<< HTTP 403
+content-type: application/json
+content-length: 106
+
+{"jsonrpc":"2.0","error":{"code":-32000,"message":"Invalid Origin header: http://evil.example"},"id":null}
+
+--- host.non-loopback, protection-on
+>>> POST / initialize; Host: evil.example, no Origin
+<<< HTTP 403
+content-type: application/json
+content-length: 97
+
+{"jsonrpc":"2.0","error":{"code":-32000,"message":"Invalid Host header: evil.example"},"id":null}
+
+--- error.malformed-json
+>>> POST / {not json
+<<< HTTP 400
+content-length: 89
+content-type: application/json
+
+{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error: Invalid JSON"},"id":null}
+
+--- error.unknown-method
+>>> POST / {"jsonrpc":"2.0","id":2,"method":"no/such/method","params":{}}
+<<< HTTP 200
+cache-control: no-cache, no-transform
+content-length: 100
+content-type: text/event-stream
+x-accel-buffering: no
+
+event: message
+data: {"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"Method not found"}}
+```
+
+## Opinion, not measurement: what P1 should know
+
+These are the builder's reading of the measurements above. None is a finding.
+
+1. **The SDK cannot serve the architecture's target revision.** 1.30.1 knows nothing of
+   `2026-07-28`. It counter-offers `2025-11-25` on initialize, and hard-refuses the header
+   afterwards. P1 either targets `2025-11-25` until an SDK release lists the new revision, or
+   carries its own handling. That is the "Protocol revision" ruling's first real input.
+2. **DNS-rebinding protection looks like a control, but it is off by default.** It stays off unless
+   `enableDnsRebindingProtection` is set **and** the exact allowlists are given. When on, it
+   matches `Host` exactly (`localhost:<port>` is refused when only `127.0.0.1:<port>` is listed),
+   and it checks `Origin` only when one is sent. P1's transport should set it, or do its own check,
+   and never rely on the default.
+3. **Two limits are version-sensitive in a patch release.** The 4 MiB body limit and the 100-message
+   batch cap are both **absent in 1.30.0**, and `npm run check` passes on either. A patch bump can
+   add or remove a fail-closed default without any gate noticing. P1's own limits should not
+   depend on the SDK's.
+4. **Batches are accepted** even with a `2025-11-25` header, although JSON-RPC batching was removed
+   from the protocol in 2025-06-18. An empty batch gets 202 with no body, and so does a
+   notification for an unknown method. P1's fail-closed baseline should decide whether to accept
+   batches at all.
+5. **Stateless `GET` holds an event stream open indefinitely** with nothing ever sent on it. Every
+   such connection is a held socket that no limit covers.
+6. **There is no concurrency limit** (200 of 200 overlapping requests in flight), and no per-client
+   rate limit on the transport.
+7. **The SDK's published type declarations need the DOM library** (`HeadersInit` in
+   `shared/transport.d.ts`). The spike's `tsconfig.json` adds `"lib": ["ES2024", "DOM"]` for that
+   reason. The core's Node-only `lib` will hit the same thing when the core imports the SDK.
+8. **The SDK pulls a web-framework stack into any consumer's tree** (`express`, `hono` with
+   `@hono/node-server`, `cors`, `express-rate-limit`, `jose`, `pkce-challenge`, `cross-spawn`,
+   `eventsource`, and more: 17 direct dependencies, 92 distinct packages). Even a server that uses
+   none of them installs them. That is relevant to the architecture's *Dependencies: necessary and
+   limited* row.
+
+## Other findings
+
+Schema: `finding · where · type · recommendation · decision-needed`.
+
+1. **The test runner ignores the spike because of its path.** `scripts/test.mjs` globs
+   `packages/*/test/**/*.test.ts` (`scripts/test.mjs:18`), and the spike lives in `spikes/`. It has
+   no `test/` directory either, but that is not why it is skipped. · §3.1 · note · None. ·
+   decision-needed: no
+2. **The spike defines `build` and `typecheck`, both `tsc -p tsconfig.json`**, which emits nothing
+   (the base sets `noEmit`). The root `build` and `typecheck` run every workspace without
+   `--if-present`, so a workspace without the script fails the root command, and root config is
+   protected. · `spikes/0100-protocol/package.json` · note · None. · decision-needed: no
+3. **The provenance workflow's `npm pack --workspaces` will also pack the private spike.** `private`
+   only blocks publishing, not packing. So a tag run's release would carry a spike tarball, with an
+   attestation, beside the core's. `.github/**` is protected here. · `.github/workflows/provenance.yml`
+   · risk · Before the P0 tag, either narrow the pack to `packages/*` or remove the spike from
+   `workspaces` once its findings are lifted. · **decision-needed: yes**
+4. **The bill of materials and the audit now include the SDK's tree.** The `sbom` job now lists
+   183 components, and the SDK is checked as a direct dependency of the spike workspace.
+   · `ci.yml` (unchanged) · note · Expected. · decision-needed: no
 
 ## Gates line
 
 | Gate | Result |
 |---|---|
-| Bill-of-materials artifact | **`sbom-cyclonedx-35ae6933edaa`** (the final code commit's push run <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36094825676>): **CycloneDX 1.5, 99 components**. Downloaded and parsed independently; it lists all 5 direct dependencies at their lockfile versions, matched by package URL (transcript below) |
-| Bill of materials shown red (N5) | <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36093837841> on `f28c7dc` (output written to a wrong path): `sbom` **failure**, every other job green, **0 artifacts uploaded**. Reverted by the follow-up commit `e305716` (not force-pushed): green again (run 36093921374) |
-| Audit summary | "Dependencies audited: 100. Findings at high or critical: **0** (critical 0, high 0, moderate 0, low 0, info 0)." The job is green by design (reporting only) |
-| Provenance dry run | <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36094830153> (pull request, final workflow): `build` ✓, `attest` ✓, `release` **skipped** (guarded). Attestation created for `clearseal-core-0.0.0.tgz`, **verified independently**, and a tampered tarball fails. The documented release check **refuses** this pull-request attestation (below) |
-| Dependency-update PR | **None yet, and none possible before merge** (crossed item 2) |
-| `test` and `leak-gate` jobs | unchanged: lines 1-46 of `ci.yml` are byte-identical to `main`, and the diff only appends the `sbom` and `audit` jobs. Green on both runners on every run |
-| CI on the final code commit `35ae693` | push <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36094825676> and pull request <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36094830216>: `test` ×2, `leak-gate`, `sbom`, `audit` all **success**. The run for this file's commit shows on the PR |
-| Protected surfaces | `git diff origin/main...HEAD --stat -- docs README.md LICENSE NOTICE packages scripts` is **empty** |
-| N6 | the four governance files, both scripts, both workflows and every commit on the branch pass `--tree` and `--history`. The adversarial pass read `SECURITY.md` and `CONTRIBUTING.md` "as a stranger" and found exactly one vulnerability path, the platform's private reporting, with no person, address, handle or path |
-
-### Every `permissions:` block (WO §6)
-
-Printed with `yaml.safe_load` over each workflow: the workflow-level block, then each job's block
-or "(inherits workflow)".
-
-```
-.github/workflows/ci.yml          workflow        {'contents': 'read'}
-.github/workflows/ci.yml          job:test        (inherits workflow)      <- unchanged from -0000
-.github/workflows/ci.yml          job:leak-gate   {'contents': 'read'}
-.github/workflows/ci.yml          job:sbom        {'contents': 'read'}
-.github/workflows/ci.yml          job:audit       {'contents': 'read'}
-.github/workflows/provenance.yml  workflow        {'contents': 'read'}
-.github/workflows/provenance.yml  job:build       {'contents': 'read'}
-.github/workflows/provenance.yml  job:attest      {'contents': 'read', 'id-token': 'write', 'attestations': 'write'}
-.github/workflows/provenance.yml  job:release     {'contents': 'write'}
-```
-
-`id-token: write` appears in **one** job: `attest`, which runs no npm and no repository code.
-`contents: write` appears only in `release`, which runs only on a pushed `v*` tag.
-
-### Every `uses:` pin (WO §1.10, §6)
-
-```
-.github/workflows/ci.yml:18,34,53,78     actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-.github/workflows/ci.yml:21,41,56,81     actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-.github/workflows/ci.yml:67              actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1   (new)
-.github/workflows/provenance.yml         actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-.github/workflows/provenance.yml         actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-.github/workflows/provenance.yml         actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1   (new)
-.github/workflows/provenance.yml         actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1 (new)
-.github/workflows/provenance.yml         actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2 (new)
-  nested inside attest-build-provenance: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
-```
-
-Each new SHA was resolved from the release tag (all lightweight tags) and re-checked with
-`git ls-remote` in the adversarial pass. The attestation action is a composite whose only step
-calls `actions/attest` **by SHA**, so pinning the outer action pins what runs.
-
-## Findings
-
-Schema: `finding · where · type · recommendation · decision-needed`.
-
-3. **The bot's npm updates will probably fail to resolve** (a prediction; the first run will
-   confirm). `.npmrc` sets `engine-strict=true` and `engines.node` is exactly `24.21.0`. Locally, a
-   lockfile update under Node 22 or 24.16 fails with `notsup`. If the bot's updater runs a
-   different Node version and honours `.npmrc`, every npm update errors. Actions updates are
-   unaffected. · `.npmrc`, `package.json` · risk · Check the bot's log after merge. If it fails,
-   choose between an engines range (such as `>=24.21.0 <25`) and keeping the exact pin with npm
-   updates handled by a work order. · **decision-needed: yes**
-4. **The bot's commits will probably fail `leak-gate --history`**, and the leak-gate job scans a
-   pull request's head.
-   - **What was tested:** in the adversarial pass, locally crafted commits imitating the bot.
-   - **What passes:** its author and committer (platform no-reply addresses) are exempt.
-   - **What fails:** a `compare/<40-hex>...<40-hex>` link, typical for SHA-pinned action bumps, is
-     refused by `long-hex`. A `Signed-off-by:` trailer carrying the vendor's non-no-reply support
-     address is refused by `email`.
-
-   `scripts/**` is protected here, so the gate was not touched. · rules · risk · Decide before
-   the first bot PR. Precise rule changes (per the `-0001` ruling: never an allow), such as an
-   exact exemption for that sign-off address and for compare-URL SHAs, or rewording bot commits
-   at squash. · **decision-needed: yes**
-5. **Any account with write access can push a `v*` tag and get a release with valid provenance.**
-   "Tags are created by the architect" is a convention: there is no tag ruleset, and this
-   session's pushes use a write deploy key. · repository settings · risk · Add a tag ruleset
-   restricting creation of `refs/tags/v*`. The documented verification already pins the tag ref
-   and the signer workflow (below). · **decision-needed: yes**
-6. **Pull-request dry runs create real, repository-valid attestations.** Attestations 50073427 and
-   50075232 have source ref `refs/pull/9/merge`. So the verification command in the release notes
-   and `CHANGELOG.md` pins **both** `--source-ref refs/tags/<tag>` **and** `--signer-workflow
-   …/provenance.yml`. Proven on this PR's tarball (transcript below):
-   - under its own ref: accepted;
-   - under the release check: **refused**, "expected SourceRepositoryRef to be refs/tags/v0.1, got
-     refs/pull/9/merge";
-   - under the wrong signer workflow: **refused**.
-
-   · `provenance.yml`, `CHANGELOG.md` · note · Keep both flags in every published instruction. ·
-   decision-needed: no
-7. **No identity token while dependency code runs.** From the adversarial pass. Originally one
-   job held `id-token: write` through `npm ci`, the compile and `npm pack`, so a compromised
-   compiler could tamper with the tarball before attestation, or mint a token. It is now split:
-   `build` has no token, and `attest` downloads the tarballs and runs only the attestation action.
-   Lifecycle scripts are off (`ignore-scripts=true`, verified to cover `npm pack`), and the attest
-   path uses no npm cache. · `provenance.yml` · bug (fixed) · Keep the split. · decision-needed: no
-8. **The root `package.json` gained `"version": "0.0.0"`.** `npm sbom` refuses a root without a
-   version (`EINVALIDPURLTYPE`: a package URL needs one). The root is private and never packed, so
-   the value only names the root component. It is also why the lockfile changed (2 lines). ·
-   `package.json:3` · note · None. · decision-needed: no
-9. **Nothing automated would catch a widened `permissions:` block or a tag-for-SHA pin swap.** In
-   the adversarial pass, `id-token: write` added at `ci.yml`'s workflow level (so the unchanged
-   `test` job silently inherits it), and a pin replaced by its tag, both passed `npm run check` and
-   the leak gate. Only a reviewer reading the two listings above catches either. · workflows ·
-   risk · A later WO could add a small CI assertion (the workflow level is exactly `contents:
-   read`, every job declares permissions, only `provenance/attest` has `id-token`, and every
-   `uses:` matches `@<40-hex> # v…`), or turn on the platform's "require full-length SHA pins"
-   policy. Not built here: scope. · decision-needed: no
-10. **On a pull request, the bill of materials describes the merge result, not the branch head.**
-    Its artifact is named for GitHub's synthetic merge commit (for example
-    `sbom-cyclonedx-11a33895e58d` on a PR run, beside `…a5c4aa64adb4` for the same head's push
-    run). Describing what would land seemed the more useful inventory, and the artifact is named
-    for the commit it inventories. · `ci.yml` `sbom` job · note · Say if the head is wanted
-    instead. · decision-needed: no
-11. **The bill-of-materials check verifies shape and the direct dependencies, not completeness.**
-    A crafted document holding only the 5 direct package URLs would pass. The job generates the
-    document itself, so the threat the check answers is a broken generator, not a forger (anyone
-    who can edit the workflow can bypass any check). · `.github/scripts/check-sbom.mjs` · note ·
-    Optionally assert the component count against the lockfile's entries. · decision-needed: no
-12. **The audit summary now fails soft but visibly.** Missing or non-numeric counts report "did
-    not complete" (from the adversarial pass: an empty `vulnerabilities` object used to read as
-    "0"). Both "did not complete" and any high or critical finding raise a warning annotation, so
-    the result shows in the checks view without blocking the PR. ·
-    `.github/scripts/audit-summary.mjs` · bug (fixed) · None. · decision-needed: no
-13. **Tag convention detail.** A commit cannot contain its own SHA, so a tag's
-    `owner/repo@<full SHA>` line is added in the first commit after the tag. It uses exactly that
-    plain form, which the leak gate's action-pin exemption accepts; a commit *link* would carry a
-    bare 40-hex that the gate refuses. Both `CHANGELOG.md` and `CONTRIBUTING.md` say so. · note ·
-    None. · decision-needed: no
-14. **The default-branch ruleset has no required status checks.** Outside this WO, but the P0
-    phase-exit gate names them. · repository settings · note · The architect's post-merge action.
-    · decision-needed: no
-
-## Adversarial pass (WO §5)
-
-A fresh subagent ran it on its own clone, read-only, with no pushes and no GitHub writes.
-
-| # | WO §5 attack | Result |
-|---|---|---|
-| 1 | `id-token: write` moved to the workflow level | Nothing automated catches it (finding 9). The permissions listing above exposes it. Moved in `provenance.yml`, the attest job would lose the token at run time, since job-level permissions replace the workflow set, so the dry run would go red |
-| 2 | An empty file given to the bill-of-materials check | Fails (exit 1). So do non-CycloneDX JSON, a document missing a direct dependency, a direct dependency at the wrong version, a missing file, and a missing argument. A minimal crafted document passes (finding 11) |
-| 3 | A new action's SHA replaced by its tag | `grep -n "uses:" … \| grep -vE '@[0-9a-f]{40} # v'` exposes exactly the swapped line; nothing else does (finding 9) |
-| 4 | `SECURITY.md` and `CONTRIBUTING.md` read by a stranger | Exactly one path, the platform's private reporting. No person, address, handle or path |
-| 5 | `CODEOWNERS` validator | 3 × `Unknown owner` (crossed item 1) |
-| 6 | N6 sweep | Clean across every added file, all branch commits, and every author and committer |
-
-**Other results and dispositions:**
-- **Fixed:** findings 7 and 12 above, the verification flags (6), and the tag-line timing and
-  form (13).
-- **Held, with no finding:** no `${{ }}` expression inside any `run:` step, and no
-  `pull_request_target`.
-  - A fork pull request gets no identity token, so attestation fails closed and nothing is
-    released.
-  - A branch named like a tag cannot trigger a release, and neither can a manual run on a tag.
-  - The dry run now also fires on changes to what gets packed (`packages/**`, `package*.json`,
-    `tsconfig*.json`).
-
-## Acceptance evidence
-
-**§3.2: the bill-of-materials artifact, downloaded and parsed independently** (run 36093732968,
-the first green push; the final commit's artifact has the same shape):
-
-```
-$ gh run download <run> -n sbom-cyclonedx-0080b5259883
-$ jq '{bomFormat, specVersion, components: (.components|length), metaName: .metadata.component.name}' sbom.cdx.json
-{ "bomFormat": "CycloneDX", "specVersion": "1.5", "components": 99, "metaName": "clearseal-reference" }
-$ node .github/scripts/check-sbom.mjs sbom.cdx.json
-check-sbom: 99 component(s); 5 direct dependenc(ies) checked
-pkg:npm/eslint@10.11.0
-pkg:npm/%40eslint/js@10.0.1
-pkg:npm/typescript@6.0.3
-pkg:npm/typescript-eslint@8.70.1
-pkg:npm/%40types/node@24.13.6
-```
-
-**§3.3: red once, then the revert** (run 36093837841, `sbom` job):
-
-```
-check-sbom: 0 component(s); 5 direct dependenc(ies) checked
-check-sbom: FAIL — sbom.cdx.json is empty, unreadable, or not JSON
-check-sbom: FAIL — bomFormat is undefined, not "CycloneDX"
-check-sbom: FAIL — specVersion is missing
-check-sbom: FAIL — no components
-check-sbom: FAIL — direct dependency @eslint/js@10.0.1 is not in the bill of materials
-   … (the other four direct dependencies likewise)
-##[error]Process completed with exit code 1.
-artifacts in red run: 0
-```
-
-**§3.4: the audit summary, as published on the run:**
-
-```
-## Dependency audit (npm audit, level high and above; reporting only)
-
-Dependencies audited: 100. Findings at high or critical: **0** (critical 0, high 0, moderate 0, low 0, info 0).
-```
-
-**§3.5: the provenance dry run and independent verification** (run 36094830153; tarball and bundle
-downloaded from the run's `release` artifact):
-
-```
-build success · attest success · release skipped
-Attestation created for clearseal-core-0.0.0.tgz@sha256:<64-hex>
-
-$ gh attestation verify clearseal-core-0.0.0.tgz --repo <repo> --bundle provenance.sigstore.json --format json
-predicateType https://slsa.dev/provenance/v1 · subject clearseal-core-0.0.0.tgz
-signer workflow <repo>/.github/workflows/provenance.yml · source ref refs/pull/9/merge · trigger pull_request
-exit=0
-$ (a copy with one byte appended) gh attestation verify tampered.tgz ...          exit=1
-$ ... --signer-workflow <repo>/.github/workflows/provenance.yml --source-ref refs/pull/9/merge   exit=0
-$ ... --signer-workflow <repo>/.github/workflows/provenance.yml --source-ref refs/tags/v0.1
-Error: expected SourceRepositoryRef to be refs/tags/v0.1, got refs/pull/9/merge                  exit=1
-$ ... --signer-workflow <repo>/.github/workflows/ci.yml                                           exit=1
-```
-
-**§3.6:** none possible before merge (crossed item 2).
-
-**§3.7:** `ci.yml` lines 1-46 (header, `test`, `leak-gate`) are byte-identical to `main`. `test` is
-green on both runners on every run on this branch.
+| SDK measured | **`@modelcontextprotocol/sdk` 1.30.1**, the npm `latest` at spike time. Pinned exactly in `spikes/0100-protocol/package.json`. Previous release 1.30.0 measured once for comparison |
+| `npm ci && npm run check` | exit 0 with the spike present. Typecheck and lint cover `spikes/0100-protocol/*.ts`, the directive check scans 10 files, and there is still exactly 1 test |
+| Probe | `node spikes/0100-protocol/probe.ts`: exit 0 and **53 findings**, none "unknown". It runs from any directory, and `npm run probe -w @clearseal/spike-0100-protocol` also exits 0 |
+| Stability (§5.1) | three runs of the final probe: every `FINDING` line and the whole raw section byte-identical; only the separate `TIMING` lines vary |
+| Previous release (§5.2) | 1.30.0: only `sdk.version`, both 10 MB body findings and the 101-message batch changed (table). `npm run check` also passes on 1.30.0 |
+| Error shapes (§5.3) | in the table: `error.*` and `input.*` |
+| Dead port (§5.4) | a server that cannot bind makes the probe exit 1 with "no findings printed" and **0** `FINDING` lines. Findings are buffered and emitted only when every measurement succeeded |
+| Loopback | the server binds `127.0.0.1` on an ephemeral port only. The stability pass saw exactly one listener, with no wildcard or IPv6 bind |
+| Protected surfaces | `git diff origin/main...HEAD --stat -- docs README.md LICENSE NOTICE packages scripts .github eslint.config.js tsconfig.json tsconfig.base.json` is **empty**. The root `package.json` change is the one workspace entry (`"spikes/0100-protocol"`); the lockfile gained the SDK's tree |
+| Leak gate | `--tree` and `--history` clean before every push. Identity: role only on every commit |
+| CI | the run for the final commit shows on the PR |
 
 ## What did not work, and why
 
-- **`CODEOWNERS` with the organization handle.** The platform rejects an organization as an owner,
-  the organization has no team, and the personal fallback is forbidden (crossed item 1).
-- **Showing a bot pull request.** The bot only reads its configuration from `main` (crossed item 2).
-- **`npm sbom` on the tree as it was.** It needs a root version (finding 8).
-- **A manual (`workflow_dispatch`) dry run.** It cannot run a workflow file that isn't on `main`, so
-  the dry run triggers on pull requests that touch the workflow or what it packs.
-- **"`contents: write` on the release step alone".** Permissions are per job, not per step, so the
-  release is its own job holding that one permission.
-- **The first provenance design held the identity token while npm ran.** The adversarial pass
-  caught it, and it was split (finding 7).
-- **Lint and typecheck** caught `any` flowing from `JSON.parse` and an unnarrowed optional in the
-  two new scripts, and the empty-file case of the bill-of-materials check first died with a stack
-  trace rather than a clear failure. All fixed.
+- **The first probe hung.** Stateless `GET` opens an event stream that never ends, and the probe
+  awaited its body. That became a finding (`session.GET-stream`), measured with a 1.5 s bound.
+- **The SDK's type declarations failed the repository's strict typecheck** (DOM `HeadersInit`).
+  Fixed in the spike's own `tsconfig.json` (opinion 7), not by loosening library checking.
+- **The first probe was not honest enough, and the stability pass said so.**
+  - It read the SDK version from a hard-coded path, and crashed on the nested 1.30.0 install.
+  - It needed the repository root as its working directory.
+  - It counted dependencies one off its own label.
+  - It called 200 simultaneous connections "concurrency" when the server never had more than
+    one request in flight.
+  - Its 10 MB test only exercised the declared-length check.
+  - Its DNS-rebinding test had no positive control.
+  - Its timings and an ephemeral port made runs differ.
+  - It printed static findings before discovering a dead server.
+
+  All of it was fixed before these findings were taken, and the whole measurement was re-run.
+- **My first attempt to install the SDK into the new workspace** added only the workspace link. The
+  second, naming the workspace by package, pinned it.
 
 ## What was deliberately not built
 
-- **No leak-gate change**: `scripts/**` is protected (finding 4 is for the architect).
-- **No release-integrity control.** A node attesting its own digest is deferred in
-  `architecture.md` §8. Provenance here proves what CI built, not what a node runs.
-- **No registry publishing.** Tarballs attach to a release on a tag; nothing is published.
-- **No signed-commit or signed-tag policy**, **no tag ruleset**, and **no required status checks or
-  code-owner review in the ruleset.** Those are the architect's settings (findings 5 and 14,
-  crossed item 1).
-- **No change to `packages/**` or to the `test` or `leak-gate` jobs.**
-- **No ruling on external contributions.** `CONTRIBUTING.md` ships the conservative default and
-  says it is one.
-- **No CI assertion on permissions or pins** (finding 9: scope).
-- **No tag was pushed.** The tag run is the architect's.
+- **No transport module, auth, Origin or Host validation, body limit, batch policy, or any
+  control.** Those are P1 (`CSR-WO-1005`, `-1003`). This spike measured what the SDK gives.
+- **No measurement that needs the hosted client.** That is `CSR-WO-0101`.
+- **No SDK version policy.** One version is pinned; the maintenance cadence owns bumps.
+- **No edit to `architecture.md`.** The row above is proposed, for the architect to lift.
+- **The spike server was never exposed.** It is loopback on an ephemeral port, with no auth and no
+  credential.
+- **No change to `packages/**`, `scripts/**`, `.github/**`, or the root lint and TypeScript
+  configuration.**
