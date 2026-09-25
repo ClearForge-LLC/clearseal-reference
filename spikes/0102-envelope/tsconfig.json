@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // structured-headers (option B's transitive dependency) declares its byte sequences as
+    // BufferSource, a DOM type the repository's Node-only lib lacks. Measured: CSR-WO-0102 FEEDBACK.
+    "lib": ["ES2024", "DOM"]
+  },
+  "include": ["*.ts", "test/*.ts"]
+}

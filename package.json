@@ -5,7 +5,8 @@
   "type": "module",
   "workspaces": [
     "packages/*",
-    "spikes/0100-protocol"
+    "spikes/0100-protocol",
+    "spikes/0102-envelope"
   ],
   "engines": {
     "node": "24.21.0"
@@ -14,7 +15,7 @@
     "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces",
     "lint": "eslint --max-warnings 0 . && node scripts/check-directives.mjs",
     "build": "npm run build --workspaces",
-    "test": "node scripts/test.mjs",
+    "test": "node scripts/test.mjs && node scripts/test.mjs \"spikes/0102-envelope/test/*.test.ts\"",
     "check": "node scripts/check-node.mjs && npm run typecheck && npm run lint && npm run build && npm run test",
     "leak-gate": "node scripts/leak-gate.mjs --self-test && node scripts/leak-gate.mjs --tree && node scripts/leak-gate.mjs --history"
   },

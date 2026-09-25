@@ -1,0 +1,90 @@
+{
+  "oracle": "spikes/0102-envelope/oracle/gen_vectors.py (Python test oracle; not a control)",
+  "fixture_public_key_b64": "qikRoPRLUGmP2QuEpKRSJLhCB33v3l7Hcoi8vK6tTtY=",
+  "vectors": [
+    {
+      "name": "minimal",
+      "input": {
+        "v": 1,
+        "sender_id": "node.alerter-example",
+        "origin_class": "system",
+        "key_id": "test-fixture-key",
+        "issued_at": 1787700000,
+        "nonce": "AAAABBBBCCCCDDDD",
+        "alert": {
+          "severity": "info",
+          "text": "all clear"
+        }
+      },
+      "now": 1787700000,
+      "text_utf8": "61 6c 6c 20 63 6c 65 61 72",
+      "signed_bytes_b64": "Q2xlYXJTZWFsL002LWFsZXJ0LWVudmVsb3BlL3YxAAAAAAExAAAAFG5vZGUuYWxlcnRlci1leGFtcGxlAAAABnN5c3RlbQAAABB0ZXN0LWZpeHR1cmUta2V5AAAACjE3ODc3MDAwMDAAAAAQQUFBQUJCQkJDQ0NDRERERAAAAARpbmZvAAAACWFsbCBjbGVhcg==",
+      "signed_len": 145,
+      "wire_b64": "eyJlbnZlbG9wZSI6eyJ2IjoxLCJzZW5kZXJfaWQiOiJub2RlLmFsZXJ0ZXItZXhhbXBsZSIsIm9yaWdpbl9jbGFzcyI6InN5c3RlbSIsImtleV9pZCI6InRlc3QtZml4dHVyZS1rZXkiLCJpc3N1ZWRfYXQiOjE3ODc3MDAwMDAsIm5vbmNlIjoiQUFBQUJCQkJDQ0NDRERERCIsImFsZXJ0Ijp7InNldmVyaXR5IjoiaW5mbyIsInRleHQiOiJhbGwgY2xlYXIifX0sInNpZ25hdHVyZSI6ImNqSm5ZRmd4NXFVZlBDem9RdzFRcXpTamxuT1dwTDFHYjIybzZ0TUl3RVZ0ejNMQzNMRDgvQWk3QmNJVmM2eFlVUStwdGJwRnAreGtEMS9pWmJWSUNBPT0ifQ==",
+      "wire_len": 307
+    },
+    {
+      "name": "m5-nbsp",
+      "input": {
+        "v": 1,
+        "sender_id": "node.alerter-example",
+        "origin_class": "system",
+        "key_id": "test-fixture-key",
+        "issued_at": 1787700000,
+        "nonce": "AAAABBBBCCCCDDD1",
+        "alert": {
+          "severity": "info",
+          "text": "all clear\u00a0"
+        }
+      },
+      "now": 1787700000,
+      "text_utf8": "61 6c 6c 20 63 6c 65 61 72 c2 a0",
+      "signed_bytes_b64": "Q2xlYXJTZWFsL002LWFsZXJ0LWVudmVsb3BlL3YxAAAAAAExAAAAFG5vZGUuYWxlcnRlci1leGFtcGxlAAAABnN5c3RlbQAAABB0ZXN0LWZpeHR1cmUta2V5AAAACjE3ODc3MDAwMDAAAAAQQUFBQUJCQkJDQ0NDREREMQAAAARpbmZvAAAAC2FsbCBjbGVhcsKg",
+      "signed_len": 147,
+      "wire_b64": "eyJlbnZlbG9wZSI6eyJ2IjoxLCJzZW5kZXJfaWQiOiJub2RlLmFsZXJ0ZXItZXhhbXBsZSIsIm9yaWdpbl9jbGFzcyI6InN5c3RlbSIsImtleV9pZCI6InRlc3QtZml4dHVyZS1rZXkiLCJpc3N1ZWRfYXQiOjE3ODc3MDAwMDAsIm5vbmNlIjoiQUFBQUJCQkJDQ0NDREREMSIsImFsZXJ0Ijp7InNldmVyaXR5IjoiaW5mbyIsInRleHQiOiJhbGwgY2xlYXLCoCJ9fSwic2lnbmF0dXJlIjoiOFFKdEE1NS9jQVptZUs3d2hiL1k0L0ZBV0Zac0hIZ2l0QzFBM3BzZjZuU3hYM1RhaUkrNTRld3RUT25zUzlEZElxeWwrampPV3JCaXEyVXFFVFRUQUE9PSJ9",
+      "wire_len": 309
+    },
+    {
+      "name": "m5-composed",
+      "input": {
+        "v": 1,
+        "sender_id": "node.alerter-example",
+        "origin_class": "system",
+        "key_id": "test-fixture-key",
+        "issued_at": 1787700000,
+        "nonce": "AAAABBBBCCCCDDD2",
+        "alert": {
+          "severity": "warn",
+          "text": "caf\u00e9"
+        }
+      },
+      "now": 1787700000,
+      "text_utf8": "63 61 66 c3 a9",
+      "signed_bytes_b64": "Q2xlYXJTZWFsL002LWFsZXJ0LWVudmVsb3BlL3YxAAAAAAExAAAAFG5vZGUuYWxlcnRlci1leGFtcGxlAAAABnN5c3RlbQAAABB0ZXN0LWZpeHR1cmUta2V5AAAACjE3ODc3MDAwMDAAAAAQQUFBQUJCQkJDQ0NDREREMgAAAAR3YXJuAAAABWNhZsOp",
+      "signed_len": 141,
+      "wire_b64": "eyJlbnZlbG9wZSI6eyJ2IjoxLCJzZW5kZXJfaWQiOiJub2RlLmFsZXJ0ZXItZXhhbXBsZSIsIm9yaWdpbl9jbGFzcyI6InN5c3RlbSIsImtleV9pZCI6InRlc3QtZml4dHVyZS1rZXkiLCJpc3N1ZWRfYXQiOjE3ODc3MDAwMDAsIm5vbmNlIjoiQUFBQUJCQkJDQ0NDREREMiIsImFsZXJ0Ijp7InNldmVyaXR5Ijoid2FybiIsInRleHQiOiJjYWbDqSJ9fSwic2lnbmF0dXJlIjoibjNVbTQxM0tVQklSVklxK3J4MjBXcFl4amRSVFA0NVI3K08vRWxmdXNyeUJFLzA5dy8rZDFDSzJVVDN3emVENXhxYWpGZlpUMjk1bkFwVHFydk1VQ0E9PSJ9",
+      "wire_len": 303
+    },
+    {
+      "name": "m5-decomposed",
+      "input": {
+        "v": 1,
+        "sender_id": "node.alerter-example",
+        "origin_class": "system",
+        "key_id": "test-fixture-key",
+        "issued_at": 1787700000,
+        "nonce": "AAAABBBBCCCCDDD3",
+        "alert": {
+          "severity": "warn",
+          "text": "cafe\u0301"
+        }
+      },
+      "now": 1787700000,
+      "text_utf8": "63 61 66 65 cc 81",
+      "signed_bytes_b64": "Q2xlYXJTZWFsL002LWFsZXJ0LWVudmVsb3BlL3YxAAAAAAExAAAAFG5vZGUuYWxlcnRlci1leGFtcGxlAAAABnN5c3RlbQAAABB0ZXN0LWZpeHR1cmUta2V5AAAACjE3ODc3MDAwMDAAAAAQQUFBQUJCQkJDQ0NDREREMwAAAAR3YXJuAAAABmNhZmXMgQ==",
+      "signed_len": 142,
+      "wire_b64": "eyJlbnZlbG9wZSI6eyJ2IjoxLCJzZW5kZXJfaWQiOiJub2RlLmFsZXJ0ZXItZXhhbXBsZSIsIm9yaWdpbl9jbGFzcyI6InN5c3RlbSIsImtleV9pZCI6InRlc3QtZml4dHVyZS1rZXkiLCJpc3N1ZWRfYXQiOjE3ODc3MDAwMDAsIm5vbmNlIjoiQUFBQUJCQkJDQ0NDREREMyIsImFsZXJ0Ijp7InNldmVyaXR5Ijoid2FybiIsInRleHQiOiJjYWZlzIEifX0sInNpZ25hdHVyZSI6ImFJQVp3MFUwV2FZMVZEVVZmVTVRcW5iMlZqcnMyZnpXd1FRbXRzVUZxSFhZbjN2eXYwcHdmdjN1ZW1lUklYR3h4Ti91V3RJSlk1ci9yeVVpSFlZT0JRPT0ifQ==",
+      "wire_len": 304
+    }
+  ]
+}
