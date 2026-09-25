@@ -24,26 +24,33 @@ Tests live in `packages/core/test/transport/`. Each test title starts with the I
 
 ## SH — Streamable HTTP (every normative line)
 
+Routing matches the raw request target, with no dot-segment or percent-encoding normalization:
+`/x/../mcp` is not the endpoint, so a proxy that allows or denies by path sees the path this server
+dispatches on. The client-side steps under *Client Behavior* (extract, append, inspect, encode,
+append) and "clients MUST reject tool definitions…" bind clients: **n/a**. The server applies
+the same annotation rules at registration (SH-27…SH-29).
+
 | ID | Anchor | Requirement | Level | Disposition |
 |---|---|---|---|---|
 | SH-1 | #streamable-http | Server provides a single HTTP endpoint path (the MCP endpoint) that supports POST | MUST | **impl**: one path, `/mcp` by default (`config.endpointPath`); every other path is `404` |
-| SH-2 | #security--endpoint | Validate the `Origin` header on all incoming connections | MUST | **impl**: `config.allowedOrigins`, loopback only by default |
+| SH-2 | #security--endpoint | Validate the `Origin` header on all incoming connections | MUST | **impl**: `config.allowedOrigins`, loopback only by default, on **every** route, `/health` and the metadata document included. A repeated `Origin` is refused |
 | SH-3 | #security--endpoint | `Origin` present and invalid → `403 Forbidden`; body MAY be a JSON-RPC error with no `id` | MUST / MAY | **impl**: `403`, JSON-RPC error with no `id` (code `-32600`) |
-| SH-4 | #security--endpoint | When running locally, bind only to localhost | SHOULD | **impl**: default bind `127.0.0.1`. `Host` is also checked against `config.allowedHosts` (**refuse** `403`); the WO requires that beyond the spec |
-| SH-5 | #security--endpoint | Implement proper authentication for all connections | SHOULD | **seam**: `Verifier`. This WO ships `RefuseAllVerifier` only, so every MCP request gets `401` (`-1003` replaces it) |
+| SH-4 | #security--endpoint | When running locally, bind only to localhost | SHOULD | **impl**: default bind `127.0.0.1`. `Host` is also checked against `config.allowedHosts` (**refuse** `403`), as the WO requires beyond the spec. A request with more than one `Host`, or with a target that is not origin-form (`/…`), is `400` (RFC 9112 §3.2, §3.2.2), so the check always sees the authority used |
+| SH-5 | #security--endpoint | Implement proper authentication for all connections | SHOULD | **seam**: `Verifier`. This WO ships `RefuseAllVerifier` only, so every MCP request gets `401` (`-1003` replaces it). Dispatch requires `ok === true` **and** a non-empty principal id; any other verdict never dispatches. The verifier runs under `verifierTimeoutMs` (`503` on overrun). A repeated `Authorization` header is `400` |
 | SH-6 | #sending-messages | Every JSON-RPC message from the client is a new POST | MUST (client) | n/a. The server side: `GET`, `DELETE` and every other method → `405`, `Allow: POST` |
 | SH-7 | #sending-messages 2 | Client `Accept` lists both `application/json` and `text/event-stream` | MUST (client) | **refuse** (narrower than the spec): the server requires only that `Accept` admits `application/json` (`application/json`, `application/*` or `*/*`); otherwise `406`. It does not require `text/event-stream`, because it never sends it |
 | SH-8 | #sending-messages 3 | Client includes the request metadata headers on each POST | MUST (client) | **refuse** when they are absent (see SH-20…SH-24) |
 | SH-9 | #sending-messages 4 | Body is a single JSON-RPC request or notification; the client MUST NOT send responses | MUST (client) | **refuse**: a JSON array (batch) → `400`/`-32600`; a response-shaped body → `400`/`-32600` |
 | SH-10 | #sending-messages 5 | Accepted notification → `202 Accepted`, no body | MUST | **impl**: only `notifications/initialized` on the legacy era is accepted |
 | SH-11 | #sending-messages 5 | Notification not accepted → HTTP error status (e.g. `400`); body MAY be a JSON-RPC error with no `id` | MUST | **impl**: every other notification → `400`, error with no `id`, code `-32601` |
+| SH-12a | (RFC 9110 §8.4, RFC 9112 §6.1) | Content and transfer codings | (HTTP) | **refuse**: a `Content-Encoding` other than `identity` → `415`; a `Transfer-Encoding` other than `chunked` → `400`, so no proxy that honours a coding sees a different body. A repeated `Content-Type` → `415` |
 | SH-12 | #sending-messages 6 | Request → `Content-Type: application/json` **or** `text/event-stream` | MUST | **impl**: always `application/json`. **A JSON-only server is permitted**: the MUST is a choice between the two, and "the client MUST support both" binds the client |
 | SH-13 | note after #sending-messages | No client-to-server notifications over Streamable HTTP in this revision | informative | **impl**: the modern era accepts no notification (`400`) |
 | SH-14 | #receiving-messages | Notifications on an SSE stream MUST relate to the originating request; no independent requests on it; the final response SHOULD end the stream | MUST / SHOULD | **out**: no SSE is produced in this WO. Nothing is streamed, so nothing unrelated can be |
 | SH-15 | #receiving-messages | `X-Accel-Buffering: no` when initiating SSE | SHOULD | **out**: no SSE |
 | SH-16 | #receiving-messages | `subscriptions/listen` delivers change notifications on an open SSE stream | (feature) | **out**: `subscriptions/listen` → `404`/`-32601`, as for any method not implemented (SH-19). `capabilities` advertises no `listChanged` |
 | SH-17 | #receiving-messages | Resumable SSE via `Last-Event-ID` is not supported | informative | **impl**: `Last-Event-ID` is ignored (SH-37) |
-| SH-18 | #cancellation | Closing the SSE stream = cancellation; stop work; send nothing further | MUST / SHOULD | **impl (JSON analogue)**: a client disconnect aborts the handler's `AbortSignal` and nothing is written after. For SSE: out |
+| SH-18 | #cancellation | Closing the SSE stream = cancellation; stop work; send nothing further | MUST / SHOULD | **impl (JSON analogue)**: a client disconnect aborts the handler's `AbortSignal` (audited as `client-disconnect`) and nothing is written after. A handler that ignores its signal keeps its concurrency slot until it settles. For SSE: out |
 | SH-19 | #protocol-version-header | Requested RPC method not implemented → `404`, `-32601` | MUST | **impl** |
 | SH-20 | #protocol-version-header | Every POST includes `MCP-Protocol-Version` | MUST (client) | **refuse** when absent → `400`/`-32020`. **One exception, D-1:** a legacy `initialize` request, which under `2025-11-25` carries no header (LG-3) |
 | SH-21 | #protocol-version-header | Header value MUST match `_meta["io.modelcontextprotocol/protocolVersion"]`; mismatch → `400` `HeaderMismatch` | MUST | **impl**: `400`/`-32020` |
@@ -62,7 +69,7 @@ Tests live in `packages/core/test/transport/`. Each test title starts with the I
 | SH-34 | #server-behavior-for-custom-headers | Reject a recognized `Mcp-Param-*` with invalid characters | MUST | **impl**: `400`/`-32020` |
 | SH-35 | #server-behavior-for-custom-headers | Encoded header values (after decoding) match the body; else `400`/`-32020`. Value present → header required; `null` or absent → header not expected | MUST | **impl**, and a header sent when the value is null or absent is refused as a mismatch (D-4) |
 | SH-36 | #case-sensitivity | Header **names** compared case-insensitively; **values** case-sensitive | MUST | **impl**: Node lower-cases names; values are compared byte for byte |
-| SH-37 | #server-validation | Reject when header values do not match the body | MUST | **impl** (SH-21, SH-24, SH-35) |
+| SH-37 | #server-validation | Reject when header values do not match the body | MUST | **impl** (SH-21, SH-24, SH-35), and on the one accepted notification: `Mcp-Method` and any `_meta` version it carries must agree |
 | SH-38 | #server-validation note | Integer parameters compared numerically (`42.0` = `42`) | SHOULD | **impl**: an integer body value is compared as a number against the header (strict decimal syntax) |
 | SH-39 | #server-validation | Header validation failure → `400` and a JSON-RPC error `-32020` | MUST | **impl**. Error messages name the header, never the value (N6, and a mirrored value can be secret-shaped) |
 | SH-40 | #server-validation notes | Intermediaries: error status; verify the version before trusting headers | MUST / SHOULD (intermediary) | n/a |
@@ -105,9 +112,9 @@ Tests live in `packages/core/test/transport/`. Each test title starts with the I
 | BI-13 | #statelessness | State spanning requests is referenced by an explicit identifier on each request | MUST | **impl**: MRTR `requestState` (MR-4) |
 | BI-14 | #json-schema-usage | Support 2020-12 for schemas with no `$schema`; validate by the declared dialect; handle unsupported dialects gracefully | MUST | **impl**: 2020-12 only. A tool whose `inputSchema` declares any other `$schema` is refused at registration with a stated reason. The dialects supported are documented here: 2020-12 only |
 | BI-15 | #schema-validation | Schemas are valid under their dialect | MUST | **impl**: compiled strictly at registration; an invalid one is refused |
-| BI-16 | #ref-resolution | Never dereference a `$ref` that resolves to a network URI; any fetch opt-in is off by default | MUST NOT | **impl**: no loader is configured, and a `$ref` outside the schema's own document is refused at registration |
+| BI-16 | #ref-resolution | Never dereference a `$ref` that resolves to a network URI; any fetch opt-in is off by default | MUST NOT | **impl**: no loader is configured (and the validator refuses to run if one is installed). A `$ref`/`$dynamicRef` outside the schema's own document is refused at registration, found by a keyword-aware walk (`schema-walk.ts`): names under `properties`, `$defs` and the like are names, so neither a property called `const` nor one called `$ref` hides or fakes a reference |
 | BI-17 | #ref-resolution | A schema failing on an unresolved external `$ref` is rejected, not treated as permissive | SHOULD | **impl**: refused at registration (WO §5.5) |
-| BI-18 | #composition-keyword-resource-use | Bound schema depth, subschema count, or validation time | SHOULD | **impl**: `config.maxSchemaDepth` and `config.maxSchemaNodes` at registration; validation input is bounded by the body and depth caps. Time: measured (FEEDBACK) |
+| BI-18 | #composition-keyword-resource-use | Bound schema depth, subschema count, or validation time | SHOULD | **impl, all three**: `maxSchemaDepth` and `maxSchemaNodes` at registration, and **validation time**: every validation runs in a worker thread (`schema-pool.ts`) that is terminated at `validationTimeoutMs` → `400`/`-32602`. The body and depth caps alone do **not** bound validation time (uniqueItems, recursive composition, regular expressions: FEEDBACK) |
 
 ## DS — `server/discover`, **CA** — caching
 
@@ -146,7 +153,7 @@ Tests live in `packages/core/test/transport/`. Each test title starts with the I
 | MR-2 | #server-requirements-basic-workflow 2 | `inputRequests` keys unique; values are Elicit, CreateMessage or ListRoots requests | MUST | **impl**: other methods → `500`/`-32603` (a handler bug, never sent) |
 | MR-3 | #server-requirements-basic-workflow 3 | `requestState` is an opaque string | (definition) | **impl**: a sealed token, `base64url(payload).base64url(HMAC-SHA256)` |
 | MR-4 | #server-requirements-basic-workflow 4 | Treat `requestState` as attacker-controlled; protect its integrity (HMAC/AEAD); reject what fails verification | MUST | **impl**: HMAC-SHA256 under `CLEARSEAL_REQUEST_STATE_KEY` (named in `.env.example`, never valued). A tampered or foreign state → `400`/`-32602`. With no key configured, every `requestState` is refused, and a handler that asks for one fails closed |
-| MR-5 | #server-requirements-basic-workflow 5 | Bind principal, short expiry, and the originating request inside the state; verify each | SHOULD | **impl**: the payload binds the principal id, the method, the tool name and an expiry (`config.requestStateTtlMs`). A state replayed on another tool is refused (WO §5.6) |
+| MR-5 | #server-requirements-basic-workflow 5 | Bind principal, short expiry, and the originating request inside the state; verify each | SHOULD | **impl**: the payload binds the principal id, the method, the tool name, a SHA-256 digest of the canonical `arguments`, and an expiry (`config.requestStateTtlMs`). A state replayed on another tool, or on the same tool with other arguments, is refused (WO §5.6) |
 | MR-6 | same, warning | At-most-once consumption enforced server-side where needed | MUST (conditional) | **out**: no single-use state exists in this WO. `-2001` owns approval semantics |
 | MR-7 | #server-requirements-basic-workflow 6 | At least one of `inputRequests` / `requestState` in every `InputRequiredResult` | MUST | **impl**: otherwise `500`/`-32603` |
 | MR-8 | #server-requirements-basic-workflow 7 | Never send `inputRequests` for a capability the client did not declare | MUST NOT | **impl**: refused with `-32021` (BI-9) |
@@ -178,11 +185,14 @@ Tests live in `packages/core/test/transport/`. Each test title starts with the I
 |---|---|---|---|
 | Body bytes | `maxBodyBytes` | 1 MiB (1,048,576) | `413`, `-32600`. A `Content-Length` over the cap is refused before any read; a chunked body is cut off at cap+1 |
 | Parse depth | `maxJsonDepth` | 64 | `400`, `-32600` |
-| In-flight requests | `maxInFlight` | 32 | `503`, `Retry-After: 1`, `-32603` |
+| In-flight requests | `maxInFlight` | 32 | `503`, `Retry-After: 1`, `-32603`. A slot is taken **after** authentication (an unauthenticated client holds none) and is held until the response has closed **and** any handler it started has settled, so a timed-out or abandoned handler still counts |
 | Handler time | `handlerTimeoutMs` | 30,000 | `500`, `-32603`. The handler's `AbortSignal` fires, and an audit seam line is logged |
-| Result bytes | `maxResultBytes` | 256 KiB (262,144) | `500`, `-32603`; the result is not sent |
+| Result bytes | `maxResultBytes` | 256 KiB (262,144) | `500`, `-32603`; the result is not sent. Error bodies are the transport's own short texts: whatever a handler throws becomes a fixed `-32603` message |
+| Validation time | `validationTimeoutMs` / `validationWorkers` | 2,000 ms / 2 workers | `400`, `-32602`; the worker is terminated and replaced |
+| Verifier time | `verifierTimeoutMs` | 5,000 ms | `503`, `Retry-After: 1` |
+| Request receive time | `requestTimeoutMs` | 30,000 ms (Node's `requestTimeout`, replacing its 300 s default) | Node answers `408` |
 | Schema depth / nodes | `maxSchemaDepth` / `maxSchemaNodes` | 32 / 2,000 | tool registration refused |
-| Header count / size | Node's own | `maxHeaderSize` 16 KiB, `maxHeadersCount` 2000, `headersTimeout` 60 s, `requestTimeout` 300 s | not re-implemented (WO §1.10); Node answers `431`/`408` |
+| Header count / size | Node's own | `maxHeaderSize` 16,384 B; `maxHeadersCount` `null` (Node's internal 2000); `headersTimeout` 60 s (measured on v24.21.0) | not re-implemented (WO §1.10); Node answers `431`/`408` |
 
 ## Deviations from the WO text (decision-needed where marked)
 
@@ -194,7 +204,11 @@ Tests live in `packages/core/test/transport/`. Each test title starts with the I
   the WO's ratified choice ("no session, ever"), recorded here because the versioning page words it
   otherwise.
 - **D-3**: on the legacy era, `Mcp-Method`/`Mcp-Name` are not required, but they are validated when
-  present, because an intermediary may route on them.
+  present, because an intermediary may route on them. The same holds for `Mcp-Param-*`: once any
+  annotated header is present on a legacy call, every annotated header is checked. **A client can
+  choose the legacy era per request** (no `initialize` is needed), so a legacy request carries no
+  required mirrored headers. That is the spec's design, and it is why an intermediary should
+  distrust mirrored headers on old versions (SH-40).
 - **D-4**: an `Mcp-Param-*` header sent when the body value is `null` or absent is refused as a
   mismatch. The spec says only that the server "MUST NOT expect" it. Accepting it would let a
   header route on a value the body does not carry.

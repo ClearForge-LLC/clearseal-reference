@@ -4,6 +4,7 @@
 // secret-shaped, and an error message is logged by everything on the path (N6).
 
 import { HEADER_MISMATCH, isPlainObject, Refusal } from "./jsonrpc.ts";
+import { walkSchema } from "./schema-walk.ts";
 
 const SENTINEL_PREFIX = "=?base64?";
 const SENTINEL_SUFFIX = "?=";
@@ -50,9 +51,6 @@ export function decodeHeaderValue(raw: string, display: string): string {
 /** RFC 9110 `tchar`, one or more. */
 const TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 const PRIMITIVES = new Set(["string", "integer", "boolean"]);
-/** Keywords whose values are instance data, not subschemas: an `x-mcp-header` key inside them is
- *  not an annotation. */
-const DATA_KEYWORDS = new Set(["const", "enum", "default", "examples"]);
 
 export interface ParamHeader {
   /** As annotated, for messages. */
@@ -73,35 +71,19 @@ export class AnnotationError extends Error {
  *  registry then refuses the tool. */
 export function paramHeaders(inputSchema: unknown): ParamHeader[] {
   const found: ParamHeader[] = [];
-  // `path` is null once the walk leaves a chain made only of `properties` keys.
-  const visit = (node: unknown, path: string[] | null): void => {
-    if (Array.isArray(node)) {
-      for (const item of node) visit(item, null);
-      return;
-    }
-    if (!isPlainObject(node)) return;
-    if (Object.hasOwn(node, "x-mcp-header")) {
-      const where = path === null ? "a non-static location" : `/${path.join("/")}`;
-      if (path === null || path.length === 0) throw new AnnotationError(`x-mcp-header at ${where} is not on a property statically reachable through properties`);
-      const name = node["x-mcp-header"];
-      if (typeof name !== "string" || name === "") throw new AnnotationError(`x-mcp-header at ${where} is empty or not a string`);
-      if (!TOKEN.test(name)) throw new AnnotationError(`x-mcp-header at ${where} is not an HTTP token`);
-      const type = primitiveType(node["type"]);
-      if (type === undefined) throw new AnnotationError(`x-mcp-header at ${where} is on a property whose type is not exactly one of integer, string, boolean`);
-      const header = `mcp-param-${name.toLowerCase()}`;
-      if (found.some((f) => f.header === header)) throw new AnnotationError(`x-mcp-header "${name}" is not case-insensitively unique`);
-      found.push({ name, header, path, type });
-    }
-    for (const [key, value] of Object.entries(node)) {
-      if (DATA_KEYWORDS.has(key) || key === "x-mcp-header") continue;
-      if (key === "properties" && isPlainObject(value) && path !== null) {
-        for (const [prop, sub] of Object.entries(value)) visit(sub, [...path, prop]);
-      } else {
-        visit(value, null);
-      }
-    }
-  };
-  visit(inputSchema, []);
+  walkSchema(inputSchema, ({ node, staticPath: path }) => {
+    if (!Object.hasOwn(node, "x-mcp-header")) return;
+    const where = path === null ? "a non-static location" : `/${path.join("/")}`;
+    if (path === null || path.length === 0) throw new AnnotationError(`x-mcp-header at ${where} is not on a property statically reachable through properties`);
+    const name = node["x-mcp-header"];
+    if (typeof name !== "string" || name === "") throw new AnnotationError(`x-mcp-header at ${where} is empty or not a string`);
+    if (!TOKEN.test(name)) throw new AnnotationError(`x-mcp-header at ${where} is not an HTTP token`);
+    const type = primitiveType(node["type"]);
+    if (type === undefined) throw new AnnotationError(`x-mcp-header at ${where} is on a property whose type is not exactly one of integer, string, boolean`);
+    const header = `mcp-param-${name.toLowerCase()}`;
+    if (found.some((f) => f.header === header)) throw new AnnotationError(`x-mcp-header "${name}" is not case-insensitively unique`);
+    found.push({ name, header, path, type });
+  });
   return found;
 }
 

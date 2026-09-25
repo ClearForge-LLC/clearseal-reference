@@ -5,7 +5,8 @@
 import { randomBytes } from "node:crypto";
 import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 
-import { compileSchema } from "../../src/transport/schema.ts";
+import { ValidationPool } from "../../src/transport/schema-pool.ts";
+import { Refusal } from "../../src/transport/jsonrpc.ts";
 import { PlaceholderRegistry, type Tool } from "../../src/transport/registry.ts";
 import { startTransport, type RunningTransport, type TransportOptions } from "../../src/transport/server.ts";
 import type { Verdict, Verifier } from "../../src/transport/verifier.ts";
@@ -121,6 +122,25 @@ export function fixtureTools(): Tool[] {
         Promise.resolve(ctx.state === undefined ? { resultType: "input_required" as const, state: { step: 1, tool: "ask_other" } } : text("other done")),
     },
     {
+      name: "approve_target",
+      description: "MRTR with arguments: asks once, then acts on `target`.",
+      inputSchema: { type: "object", properties: { target: { type: "string" } }, required: ["target"] },
+      handler: (args, ctx) =>
+        Promise.resolve(ctx.state === undefined ? { resultType: "input_required" as const, state: { approved: args["target"] as string } } : text(`acting on ${String(args["target"])}`)),
+    },
+    {
+      name: "throws_refusal",
+      description: "Throws a Refusal-shaped error with a long message; none of it may reach the client.",
+      inputSchema: { type: "object" },
+      handler: () => Promise.reject(new Refusal(200, 0, "x".repeat(300_000))),
+    },
+    {
+      name: "costly_schema",
+      description: "uniqueItems over objects: validation cost grows with the square of the array.",
+      inputSchema: { type: "object", properties: { tags: { type: "array", uniqueItems: true, items: { type: "object" } } } },
+      handler: () => Promise.resolve(text("validated")),
+    },
+    {
       name: "needs_sampling",
       description: "MRTR: asks for a sampling round.",
       inputSchema: { type: "object" },
@@ -138,7 +158,8 @@ export interface Started {
 
 export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifier | null; key?: Uint8Array | null; config?: TransportOptions["config"] } = {}): Promise<Started> {
   const limits = { ...DEFAULT_LIMITS, ...opts.limits };
-  const registry = new PlaceholderRegistry(compileSchema, limits);
+  const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
+  const registry = new PlaceholderRegistry(pool.compile, limits);
   for (const tool of fixtureTools()) registry.register(tool);
   const audits: string[] = [];
   const t = await startTransport({
@@ -149,7 +170,14 @@ export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifie
     ...(opts.key === null ? {} : { requestStateKey: opts.key ?? randomBytes(32) }),
     audit: (event) => audits.push(event),
   });
-  return { t, close: () => t.close(), audits };
+  return {
+    t,
+    close: async () => {
+      await t.close();
+      await pool.close();
+    },
+    audits,
+  };
 }
 
 export interface Reply {

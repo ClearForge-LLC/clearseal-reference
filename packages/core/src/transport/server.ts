@@ -3,12 +3,14 @@
 // here. No SDK is imported. SPEC-MAP.md beside this file maps each normative statement to its code.
 //
 // The order of checks, first refusal wins:
-//   1. route      unknown path → 404; /health and the RFC 9728 document are served bearer-free
+//   1. route      raw origin-form target only (else 400); unknown path → 404; one Host header
+//                 (else 400); /health and the RFC 9728 document are served bearer-free
 //   2. method     not POST → 405 with Allow: POST
-//   3. capacity   more than maxInFlight in progress → 503 with Retry-After
-//   4. Host, Origin not allowed → 403 (DNS rebinding, SH-2…SH-4)
-//   5. auth       the verifier returns a principal, or 401 with a resource-metadata challenge
-//   6. Accept, Content-Type → 406 / 415
+//   3. Host, Origin not allowed → 403 (DNS rebinding, SH-2…SH-4)
+//   4. auth       the verifier, under a deadline, returns a principal, or 401 with a
+//                 resource-metadata challenge (503 if it does not answer in time)
+//   5. capacity   more than maxInFlight requests or handlers in progress → 503 with Retry-After
+//   6. Accept, Content-Type, codings → 406 / 415 / 400
 //   7. body       over maxBodyBytes → 413; not strict UTF-8, malformed, duplicate keys → 400 -32700;
 //                 deeper than maxJsonDepth → 400 -32600
 //   8. framing    batch, response, or malformed JSON-RPC → 400 -32600
@@ -26,7 +28,7 @@ import { dispatch, type DispatchContext } from "./dispatch.ts";
 import { JsonParseError, parseJsonStrict } from "./json.ts";
 import { classify, INTERNAL_ERROR, INVALID_REQUEST, PARSE_ERROR, Refusal, type RequestId } from "./jsonrpc.ts";
 import type { ToolRegistry } from "./registry.ts";
-import { RefuseAllVerifier, type Verifier } from "./verifier.ts";
+import { type Principal, RefuseAllVerifier, type Verdict, type Verifier } from "./verifier.ts";
 
 export interface TransportOptions {
   config?: Parameters<typeof resolveConfig>[0];
@@ -87,7 +89,7 @@ function isJsonContentType(ct: string | undefined): boolean {
   if (ct === undefined) return false;
   const [type = "", ...params] = ct.toLowerCase().split(";").map((s) => s.trim());
   if (type !== JSON_TYPE) return false;
-  return params.every((p) => p === "" || p === "charset=utf-8");
+  return params.every((p) => p === "" || p === "charset=utf-8" || p === 'charset="utf-8"');
 }
 
 /** Reads the body under the byte cap. A declared Content-Length over the cap is refused before
@@ -158,11 +160,45 @@ export async function startTransport(options: TransportOptions): Promise<Running
   // RFC 9728 §3.1: the metadata for a resource at a path lives at the well-known path plus that path.
   const challenge = (): Record<string, string> => ({ "WWW-Authenticate": `Bearer resource_metadata="${new URL(resourceUrl).origin}${PRM_PATH}${config.endpointPath}"` });
 
-  const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
-    const url = new URL(req.url ?? "/", "http://placeholder.invalid");
-    const path = url.pathname;
+  /** Runs the verifier under its deadline. Dispatch needs ok === true and a non-empty principal
+   *  id; anything else never dispatches (F4). */
+  const authenticate = async (req: IncomingMessage): Promise<Principal> => {
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<"timeout">((resolve) => {
+      timer = setTimeout(() => {
+        resolve("timeout");
+      }, limits.verifierTimeoutMs);
+    });
+    let verdict: Verdict | "timeout";
+    try {
+      verdict = await Promise.race([verifier.verify(req.headers), deadline]);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (verdict === "timeout") {
+      audit("verifier-timeout", { limitMs: limits.verifierTimeoutMs });
+      throw new Refusal(503, INTERNAL_ERROR, "Authentication is unavailable; retry later", undefined, { "Retry-After": "1" });
+    }
+    if (verdict.ok === true) {
+      const id: unknown = (verdict.principal as Principal | undefined)?.id;
+      if (typeof id === "string" && id !== "") return verdict.principal;
+      audit("verifier-contract", { reason: "ok without a principal" });
+      throw new Refusal(500, INTERNAL_ERROR, "Internal error");
+    }
+    const header = challenge();
+    if (verdict.error !== undefined) header["WWW-Authenticate"] = `${header["WWW-Authenticate"] ?? ""}, error="${verdict.error}"`;
+    throw new Refusal(401, INVALID_REQUEST, "Unauthorized", undefined, header);
+  };
 
-    // 1. route
+  const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    // 1. route, on the raw request target: no dot-segment or percent normalization (F14), and
+    //    only origin-form ("/..."), so the Host check always sees the authority used (F9).
+    const target = req.url ?? "";
+    if (!target.startsWith("/")) {
+      send(res, 400, undefined);
+      return;
+    }
+    const path = target.split("?", 1)[0] ?? "";
     const isEndpoint = path === config.endpointPath;
     const isHealth = path === "/health";
     const isPrm = path === PRM_PATH || path === `${PRM_PATH}${config.endpointPath}`;
@@ -170,12 +206,24 @@ export async function startTransport(options: TransportOptions): Promise<Running
       send(res, 404, undefined);
       return;
     }
+
+    // Host exactly once (RFC 9112 §3.2) and allowed; Origin, when present, allowed (SH-2…SH-4).
+    // On every route, /health and the metadata document included (F16).
+    const hosts = req.headersDistinct.host ?? [];
+    if (hosts.length !== 1) {
+      send(res, 400, undefined);
+      return;
+    }
+    const origins = req.headersDistinct.origin;
+    const hostOk = hostAllowed(hosts[0], allowedHosts);
+    const originOk = origins === undefined || (origins.length === 1 && allowedOrigins.includes((origins[0] ?? "").toLowerCase()));
+
     if (isHealth || isPrm) {
       if (req.method !== "GET") {
         send(res, 405, undefined, { Allow: "GET" });
         return;
       }
-      if (!hostAllowed(req.headers.host, allowedHosts)) {
+      if (!hostOk || !originOk) {
         send(res, 403, undefined);
         return;
       }
@@ -190,42 +238,47 @@ export async function startTransport(options: TransportOptions): Promise<Running
       return;
     }
 
-    // 3. capacity
-    if (inFlight >= limits.maxInFlight) {
-      refuse(res, new Refusal(503, INTERNAL_ERROR, "The server is at capacity; retry later", undefined, { "Retry-After": "1" }));
-      return;
-    }
-    inFlight++;
-    let released = false;
+    const aborter = new AbortController();
+    // The in-flight slot is taken after authentication (F1) and held until the response has closed
+    // AND any handler it started has settled, so a timed-out or abandoned handler still counts (F3).
+    let slotHeld = false;
+    let responseClosed = false;
+    let handlerSettled = true;
     const release = (): void => {
-      if (!released) {
-        released = true;
+      if (slotHeld && responseClosed && handlerSettled) {
+        slotHeld = false;
         inFlight--;
       }
     };
-    res.once("close", release);
-    const aborter = new AbortController();
     res.once("close", () => {
+      responseClosed = true;
       if (!res.writableFinished) aborter.abort(new Error("client disconnected"));
+      release();
     });
 
     try {
-      // 4. Host, Origin
-      if (!hostAllowed(req.headers.host, allowedHosts)) throw new Refusal(403, INVALID_REQUEST, "Forbidden: Host is not allowed");
-      const origin = req.headers.origin;
-      if (origin !== undefined && !allowedOrigins.includes(origin.toLowerCase())) throw new Refusal(403, INVALID_REQUEST, "Forbidden: Origin is not allowed");
+      // 3. Host, Origin
+      if (!hostOk) throw new Refusal(403, INVALID_REQUEST, "Forbidden: Host is not allowed");
+      if (!originOk) throw new Refusal(403, INVALID_REQUEST, "Forbidden: Origin is not allowed");
 
-      // 5. auth
-      const verdict = await verifier.verify(req.headers);
-      if (!verdict.ok) {
-        const header = challenge();
-        if (verdict.error !== undefined) header["WWW-Authenticate"] = `${header["WWW-Authenticate"] ?? ""}, error="${verdict.error}"`;
-        throw new Refusal(401, INVALID_REQUEST, "Unauthorized", undefined, header);
-      }
+      // 4. auth: one Authorization header at most, then the verifier (F10).
+      if ((req.headersDistinct.authorization?.length ?? 0) > 1) throw new Refusal(400, INVALID_REQUEST, "Authorization is sent more than once");
+      const principal = await authenticate(req);
 
-      // 6. Accept, Content-Type
+      // 5. capacity
+      if (inFlight >= limits.maxInFlight) throw new Refusal(503, INTERNAL_ERROR, "The server is at capacity; retry later", undefined, { "Retry-After": "1" });
+      inFlight++;
+      slotHeld = true;
+      if (responseClosed) release();
+
+      // 6. Accept, Content-Type, codings (F10, F11)
       if (!acceptsJson(req.headers.accept)) throw new Refusal(406, INVALID_REQUEST, "Not Acceptable: this server responds with application/json");
-      if (!isJsonContentType(req.headers["content-type"])) throw new Refusal(415, INVALID_REQUEST, "Unsupported Media Type: send application/json");
+      const contentTypes = req.headersDistinct["content-type"] ?? [];
+      if (contentTypes.length !== 1 || !isJsonContentType(contentTypes[0])) throw new Refusal(415, INVALID_REQUEST, "Unsupported Media Type: send application/json");
+      const coding = req.headers["content-encoding"];
+      if (coding !== undefined && coding.trim().toLowerCase() !== "identity") throw new Refusal(415, INVALID_REQUEST, "Unsupported Media Type: content codings are not accepted");
+      const te = req.headers["transfer-encoding"];
+      if (te !== undefined && te.trim().toLowerCase() !== "chunked") throw new Refusal(400, INVALID_REQUEST, "Only the chunked transfer coding is accepted", undefined, { Connection: "close" });
 
       // 7. body; 8. framing
       const classified = classify(parseBody(await readBody(req, limits.maxBodyBytes), limits));
@@ -233,7 +286,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
       // 9, 10: era, headers, dispatch
       const ctx: DispatchContext = {
         headers: req.headersDistinct,
-        principal: verdict.principal,
+        principal,
         registry: options.registry,
         limits,
         config,
@@ -242,6 +295,14 @@ export async function startTransport(options: TransportOptions): Promise<Running
         signal: aborter.signal,
         now,
         audit,
+        trackHandler: (running) => {
+          handlerSettled = false;
+          const settled = (): void => {
+            handlerSettled = true;
+            release();
+          };
+          running.then(settled, settled);
+        },
       };
       const outcome = await dispatch(classified, ctx);
       if (outcome.kind === "accepted") send(res, 202, undefined);
@@ -256,7 +317,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
     }
   };
 
-  const server: Server = createServer((req, res) => {
+  const server: Server = createServer({ requestTimeout: limits.requestTimeoutMs }, (req, res) => {
     handle(req, res).catch(() => {
       if (!res.headersSent) send(res, 500, undefined);
     });

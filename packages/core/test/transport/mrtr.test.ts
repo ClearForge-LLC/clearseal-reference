@@ -80,7 +80,7 @@ void describe("MR-4 with no key configured, request state fails closed both ways
 
 void describe("MR-5 the sealed binding, unit level", () => {
   const key = randomBytes(32);
-  const binding = { principal: "p1", method: "tools/call", tool: "ask" };
+  const binding = { principal: "p1", method: "tools/call", tool: "ask", args: "digest-of-args" };
   const refusedWith = (fn: () => unknown, why: RegExp): void => {
     assert.throws(fn, (e: unknown) => e instanceof Refusal && e.code === -32602 && why.test(e.message));
   };

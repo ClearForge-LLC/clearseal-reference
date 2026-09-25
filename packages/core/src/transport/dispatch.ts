@@ -18,7 +18,8 @@ import {
   UNSUPPORTED_PROTOCOL_VERSION,
 } from "./jsonrpc.ts";
 import type { CallContext, RegisteredTool, ToolRegistry, ToolResult } from "./registry.ts";
-import { openState, sealState } from "./request-state.ts";
+import { argumentsDigest, openState, sealState, type StateBinding } from "./request-state.ts";
+import { ValidationTimeout } from "./schema-pool.ts";
 import type { Principal } from "./verifier.ts";
 
 const PV = "io.modelcontextprotocol/protocolVersion";
@@ -40,6 +41,8 @@ export interface DispatchContext {
   signal: AbortSignal;
   now: () => number;
   audit: (event: string, fields: Record<string, string | number>) => void;
+  /** Keeps the in-flight slot until a started handler settles, even after the response (F3). */
+  trackHandler: (running: Promise<unknown>) => void;
 }
 
 export type Outcome =
@@ -52,8 +55,19 @@ type Era = typeof MODERN_VERSION | typeof LEGACY_VERSION;
 export async function dispatch(classified: Classified, ctx: DispatchContext): Promise<Outcome> {
   const versionHeader = singleHeaderOrRefuse(ctx.headers, "mcp-protocol-version", "MCP-Protocol-Version");
   if (classified.kind === "notification") {
-    // SH-10, SH-11, SH-13, LG-5: the only notification accepted is the legacy handshake's.
-    if (versionHeader.ok && versionHeader.value === LEGACY_VERSION && classified.message.method === "notifications/initialized") return { kind: "accepted" };
+    // SH-10, SH-11, SH-13, LG-5: the only notification accepted is the legacy handshake's, and
+    // only when every mirrored value it carries agrees with its body (F8).
+    const n = classified.message;
+    if (versionHeader.ok && versionHeader.value === LEGACY_VERSION && n.method === "notifications/initialized") {
+      try {
+        checkLegacyMeta(n.params ?? {}, LEGACY_VERSION);
+        checkMirroredHeaders({ jsonrpc: "2.0", id: 0, method: n.method, ...(n.params === undefined ? {} : { params: n.params }) }, ctx.headers, LEGACY_VERSION);
+      } catch (err) {
+        if (err instanceof Refusal) return { kind: "refused", refusal: err };
+        throw err;
+      }
+      return { kind: "accepted" };
+    }
     return { kind: "refused", refusal: new Refusal(400, METHOD_NOT_FOUND, "This notification is not accepted") };
   }
   const request = classified.message;
@@ -93,7 +107,10 @@ function selectEra(header: string | undefined, request: JsonRpcRequest): Era {
     throw mismatch("MCP-Protocol-Version", "is missing");
   }
   if (!SUPPORTED_VERSIONS.includes(header)) {
-    throw new Refusal(400, UNSUPPORTED_PROTOCOL_VERSION, "Unsupported protocol version", { supported: [...SUPPORTED_VERSIONS], requested: header });
+    // `requested` is required by the schema; a value that is not version-shaped is not echoed
+    // back, since a header is attacker-chosen text of up to 16 KiB (F13, N6).
+    const requested = /^[0-9A-Za-z._-]{1,32}$/.test(header) ? header : "(not a protocol version)";
+    throw new Refusal(400, UNSUPPORTED_PROTOCOL_VERSION, "Unsupported protocol version", { supported: [...SUPPORTED_VERSIONS], requested });
   }
   return header as Era;
 }
@@ -203,8 +220,22 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
   const args = params["arguments"] ?? {};
   if (!isPlainObject(args)) throw new Refusal(400, INVALID_PARAMS, "params.arguments must be an object");
   const modern = era === MODERN_VERSION;
-  if (modern) checkParamHeaders(tool.paramHeaders, args, ctx.headers);
-  if (!tool.validate(args)) throw new Refusal(400, INVALID_PARAMS, `Invalid arguments for tool ${name}`);
+  // Modern: every annotated header is checked. Legacy (which predates x-mcp-header): checked in
+  // full as soon as the client sends any of them, since an intermediary may route on it (F8, D-3).
+  if (modern || tool.paramHeaders.some((p) => ctx.headers[p.header] !== undefined)) checkParamHeaders(tool.paramHeaders, args, ctx.headers);
+  let valid: boolean;
+  try {
+    valid = await tool.validate(args);
+  } catch (err) {
+    if (err instanceof ValidationTimeout) {
+      ctx.audit("validation-timeout", { tool: name, limitMs: ctx.limits.validationTimeoutMs });
+      throw new Refusal(400, INVALID_PARAMS, "The arguments could not be validated within the time limit");
+    }
+    ctx.audit("validation-error", { tool: name });
+    throw new Refusal(500, INTERNAL_ERROR, "Internal error");
+  }
+  if (!valid) throw new Refusal(400, INVALID_PARAMS, `Invalid arguments for tool ${name}`);
+  const binding = { principal: ctx.principal.id, method: "tools/call", tool: name, args: argumentsDigest(args) };
 
   const callCtx: Omit<CallContext, "signal"> & { signal?: AbortSignal } = { principal: ctx.principal, protocolVersion: era, clientCapabilities: caps };
   if (modern) {
@@ -214,12 +245,12 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
       callCtx.inputResponses = inputResponses;
     }
     if (params["requestState"] !== undefined) {
-      callCtx.state = openState(ctx.requestStateKey, params["requestState"], { principal: ctx.principal.id, method: "tools/call", tool: name }, ctx.now());
+      callCtx.state = openState(ctx.requestStateKey, params["requestState"], binding, ctx.now());
     }
   }
 
   const result = await runHandler(tool, args, callCtx, ctx);
-  return shapeResult(era, name, result, caps, ctx);
+  return shapeResult(era, binding, result, caps, ctx);
 }
 
 async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, callCtx: Omit<CallContext, "signal">, ctx: DispatchContext): Promise<ToolResult> {
@@ -230,16 +261,25 @@ async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, c
     timer = setTimeout(() => {
       reject(new HandlerTimeout());
     }, ctx.limits.handlerTimeoutMs);
+    // A client disconnect ends the call: stop the clock, so no timeout is reported for it (F15).
+    ctx.signal.addEventListener("abort", () => {
+      clearTimeout(timer);
+      reject(new HandlerTimeout("client disconnected"));
+    }, { once: true });
   });
+  const running = Promise.resolve().then(() => tool.handler(args, { ...callCtx, signal }));
+  ctx.trackHandler(running);
   try {
-    return await Promise.race([tool.handler(args, { ...callCtx, signal }), deadline]);
+    return await Promise.race([running, deadline]);
   } catch (err) {
     if (err instanceof HandlerTimeout) {
       timeout.abort(new Error("handler timeout"));
-      ctx.audit("handler-timeout", { tool: tool.definition.name, limitMs: ctx.limits.handlerTimeoutMs });
-      throw new Refusal(500, INTERNAL_ERROR, "The tool call timed out");
+      const disconnected = ctx.signal.aborted;
+      ctx.audit(disconnected ? "client-disconnect" : "handler-timeout", { tool: tool.definition.name, limitMs: ctx.limits.handlerTimeoutMs });
+      throw new Refusal(500, INTERNAL_ERROR, disconnected ? "The client disconnected" : "The tool call timed out");
     }
-    if (err instanceof Refusal) throw err;
+    // Whatever a handler throws, even a Refusal, becomes the same opaque error: its text and code
+    // never reach the client (F12).
     ctx.audit("handler-error", { tool: tool.definition.name });
     throw new Refusal(500, INTERNAL_ERROR, "The tool call failed");
   } finally {
@@ -247,7 +287,8 @@ async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, c
   }
 }
 
-function shapeResult(era: Era, name: string, result: ToolResult, caps: Record<string, unknown>, ctx: DispatchContext): Record<string, unknown> {
+function shapeResult(era: Era, binding: StateBinding, result: ToolResult, caps: Record<string, unknown>, ctx: DispatchContext): Record<string, unknown> {
+  const name = binding.tool;
   if (!isPlainObject(result)) throw new Refusal(500, INTERNAL_ERROR, "The tool returned no result");
   if (result.resultType === "input_required") {
     if (era !== MODERN_VERSION) throw new Refusal(500, INTERNAL_ERROR, "The tool needs input, which the legacy revision cannot carry");
@@ -265,7 +306,7 @@ function shapeResult(era: Era, name: string, result: ToolResult, caps: Record<st
     }
     if (result.state !== undefined) {
       try {
-        out["requestState"] = sealState(ctx.requestStateKey, { principal: ctx.principal.id, method: "tools/call", tool: name }, result.state, ctx.now(), ctx.limits.requestStateTtlMs);
+        out["requestState"] = sealState(ctx.requestStateKey, binding, result.state, ctx.now(), ctx.limits.requestStateTtlMs);
       } catch {
         ctx.audit("request-state-unsealable", { tool: name });
         throw new Refusal(500, INTERNAL_ERROR, "The tool call failed");

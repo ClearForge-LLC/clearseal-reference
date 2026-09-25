@@ -4,11 +4,14 @@
 // binds the principal, the method, the tool name and an expiry (MR-5), so a state captured from
 // one tool's call is refused on another's, by another principal, or after it lapses.
 //
+// The binding covers the arguments too (by digest). A state is not single-use within its TTL:
+// that is -2001's to enforce where it matters (MR-6).
+//
 // Format: base64url(payload JSON) "." base64url(HMAC-SHA256(key, "clearseal/request-state/v1\0" ‖ payload JSON)).
 // The key comes from the environment by name (CLEARSEAL_REQUEST_STATE_KEY, in .env.example, never
 // valued). With no key configured, sealing throws and every incoming state is refused.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import { type JsonValue, parseJsonStrict } from "./json.ts";
 import { INVALID_PARAMS, isPlainObject, Refusal } from "./jsonrpc.ts";
@@ -21,6 +24,20 @@ export interface StateBinding {
   principal: string;
   method: string;
   tool: string;
+  /** Digest of the call's arguments (argumentsDigest): a state issued for one set of arguments is
+   *  refused on another (MR-5, the "digest of its salient parameters"; adversarial finding F7). */
+  args: string;
+}
+
+/** Canonical JSON of a JSON value: object keys sorted by UTF-16 code units, no whitespace. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (isPlainObject(value)) return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(value[k])}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+
+export function argumentsDigest(args: unknown): string {
+  return createHash("sha256").update(canonicalJson(args)).digest("base64url");
 }
 
 interface Payload extends StateBinding {
@@ -75,8 +92,8 @@ export function openState(key: Uint8Array | undefined, token: unknown, binding: 
     throw refused("malformed");
   }
   if (!isPlainObject(payload)) throw refused("malformed");
-  const { principal, method, tool, exp } = payload;
-  if (principal !== binding.principal || method !== binding.method || tool !== binding.tool) throw refused("issued for a different request");
+  const { principal, method, tool, args, exp } = payload;
+  if (principal !== binding.principal || method !== binding.method || tool !== binding.tool || args !== binding.args) throw refused("issued for a different request");
   if (typeof exp !== "number" || now >= exp) throw refused("expired");
   return (payload["state"] ?? null) as JsonValue;
 }

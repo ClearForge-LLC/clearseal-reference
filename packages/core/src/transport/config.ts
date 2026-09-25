@@ -31,6 +31,13 @@ export interface Limits {
   maxSchemaNodes: number;
   /** Lifetime of a sealed MRTR requestState. Default 10 min. */
   requestStateTtlMs: number;
+  /** Argument validation runs in worker threads under this deadline (F2). Default 2 s, 2 workers. */
+  validationTimeoutMs: number;
+  validationWorkers: number;
+  /** The verifier must answer within this time, or the request is refused 503 (F5). Default 5 s. */
+  verifierTimeoutMs: number;
+  /** Node's per-request receive deadline (headers and body), replacing its 300 s default. Default 30 s. */
+  requestTimeoutMs: number;
 }
 
 export const DEFAULT_LIMITS: Readonly<Limits> = {
@@ -42,6 +49,10 @@ export const DEFAULT_LIMITS: Readonly<Limits> = {
   maxSchemaDepth: 32,
   maxSchemaNodes: 2_000,
   requestStateTtlMs: 10 * 60_000,
+  validationTimeoutMs: 2_000,
+  validationWorkers: 2,
+  verifierTimeoutMs: 5_000,
+  requestTimeoutMs: 30_000,
 };
 
 export interface TransportConfig {

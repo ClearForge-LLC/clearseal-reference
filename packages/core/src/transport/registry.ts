@@ -9,6 +9,7 @@ import type { Limits } from "./config.ts";
 import { AnnotationError, type ParamHeader, paramHeaders } from "./headers.ts";
 import type { JsonValue } from "./json.ts";
 import { isPlainObject } from "./jsonrpc.ts";
+import { walkSchema } from "./schema-walk.ts";
 import type { Principal } from "./verifier.ts";
 
 export type ContentBlock = Record<string, unknown> & { type: string };
@@ -46,7 +47,7 @@ export interface Tool extends ToolDefinition {
 export interface RegisteredTool {
   definition: ToolDefinition;
   handler: Tool["handler"];
-  validate: (args: unknown) => boolean;
+  validate: (args: unknown) => boolean | Promise<boolean>;
   paramHeaders: readonly ParamHeader[];
 }
 
@@ -57,7 +58,7 @@ export interface ToolRegistry {
 }
 
 /** Compiles a 2020-12 schema into a validator. Must never fetch or read anything. */
-export type SchemaCompiler = (schema: Record<string, unknown>) => (value: unknown) => boolean;
+export type SchemaCompiler = (schema: Record<string, unknown>) => (value: unknown) => boolean | Promise<boolean>;
 
 export class RegistrationError extends Error {
   override name = "RegistrationError";
@@ -65,31 +66,22 @@ export class RegistrationError extends Error {
 
 const TOOL_NAME = /^[A-Za-z0-9_.-]{1,128}$/;
 const DIALECTS = new Set(["https://json-schema.org/draft/2020-12/schema", "https://json-schema.org/draft/2020-12/schema#"]);
-const DATA_KEYWORDS = new Set(["const", "enum", "default", "examples"]);
 
-/** Depth, node count, and any `$ref`/`$dynamicRef` that is not a same-document fragment. */
+/** Depth, node count, `$schema` below the root, and any `$ref`/`$dynamicRef` that is not a
+ *  same-document fragment, found by the keyword-aware walk (a property named `$ref` is a name). */
 function inspectSchema(schema: unknown, limits: Pick<Limits, "maxSchemaDepth" | "maxSchemaNodes">): void {
   let nodes = 0;
-  const visit = (node: unknown, depth: number): void => {
-    if (Array.isArray(node)) {
-      for (const item of node) visit(item, depth);
-      return;
-    }
-    if (!isPlainObject(node)) return;
+  walkSchema(schema, ({ node, depth }) => {
     nodes++;
     if (nodes > limits.maxSchemaNodes) throw new RegistrationError(`inputSchema has more than ${String(limits.maxSchemaNodes)} subschemas`);
     if (depth > limits.maxSchemaDepth) throw new RegistrationError(`inputSchema is nested deeper than ${String(limits.maxSchemaDepth)}`);
-    for (const [key, value] of Object.entries(node)) {
-      if (DATA_KEYWORDS.has(key)) continue;
-      if (key === "$ref" || key === "$dynamicRef") {
-        if (typeof value !== "string" || !value.startsWith("#")) throw new RegistrationError(`inputSchema has a ${key} outside its own document; external references are never dereferenced`);
-        continue;
-      }
-      if (key === "$schema" && depth > 0) throw new RegistrationError("inputSchema declares $schema below its root");
-      visit(value, depth + 1);
+    if (depth > 0 && Object.hasOwn(node, "$schema")) throw new RegistrationError("inputSchema declares $schema below its root");
+    for (const key of ["$ref", "$dynamicRef"]) {
+      if (!Object.hasOwn(node, key)) continue;
+      const value = node[key];
+      if (typeof value !== "string" || !value.startsWith("#")) throw new RegistrationError(`inputSchema has a ${key} outside its own document; external references are never dereferenced`);
     }
-  };
-  visit(schema, 0);
+  });
 }
 
 /** The schema actually validated: the registered one, with `unevaluatedProperties: false` at the
@@ -125,7 +117,7 @@ export class PlaceholderRegistry implements ToolRegistry {
       if (err instanceof AnnotationError) throw new RegistrationError(`tool "${tool.name}": ${err.message}`);
       throw err;
     }
-    let validate: (v: unknown) => boolean;
+    let validate: (v: unknown) => boolean | Promise<boolean>;
     try {
       validate = this.#compile(effectiveSchema(schema));
     } catch (err) {
