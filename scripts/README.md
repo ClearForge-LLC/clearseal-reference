@@ -5,7 +5,8 @@
 `leak-gate.mjs` enforces N6: nothing in this repository identifies a deployment or carries a
 credential. `--tree` scans every tracked file's **path, contents and (for a symlink) target**.
 `--history` scans every line ever **added** in reachable history, every path a commit touches, and
-**every commit message including its trailers**. It reads diffs with `--text`, so neither a
+**every commit message including its trailers**, and **every commit's author and committer name
+and e-mail**. It reads diffs with `--text`, so neither a
 `.gitattributes` `-diff` nor a NUL byte can turn added lines into "Binary files differ". It reads
 messages from the raw commit object, so a NUL byte cannot truncate one. It diffs a merge against its
 first parent, so an evil merge's own lines are scanned. It runs git without system or global
@@ -85,11 +86,12 @@ The gate matches one line at a time against text. It does **not** claim to catch
 - vendor token shapes and hosting platforms not in its lists;
 - anything outside `HEAD`'s ancestry: other branches (each is scanned when its own push runs the
   job), annotated tag messages, and notes;
-- commit headers: author and committer identity, signatures, and extra headers (the message, with
-  its trailers, is scanned; the headers are not);
+- commit signatures and extra headers (the message with its trailers, and the author's and
+  committer's name and e-mail, are scanned);
 - anything outside the repository: pull-request titles, descriptions, comments, and CI logs.
 
-An allow entry can only be proven necessary in the mode that reads it: a finding that exists only
-in history cannot be allowed without the same entry being stale for `--tree`.
+An allow entry must suppress a finding in the mode that reads it, so a finding that exists only in
+history cannot be allowed. That is deliberate: a history-only false positive is fixed by a more
+precise rule, never by an allow.
 
 It is a floor, not a substitute for review.

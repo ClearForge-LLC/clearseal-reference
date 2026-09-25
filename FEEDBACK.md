@@ -5,6 +5,28 @@ Branch `wo/CSR-WO-0001`. It was cut from `main` at `06b7c30`, then rebased onto 
 parked as one unmerged pull request. This file replaces `-0000`'s FEEDBACK at the root; that one
 stays in history at `28254e1`.
 
+## Architect review of PR #6: rulings and the change request
+
+| # | Item | Ruling | Where it lands |
+|---|---|---|---|
+| 1 | Upstream same-line masking bypass in the public rule source | **Filed by the architect** against the public source | Finding 1 |
+| 2 | The org's apex domains in the gate's source | **Confirmed:** both are already public in that same source | Finding 2 |
+| 3 | Commit author and committer fields | **Change request: scan them.** Done in `5b5a1e4`. `--history` reads each commit's author and committer name and e-mail from the raw commit object, under the same rules, with the role-identity exemption. The self-test plants one shape in each of the four fields, all four fire, and role identities pass in both. Runs: push <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36091268368> and pull request <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36091271557>, all three jobs green, `--history` clean over 14 commits. **Its first run over this branch found a real identifier:** see the incident below | D-f, finding 8, *Incident* |
+| 4 | Allow scope | **No scope field.** A history-only false positive is fixed by a more precise rule, never by an allow; revisit at the first real case | Finding 9 |
+| 5 | False positives left failing | **They stay failing** | Finding 10 |
+| 6 | D-d, D-e, D-g | **Ratified as written** | Deviations table |
+
+## Incident: an operator identity in this branch's committer field (found by the change request)
+
+| | |
+|---|---|
+| **What the field held** | The **committer** of this branch's first gate commit held the operator's personal address at the organization's `.dev` domain. The gate prints it as `leak-gate: email 50c0ef8:(committer) "…" (len 21)`. The author field held the role identity. |
+| **How it got there** | Rebasing onto `d6bf9ec` (finding 6) re-committed with this machine's git identity. The builder set the role identity per `git commit`, not for `git rebase`, and the clone's config held the personal identity. |
+| **Where it was public** | The `wo/CSR-WO-0001` branch and PR #6's head ref (`refs/pull/6/head`), from the rebase until the rewrite below. A scan of every pull-request head ref on the remote (#1 to #6) found **no other** identity outside the two role identities, the platform bot, and no-reply addresses. `main` was never affected: squash merges re-commit, and `main`'s history passes the identity scan. |
+| **What was done** | Architect's ruling (option 1). The architect set this clone's **repo-local** git identity to the role identity (not global; verified), which covers every worktree and every rebase. All eight branch commits were re-created with the role identity as **both** author and committer: `git rebase --force-rebase`, with the committer identity also exported. The tree is byte-identical before and after. They were force-pushed with a lease from `6515a5e` to `5b5a1e4`. Afterwards: 0 non-role identities on the branch, and `--history` clean over 14 commits, locally and in CI (runs above). |
+| **What remains** | The old commits, including `50c0ef8`, **stay fetchable by SHA** from the platform until its own cleanup of unreferenced objects. The PR timeline shows the force-push. **No support purge was requested.** The architect judged that proportionate for a personal address at a public domain whose owner is already public. |
+| **Old → new SHAs** | Every SHA this file cites from before the rewrite maps as follows (same content, same subject, new committer): `50c0ef8`→`917b46b`, `68d47fd`→`fd953fd`, `e3e2035`→`2cb5cd6`, `64ed159`→`99a464b`, `7178590`→`222f136`, `e0914f6`→`1f4d7ce`, `6515a5e`→`c5476df`, and the change request `3426c14`→`5b5a1e4` (never pushed before the rewrite). The CI runs cited below ran on the old SHAs, with the same trees. |
+
 ## Crossed or parked
 
 **A §7 stop fired and was ruled on. It was not routed around.** Before any gate code existed, a
@@ -30,10 +52,10 @@ and they are flagged for ratification.
 | D-a | The `email` rule exempts **exactly** `claude@` and `architect@` at the organization's `.dev` domain, in the rule itself with its reason. Any other address at that domain is still a finding, and the self-test proves it. | §1.2's e-mail exceptions | Architect's ruling: "role identity, not a person or a deployment; already public" | no (ruled; the architect amends the WO) |
 | D-b | The `long-hex` rule exempts the `owner/repo@<40-hex>` action-pin shape **in any path**, in the rule itself. That is exactly 40 hex characters after an `owner/repo@` token. | §1.3's path-scoped allow for workflow `uses:` lines | Architect's ruling: "an action pin is a public reference by construction" | no (ruled) |
 | D-c | `.leak-gate-allow` ships **empty (zero bytes)**. The stale-allow mechanism is proven with temporary entries (§3.4) and inside `--self-test`. **"Stale" means an entry that suppressed no finding in the run that read it.** | §1.3: "Exactly two entries ship" | Architect's ruling. With D-b, both planned entries would be stale, and the gate must fail on stale | no (ruled) |
-| D-d | **Masking is stricter than "the first four characters":** at most four, **never more than half the match**, and **none at all** for the person-identifying rules (`email`, `user-at-host`). A path that matches a rule is masked wherever it is printed. Allow entries print as line, rule and masked glob, never their justification. | §1.4 | The adversarial passes showed that four characters of a short match, or of an address, is most of the identifier | **yes** (ratify) |
-| D-e | **Seven rules beyond §1.2's literal list**, each in a category the WO names: `ipv4` (routable, ported from the public source), `private-ipv6`, `users-path` (macOS/WSL profiles), `user-at-host` (ssh targets), `platform-host` (hosting subdomains), `vendor-api-key`, and `url-userinfo`. There are 29 rules in all, with 76 planted examples, one per alternative. | §1.2 | Every one was a shape the first adversarial pass got through the gate unseen | **yes** (ratify or trim) |
-| D-g | **On a `pull_request` event, the `leak-gate` job checks out the PR's head commit** (`ref: ${{ github.event.pull_request.head.sha \|\| github.sha }}`), not GitHub's synthetic merge commit. | §1.6 (the job's checkout was unspecified; the default is the merge ref) | The synthetic merge's message is `Merge <40-hex> into <40-hex>`, which `long-hex` rightly refuses, so **every PR went red** (run 36085459379 on this PR). That commit never lands; squash merges write their own message, which is scanned on `main`'s push. No rule gained an exemption. The `test` job is untouched | **yes** (ratify) |
-| D-f | **History reads more than `git show` plus `%B`:** `--text --no-textconv` diffs, merges diffed against their first parent, the message read from the raw commit object, every path a commit touches, and git run without global or system config, replace refs or grafts. **Headers are still not scanned** (see finding 8). | §1.1's two commands | Each literal command had a fail-open, found by the adversarial passes and reproduced before fixing (see "Adversarial pass") | no (it keeps §1.1's intent) |
+| D-d | **Masking is stricter than "the first four characters":** at most four, **never more than half the match**, and **none at all** for the person-identifying rules (`email`, `user-at-host`). A path that matches a rule is masked wherever it is printed. Allow entries print as line, rule and masked glob, never their justification. | §1.4 | The adversarial passes showed that four characters of a short match, or of an address, is most of the identifier | ratified (review ruling 6) |
+| D-e | **Seven rules beyond §1.2's literal list**, each in a category the WO names: `ipv4` (routable, ported from the public source), `private-ipv6`, `users-path` (macOS/WSL profiles), `user-at-host` (ssh targets), `platform-host` (hosting subdomains), `vendor-api-key`, and `url-userinfo`. There are 29 rules in all, with 76 planted examples, one per alternative. | §1.2 | Every one was a shape the first adversarial pass got through the gate unseen | ratified (review ruling 6) |
+| D-g | **On a `pull_request` event, the `leak-gate` job checks out the PR's head commit** (`ref: ${{ github.event.pull_request.head.sha \|\| github.sha }}`), not GitHub's synthetic merge commit. | §1.6 (the job's checkout was unspecified; the default is the merge ref) | The synthetic merge's message is `Merge <40-hex> into <40-hex>`, which `long-hex` rightly refuses, so **every PR went red** (run 36085459379 on this PR). That commit never lands; squash merges write their own message, which is scanned on `main`'s push. No rule gained an exemption. The `test` job is untouched | ratified (review ruling 6) |
+| D-f | **History reads more than `git show` plus `%B`:** `--text --no-textconv` diffs, merges diffed against their first parent, the message read from the raw commit object, every path a commit touches, and git run without global or system config, replace refs or grafts. **Headers are still not scanned** (see finding 8). | §1.1's two commands | Each literal command had a fail-open, found by the adversarial passes and reproduced before fixing (see "Adversarial pass") | no (it keeps §1.1's intent). Since the review, `--history` also scans **author and committer name and e-mail** (ruling 3); signatures and other extra headers are still not scanned |
 
 ## Gates line
 
@@ -41,7 +63,7 @@ and they are flagged for ratification.
 |---|---|
 | `--self-test` | exit 0: **29 rules, 76 planted examples**, every one fired by name; clean near-miss tree and clean history fixture: 0 findings; **23 further checks** (masking, the role-exemption boundary, 14 scan mechanisms, allowlist behaviour, output escaping, the long-line bound) each passed by making the gate fire. Full output under §3.1 |
 | `--tree` on the branch | exit **0**, 28 files |
-| `--history` on the branch | exit **0**: **10 commits** at the evidence commit `64ed159` (`main`'s six plus this WO's four), and 12 at the head that adds D-g (runs 36085632204 and 36085634796). The final commit's run adds one more |
+| `--history` on the branch | exit **0**: **10 commits** at the evidence commit `64ed159` (`main`'s six plus this WO's four), and 12 at the head that adds D-g (runs 36085632204 and 36085634796). **After the identity rewrite: 14 at `5b5a1e4`, with author and committer scanned** (runs 36091268368 and 36091271557). The final commit's run adds one more |
 | **Throwaway red-proof (§3.3)** on the final scanning code (`e3e2035`) | `scratch/leak-gate-red` @ `c3fdfb5`: <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36085060203>. `leak-gate` **failure** on `--tree` with a masked `private-ip` line; both `test` jobs green. **Deleted** locally and on the remote; `git log --all --oneline \| grep -c c3fdfb5` prints `0` |
 | **Trailer-only red-proof (§5.8)** on the same code | `scratch/leak-gate-trailer` @ `e775e69`: <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36085060007>. The diff is empty and `--tree` is clean; `--history` **fails** on `e775e69:(message):3`. **Deleted**; `grep -c e775e69` prints `0` |
 | Earlier red-proof rounds | The same two proofs ran red on the gate as it stood after each adversarial round: <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36082513816> and <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36082513617> (at `50c0ef8`), then <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36083534254> and <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36083534545> (at `68d47fd`). All four branches were deleted, and each commit's `grep -c` prints `0` |
@@ -64,7 +86,7 @@ Schema: `finding · where · type · recommendation · decision-needed`.
    checked. That source was not ported. Here, exemptions live inside the rule they exempt and
    apply to the match, not the line, and the self-test's clean tree puts near-misses beside each
    other to keep it that way. · `ClearProof/scripts/check_notes.py:69-70` · bug (upstream) ·
-   Apply the exemption per match, not per line, in the public source. · **decision-needed: yes**
+   Apply the exemption per match, not per line, in the public source. · **Filed upstream by the architect** (review ruling 1); decision-needed: no
 2. **The organization's apex domains are now in this repository, in the gate's own source.**
    `main` named neither before this branch. The `.dev` domain appears in the `ORG_DOMAINS` regex
    source and in the two role addresses that D-a puts in the rule. The `.net` domain appears only
@@ -72,7 +94,8 @@ Schema: `finding · where · type · recommendation · decision-needed`.
    certificate-transparency logs lists its subdomains, which is the endpoint map N6 protects.
    · `scripts/leak-gate.mjs:56` · scope-question · Confirm that both apexes are meant to be
    public here. The alternative is to match a hostname's last two labels against committed
-   SHA-256 digests, so the source never names the domains. · **decision-needed: yes**
+   SHA-256 digests, so the source never names the domains. · **Confirmed public** (review ruling 2);
+   decision-needed: no
 3. **The gate caught its own source five times during the build.**
    - A rule reason quoted a tilde-plus-username shape.
    - A comment described a URL's credential form literally.
@@ -104,12 +127,14 @@ Schema: `finding · where · type · recommendation · decision-needed`.
 8. **Commit headers are not scanned: author, committer, signature, and extra headers.** The WO
    scans `%B`. Author identity is squarely "account identifiers" under N6. All author and committer
    addresses in today's history are the role or no-reply shapes, so scanning headers (except
-   `tree`/`parent` SHAs and signatures) would pass today. · `scanHistory` · risk · Extend to
-   author and committer lines in the next WO. · **decision-needed: yes**
+   `tree`/`parent` SHAs and signatures) would pass today. · `scanHistory` · risk · **Done (review
+   ruling 3):** author and committer name and e-mail are scanned. Its first run found the incident
+   above, and nothing else. · decision-needed: no
 9. **An allow can only be proven necessary per mode.** Content that exists only in history (for
    example, a binary-extension file with a NUL byte: `--tree` skips it, `--history` scans it) can
    never be allowed, because the entry is stale in `--tree`. · `applyAllows` · scope-question ·
-   Judge staleness across both modes, or add a mode column. · **decision-needed: yes**
+   **Ruled (4):** no scope field. A history-only false positive is fixed by a more precise rule,
+   never by an allow; revisit at the first real case. · decision-needed: no
 10. **Realistic false positives remain, and none was exempted, because each exemption is a ruling**
     like D-a and D-b:
     - `user-at-host` on package dist-tags (`<pkg>@latest`, `@next`) and on container digests;
@@ -120,8 +145,8 @@ Schema: `finding · where · type · recommendation · decision-needed`.
     - `uuid` on the nil UUID;
     - `long-hex` on full commit SHAs in prose, container digests, and LFS pointer ids.
 
-    They fail closed today and create pressure to add allows. · rules · risk · Rule on which, if
-    any, to exempt in the rule itself. · **decision-needed: yes**
+    They fail closed today and create pressure to add allows. · rules · risk · **Ruled (5):** they
+    stay failing. · decision-needed: no
 11. **The pin exemption (D-b) and the `noreply@` exemption apply anywhere.** A 40-hex value after
     any `owner/repo@` token passes `long-hex`, and a `noreply@` local part passes at any domain. Both
     work as ruled. · rules · note · None unless the ruling changes. · decision-needed: no
@@ -376,7 +401,8 @@ one: it only changes which rule reports that shape.
   script refuses; it does not repair.
 - **No governance or supply-chain files.** That is `CSR-WO-0002`.
 - **No required status checks on `main`.** That is the architect's action after merge.
-- **No allow entries** (D-c). **No false-positive exemptions** (finding 10). **No header scanning**
-  (finding 8).
+- **No allow entries** (D-c). **No false-positive exemptions** (finding 10). **No allow scope field**
+  (ruling 4). **No scanning of commit signatures or extra headers.** Author and committer are
+  scanned (ruling 3).
 - **No change to `packages/**`, the steering documents, README, LICENSE, NOTICE, or the `test`
   job.**
