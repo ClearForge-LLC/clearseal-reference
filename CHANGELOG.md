@@ -9,6 +9,9 @@ after. Tags are annotated and created by the architect at phase boundaries, neve
 Every tag's entry records the tagged commit beside it as
 `ClearForge-LLC/clearseal-reference@<full commit SHA>`, so a consumer can pin either the tag or
 the commit. A release carries the packed tarballs and their signed build-provenance attestation.
+Verify a tarball against its tag, not just this repository, because pull-request dry runs of the
+provenance workflow produce attestations too: `gh attestation verify <tarball> --repo
+ClearForge-LLC/clearseal-reference --source-ref refs/tags/<tag>`.
 
 ## [Unreleased]
 

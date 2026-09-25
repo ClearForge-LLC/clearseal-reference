@@ -62,4 +62,7 @@ jobs:
         run: >-
           gh release create "$GITHUB_REF_NAME" release/*
           --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME"
-          --notes "Packed tarballs and their build-provenance attestation. See CHANGELOG.md."
+          --notes "Packed tarballs and their build-provenance attestation. See CHANGELOG.md.
+          Verify a tarball against THIS tag, not merely this repository (pull-request dry runs
+          attest too): gh attestation verify <tarball> --repo $GITHUB_REPOSITORY --source-ref
+          refs/tags/$GITHUB_REF_NAME"
