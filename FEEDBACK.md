@@ -20,7 +20,7 @@ probe of the ratified rules over `main`'s history found two things:
    have been needed. That is also a §7 stop.
 
 I stopped and asked. **The architect ruled: no history rewrite, because nothing leaked.** Rows D-a
-to D-c record that ruling. Rows D-d to D-f are my own departures, made to keep the WO's intent,
+to D-c record that ruling. Rows D-d to D-g are my own departures, made to keep the WO's intent,
 and they are flagged for ratification.
 
 ### Deviations from the WO
@@ -32,6 +32,7 @@ and they are flagged for ratification.
 | D-c | `.leak-gate-allow` ships **empty (zero bytes)**. The stale-allow mechanism is proven with temporary entries (§3.4) and inside `--self-test`. **"Stale" means an entry that suppressed no finding in the run that read it.** | §1.3: "Exactly two entries ship" | Architect's ruling. With D-b, both planned entries would be stale, and the gate must fail on stale | no (ruled) |
 | D-d | **Masking is stricter than "the first four characters":** at most four, **never more than half the match**, and **none at all** for the person-identifying rules (`email`, `user-at-host`). A path that matches a rule is masked wherever it is printed. Allow entries print as line, rule and masked glob, never their justification. | §1.4 | The adversarial passes showed that four characters of a short match, or of an address, is most of the identifier | **yes** (ratify) |
 | D-e | **Seven rules beyond §1.2's literal list**, each in a category the WO names: `ipv4` (routable, ported from the public source), `private-ipv6`, `users-path` (macOS/WSL profiles), `user-at-host` (ssh targets), `platform-host` (hosting subdomains), `vendor-api-key`, and `url-userinfo`. There are 29 rules in all, with 76 planted examples, one per alternative. | §1.2 | Every one was a shape the first adversarial pass got through the gate unseen | **yes** (ratify or trim) |
+| D-g | **On a `pull_request` event, the `leak-gate` job checks out the PR's head commit** (`ref: ${{ github.event.pull_request.head.sha \|\| github.sha }}`), not GitHub's synthetic merge commit. | §1.6 (the job's checkout was unspecified; the default is the merge ref) | The synthetic merge's message is `Merge <40-hex> into <40-hex>`, which `long-hex` rightly refuses, so **every PR went red** (run 36085459379 on this PR). That commit never lands; squash merges write their own message, which is scanned on `main`'s push. No rule gained an exemption. The `test` job is untouched | **yes** (ratify) |
 | D-f | **History reads more than `git show` plus `%B`:** `--text --no-textconv` diffs, merges diffed against their first parent, the message read from the raw commit object, every path a commit touches, and git run without global or system config, replace refs or grafts. **Headers are still not scanned** (see finding 8). | §1.1's two commands | Each literal command had a fail-open, found by the adversarial passes and reproduced before fixing (see "Adversarial pass") | no (it keeps §1.1's intent) |
 
 ## Gates line
@@ -45,7 +46,8 @@ and they are flagged for ratification.
 | **Trailer-only red-proof (§5.8)** on the same code | `scratch/leak-gate-trailer` @ `e775e69`: <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36085060007>. The diff is empty and `--tree` is clean; `--history` **fails** on `e775e69:(message):3`. **Deleted**; `grep -c e775e69` prints `0` |
 | Earlier red-proof rounds | The same two proofs ran red on the gate as it stood after each adversarial round: <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36082513816> and <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36082513617> (at `50c0ef8`), then <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36083534254> and <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36083534545> (at `68d47fd`). All four branches were deleted, and each commit's `grep -c` prints `0` |
 | WO branch CI, final code commit `64ed159` | <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36085217172>: `leak-gate`, `test (ubuntu-latest)` and `test (windows-latest)` all **success**. `64ed159` changes only a self-test fixture string relative to `e3e2035` (run <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36085041348>, also all green), so the red-proofs above ran on the final scanning logic |
-| WO branch CI, final commit | shows on the PR checks. It is the commit that adds this file, and it changes no code |
+| PR check before D-g | <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36085459379>: the `pull_request` run went **red** on the synthetic merge commit's message (two masked `long-hex` findings), while the `push` run at the same head was green. That is how D-g was found |
+| WO branch CI, final commit | shows on the PR checks, for both `push` and `pull_request`. It is the commit that adds D-g and this file's final form; it changes no scanning code |
 | Stale-allow proof (§3.4) | a temporary entry makes the gate exit 1, naming the entry by line and rule; reverted to zero bytes |
 | Masking proof (§3.5) | a synthetic token prints as `"ghp_…" (len 40)`. The self-test also asserts that no finding line contains its planted value, that a four-character match shows two, and that the person rules show none |
 | Protected surfaces | `git diff origin/main...HEAD --stat -- docs README.md LICENSE NOTICE packages` is **empty**. The `test` job's lines in `ci.yml` are unchanged; the diff is purely additive after line 27 |
@@ -342,6 +344,8 @@ one: it only changes which rule reports that shape.
 - **The first gate failed open in five ways**, and so did the first hardening, in four more. Both
   adversarial rounds found real gaps that the self-test didn't cover yet. Each was reproduced,
   fixed, and turned into a self-test case.
+- **The first PR check went red on GitHub's synthetic merge commit** (D-g). Only a real
+  `pull_request` run could show it; every local and `push` run was green.
 - **The gate flagged its own source five times** (finding 3), and my FEEDBACK draft twice. Each
   was fixed by rewording, never by exemption.
 - **Tooling slips:**

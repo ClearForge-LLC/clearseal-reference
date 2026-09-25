@@ -31,7 +31,8 @@ and that a clean tree of near-misses passes. It also makes each scan mechanism g
 behind a revert, a message-only trailer, a `++` content line, a NUL-byte text file, a later `-diff`
 attribute, an identifier in a file name, a symlink target, UTF-16 text, a shallow clone, masking,
 and stale or malformed allows. CI's `leak-gate` job runs all three modes on every push and pull
-request, with full history.
+request, with full history. On a pull request it checks out the branch's head, not GitHub's
+synthetic merge commit, which never lands.
 
 History is scanned, so **a planted identifier can never be committed on a branch that will
 merge**. To prove the CI job goes red, use a throwaway branch and delete it afterwards.
