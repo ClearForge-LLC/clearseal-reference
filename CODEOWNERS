@@ -1,0 +1,6 @@
+# Owners review every change. The organization owns the whole repository; the steering documents
+# (docs/) and the CI and automation files (.github/) are listed again so that a change to either
+# cannot merge without the owner, even if the line above is ever narrowed.
+*          @ClearForge-LLC
+/docs/     @ClearForge-LLC
+/.github/  @ClearForge-LLC

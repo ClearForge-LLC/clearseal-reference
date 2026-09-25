@@ -4,5 +4,5 @@
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["scripts/**/*.mjs", "scripts/**/*.js", "scripts/**/*.cjs", "eslint.config.js"]
+  "include": ["scripts/**/*.mjs", "scripts/**/*.js", "scripts/**/*.cjs", ".github/scripts/*.mjs", "eslint.config.js"]
 }
