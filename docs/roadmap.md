@@ -71,6 +71,7 @@ at code.**
 | Authorization-server configuration values for any test against the real hosted client — held outside this repository (N8) | Scotty | Spike `CSR-WO-0101`; the local test issuer needs none |
 | A disposable Linux host or container for P3 acceptance (the fleet's production nodes are not proving grounds) | Scotty | P3's exit gate |
 | Operator presence at the Windows proving ground for P4 acceptance | Scotty | P4's exit gate |
+| The client half of `-0101`: expose the harness by a means never written here, run `OPERATOR-PROTOCOL.md` against the hosted client, fill the table, tear it down | Scotty | `-2001`'s ruling on the transport tier |
 | Carrying the canonical-form amendment to the reference node's repository and proposing it for the standard's next version | Scotty ratifies; the architect authors | P5's exit gate |
 
 ---
@@ -148,6 +149,9 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
 - `CSR-WO-1004` — the teaching edition's skeleton and its first tool (`read_only`), its manifest, and
   the supply-boundary test that fails if an edition exports anything other than tool definitions, a
   manifest, a deploy scaffold, or a registered implementation of a core interface.
+- `CSR-WO-1005a` — transport corrections from the `-0101` spike: the validation pool closes with
+  the server (a handle-count test), and an `input_required` result under the legacy era is a
+  proper JSON-RPC error, never a `500`; the Tasks extension's three required core changes listed.
 - `CSR-WO-1005` — **the transport, owned:** a stateless Streamable HTTP layer written against the
   `2026-07-28` specification — POST-only JSON-RPC, `_meta` carrying protocol version and client
   identity on every request, `server/discover`, `resultType`, the routing headers, list TTLs — with
@@ -177,7 +181,9 @@ red-proof, and the teaching edition demonstrates every rung except exec.
   computed as an obligation, `owned_state` with a pinned one-line recoverability basis.
 - `CSR-WO-2001` — approval: the `ApprovalBackend` interface; grants bound to (principal, tool,
   argument digest, nonce, expiry) with the approver recorded, single-use, redemption a separate
-  audited event; a deterministic test backend, a console backend, and the confirm-URL backend with
+  audited event; MRTR `requestState` consumed on first use and a decline terminal (`-0101` B1);
+  a grant redeemable only by its requesting principal (`-0101` B2); the tier per capability class
+  ruled from the operator's client-half findings; a deterministic test backend, a console backend, and the confirm-URL backend with
   a pluggable notifier; the approval route unreachable by the tool-calling principal, proven by a
   test; the transport the spike ruled.
 - `CSR-WO-2002` — audit: the `AuditStore` interface with a JSON-lines backend; argument values
@@ -323,6 +329,7 @@ Divergence between what was planned and what was built. **History is left as wri
 |---|---|---|
 | *(genesis pull request, unnumbered)* | The four steering documents | — (precedes the first work order, deliberately; recorded so the absence of a number is not read as an omission) |
 | `CSR-WO-0000a` | Skeleton corrections from the `-0000` review: supported lint major, suppression policy, built `dist/` exports | Not planned; inserted as a refinement under `-0000` because all three are corrections to the skeleton the review exposed, and a port must never consume raw source (`architecture.md` §10) |
+| `CSR-WO-1005a` | Transport corrections the `-0101` spike measured: an unclosed worker pool and a `500` for MRTR under the legacy era | Not planned; inserted because a spike on the substrate found two defects the substrate's own tests could not see from inside |
 | `CSR-WO-0002a` | Corrections from the `-0002` review: the gate admits the platform bot's commit shapes; engine strictness moves from `.npmrc` to an explicit check | Not planned; inserted because the bot's commits would fail the gate and its lockfile regeneration would fail the exact engine pin — both discovered by the builder before the first bot run |
 
 ## Amendments
@@ -334,6 +341,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | 2026-09-25 | P1 reordered: `-1005` first and redefined as the core's own `2026-07-28` transport (the official SDK measured unable to serve it, no 2.x published); `-0101` resequenced after `-1005` and re-aimed at MRTR, since the revision deprecates elicitation. | The gate's direction that the reference serves the current stateless revision, after the `-0100` spike; see `architecture.md` §10. |
 | 2026-09-25 | P0 exit gate amended: `-0101` is no longer a P0 clause; `v0.1` is cut at P0 exit per the gate's ruling on first tags. | The gate's rulings on the open choices, same day. |
 | 2026-09-25 | `-2009` (resources and prompts primitives) added to P2 under the completeness bar, after `-1005`'s conformance run showed every remaining failure was an unimplemented primitive. | The gate's ruling; sequenced after the controls so the primitives inherit pinning and validation rather than predating them. |
+| 2026-09-25 | `-1005a` inserted before `-1000`; `-2001` gains three acceptance lines from `-0101`; the client half of `-0101` added to the human track. | Same day; the spike's findings. |
 
 ## Provenance
 
