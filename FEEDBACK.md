@@ -9,7 +9,10 @@ at the root; that one stays in history.
 Built on **Node v24.21.0** (npm 11.19.0). The session's default `node` was a different version, so
 every command ran with the version manager's 24.21.0 first on `PATH`. Every commit on the branch
 carries the role identity as both author and committer (checked before each push), and
-`node scripts/leak-gate.mjs --history` was clean before each push.
+`node scripts/leak-gate.mjs --history` was clean before each push. Pushes went over the
+repository's write deploy key. A short-lived token was minted **only** to open this pull request,
+kept in a mode-0600 scratch file for that one API call, never written to git config or a remote,
+and **deleted** straight after.
 
 ## Crossed or parked
 
