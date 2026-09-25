@@ -111,7 +111,7 @@ exits non-zero on every planted shape and zero on the tree; `grep` across the tr
 query-string token path returns nothing; the three §2.3 rows for these spikes are replaced with
 measured values; every CI run publishes a bill-of-materials artifact and a tag publishes a
 provenance attestation; the dependency-update configuration exists and has opened at least one
-pull request; `main` shows the required status check in its protection.
+pull request; `main` shows the `test` and `leak-gate` checks as required in its protection.
 
 ### P1 · Pinning, reach, and auth — *the controls that are the project*
 **Goal:** the load-bearing controls exist, are proven able to refuse, and serve one tool in the

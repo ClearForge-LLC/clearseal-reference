@@ -24,6 +24,16 @@ rules that repository's own gate runs.
 
 **Cadence:** build. One PR, left unmerged for review.
 
+> **As-built amendment (2026-09-25).** The builder hit the §7 stop on `main`'s own history: the
+> squash-merge trailers carry the organization's *role* addresses, and a FEEDBACK file carries
+> action-pin SHAs this work order itself asked for. Ruled: (a) an exact exemption for the two role
+> identities, in the e-mail rule with its reason; (b) the action-pin reference shape
+> `owner/repo@<40hex>` is exempt in any path; (c) therefore the allowlist ships **empty** and its
+> stale-allow mechanism is proven with a temporary entry; (d) `--history` also reads the author and
+> committer identity of every commit; (e) on a pull-request event the job checks out the PR head,
+> because the platform's synthetic merge commit's message is two full SHAs. Sections below are
+> left as written; this note governs where they differ.
+
 ## 1. Scope — numbered, specific
 
 1. **`scripts/leak-gate.mjs`** — plain Node, no dependencies, importing only `node:` modules.
@@ -47,7 +57,9 @@ rules that repository's own gate runs.
      `Co-Authored-By` no-reply trailer to the builder's commits; a no-reply address is not a
      contactable identifier, and history is scanned).
    Each rule has a name, a regex, and a one-line reason in the script, because the next person to
-   add a rule copies the shape of the last one.
+   add a rule copies the shape of the last one. *As built: 29 rules — the categories above plus
+   routable IPv4, private IPv6, macOS/WSL profile paths, `user@host` targets, hosting-platform
+   subdomains, vendor API-key prefixes, and URL userinfo — each with planted examples.*
 3. **Allowlist, narrow and justified.** A committed `.leak-gate-allow` file, one entry per line as
    `<path-glob> <rule-name> <justification>`. The gate **fails** on an allow entry that matches
    nothing (stale allows rot into blanket exceptions). Exactly two entries ship: the `uses:` lines of
