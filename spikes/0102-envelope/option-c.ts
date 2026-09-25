@@ -101,6 +101,10 @@ export async function verify<P = Alert>(
   const headerBad = exactKeys(header, HEADER_KEYS);
   if (headerBad !== null) return refuse("structure", headerBad.startsWith("unknown") ? "unknown-field" : "missing-field", `header: ${headerBad}`);
   const { typ, kid, iat, exp, jti } = header;
+  // jose's `algorithms` option also enforces this; checked here too so the refusal does not rest
+  // on a library option a caller could omit (adversarial pass: without it, HS256 keyed with the
+  // raw public key verifies).
+  if (header["alg"] !== "EdDSA") return refuse("structure", "field", "alg must be EdDSA");
   if (typ !== TYP) return refuse("structure", "field", `typ must be ${TYP}`);
   if (typeof kid !== "string" || !ID_RE.test(kid)) return refuse("structure", "field", "kid");
   if (!isTime(iat) || !isTime(exp)) return refuse("structure", "field", "iat and exp are integers");
@@ -132,7 +136,7 @@ export async function verify<P = Alert>(
   const key = selectKey(allowlist, entryKid, ctx.now);
   if (!key.ok) return refuse("signature", key.check, key.why);
   if (exp > iat + PAST_WINDOW) return refuse("signature", "expires", "exp is later than the freshness window allows");
-  if (ctx.now >= exp) return refuse("signature", "stale", "at or past exp");
+  if (ctx.nonces.clock(ctx.now) >= exp) return refuse("signature", "stale", "at or past exp");
   const stale = freshAndUnseen(iat, jti, ctx);
   if (stale !== null) return refuse("signature", stale.check, stale.why);
 

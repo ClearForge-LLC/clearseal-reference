@@ -224,11 +224,21 @@ export interface Allowlist {
   authors: readonly string[];
 }
 
-/** Seen nonces with the time each stops mattering; pruned on every look. */
+/** Seen nonces with the time each stops mattering; pruned on every look. The store keeps the
+ *  latest clock reading it has seen and never runs behind it: pruning at a later time and then
+ *  checking at an earlier one would forget a nonce whose message is fresh again at that earlier
+ *  time (a replay after the clock steps back; CSR-WO-0102 adversarial pass). */
 export class NonceStore {
   readonly #seen = new Map<string, number>();
+  #highWater = 0;
+  /** The verifier's effective time: the given clock, or the latest reading seen, if later. */
+  clock(now: number): number {
+    this.#highWater = Math.max(this.#highWater, now);
+    return this.#highWater;
+  }
   has(nonce: string, now: number): boolean {
-    for (const [n, until] of this.#seen) if (until < now) this.#seen.delete(n);
+    const t = this.clock(now);
+    for (const [n, until] of this.#seen) if (until < t) this.#seen.delete(n);
     return this.#seen.has(nonce);
   }
   remember(nonce: string, until: number): void {
@@ -253,7 +263,7 @@ export function selectKey(allowlist: Allowlist, kid: string, now: number): { ok:
 
 /** Gate 1, second half: the message was issued inside the window, and its nonce is unseen. */
 export function freshAndUnseen(issuedAt: number, nonce: string, ctx: VerifyContext): { check: string; why: string } | null {
-  if (issuedAt < ctx.now - PAST_WINDOW) return { check: "stale", why: `issued ${String(ctx.now - issuedAt)} s ago` };
+  if (issuedAt < ctx.nonces.clock(ctx.now) - PAST_WINDOW) return { check: "stale", why: `issued ${String(ctx.nonces.clock(ctx.now) - issuedAt)} s before the latest clock reading` };
   if (issuedAt > ctx.now + FUTURE_SKEW) return { check: "future", why: `issued ${String(issuedAt - ctx.now)} s ahead` };
   if (ctx.nonces.has(nonce, ctx.now)) return { check: "replay", why: "nonce already seen" };
   return null;

@@ -192,7 +192,7 @@ export function verify<P = Alert>(
   if (!edVerify(null, utf8.encode(base), key.entry.public_key, sig)) return refuse("signature", "bad-signature", "signature does not verify over the signature base");
   if (!Buffer.from(digest).equals(createHash("sha256").update(wire.body).digest())) return refuse("signature", "body-digest", "body does not match the signed content-digest");
   if (expires > created + PAST_WINDOW) return refuse("signature", "expires", "expires is later than the freshness window allows");
-  if (ctx.now > expires) return refuse("signature", "stale", "past expires");
+  if (ctx.nonces.clock(ctx.now) > expires) return refuse("signature", "stale", "past expires");
   const stale = freshAndUnseen(created, nonce, ctx);
   if (stale !== null) return refuse("signature", stale.check, stale.why);
 
