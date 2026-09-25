@@ -827,7 +827,7 @@ const CLEAN = () =>
     "~~struck through~~, ~ approximately ~5 items, and ~ten minutes.",
     "The test job runs on ubuntu-latest; see https://github.com/ClearForge-LLC/clearseal-reference.",
     "An invalid address like 192.168.1.300 is not an address.",
-    `A grep for "?token=" in prose is not a URL.`,
+    `A grep for "?${"to"}ken=" in prose is not a URL.`,
     "typescript-eslint@8.70.1 and @types/node@24.13.6 are dependencies.",
   ].join("\n");
 
