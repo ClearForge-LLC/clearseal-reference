@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { describe, it } from "node:test";
 
-import { GrantStore } from "../grants.ts";
+import { canonicalCode, GrantStore } from "../grants.ts";
 import { runProbe } from "../probe.ts";
 import { MIN_BEARER_LENGTH, StartRefused, startSpike } from "../server.ts";
 
@@ -24,9 +24,10 @@ void describe("the grant store (architecture §5 Approval binding)", () => {
     const a = g.issue("p", "t", { action: "a" });
     g.issue("p", "t", { action: "b" });
     now += 120_000;
-    assert.deepEqual(g.redeem(a.code, "p", "t", { action: "a" }), { ok: false, reason: "expired" });
-    assert.equal(g.sweep(), 1);
-    assert.equal(g.size(), 0);
+    assert.equal(g.sweep(), 2);
+    assert.equal(g.size(), 0, "no grant survives its expiry");
+    now += 60_000;
+    assert.deepEqual(g.redeem(a.code, "p", "t", { action: "a" }), { ok: false, reason: "expired" }, "a late redemption still reports expired (tombstone, no authority)");
     g.close();
   });
 
@@ -42,6 +43,18 @@ void describe("the grant store (architecture §5 Approval binding)", () => {
     g.close();
   });
 
+  void it("codes match in canonical ASCII only: lower case and Crockford aliases accepted, non-ASCII look-alikes refused", () => {
+    const g = new GrantStore(120_000);
+    const c = g.issue("p", "t", {}).code;
+    assert.equal(g.redeem(c.toLowerCase(), "p", "t", {}).ok, true);
+    const d = g.issue("p", "t", {}).code;
+    const lookalike = d.replace(/S/g, "\u017f");
+    if (lookalike !== d) assert.equal(g.redeem(lookalike, "p", "t", {}).ok, false);
+    assert.equal(canonicalCode("oOiIl-LlIoO"), "00111-11100");
+    assert.equal(canonicalCode("ABCDE12345"), undefined);
+    g.close();
+  });
+
   void it("codes are 10 characters of Crockford base32, readable aloud", () => {
     const g = new GrantStore(1000);
     assert.match(g.issue("p", "t", {}).code, /^[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/);
@@ -53,6 +66,7 @@ void describe("the bearer, by name only (N8)", () => {
   void it("refuses to start without the bearer, or with a short one (WO §5.3)", async () => {
     await assert.rejects(startSpike({ bearer: undefined }), StartRefused);
     await assert.rejects(startSpike({ bearer: "x".repeat(MIN_BEARER_LENGTH - 1) }), StartRefused);
+    await assert.rejects(startSpike({ bearer: " ".repeat(MIN_BEARER_LENGTH) }), StartRefused, "a bearer the client cannot send is refused");
   });
 
   void it("refuses to widen Host/Origin on an ephemeral port", async () => {
@@ -86,5 +100,7 @@ void describe("the probe's local half (WO §3.2, §3.3, §3.4, §5.1)", () => {
     assert.match(text("grant: redeem for a different action"), /^REFUSED via grant: the code is not for this call/);
     assert.match(text("grant: redeem after the TTL"), /^REFUSED via grant: the code is expired/);
     assert.match(text("grant: redeem (legacy)"), /^APPROVED via grant/);
+    assert.match(text("mrtr: the SAME state after the decline"), /^APPROVED via mrtr/, "measured: the state is not single-use (a finding for -2001)");
+    assert.ok(!JSON.stringify(r).match(/"code":"(?!XXXXX-XXXXX)[0-9A-Z]{5}-[0-9A-Z]{5}"/), "codes are masked in the report");
   });
 });

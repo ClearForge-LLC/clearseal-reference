@@ -95,16 +95,17 @@ export async function runProbe(opts: { grantTtlMs?: number } = {}): Promise<Prob
     const sealed = result(a1)["requestState"];
     const state = typeof sealed === "string" ? sealed : "";
     const a2 = await modern("mrtr: retry with accept + approve:true + echoed requestState", "tools/call", { name: "approve_via_mrtr", arguments: { action: "rotate the demo key" }, requestState: state, inputResponses: { approval: { action: "accept", content: { approve: true } } } }, elicit);
-    rows.push({ transport: "(a) MRTR-carried elicitation", era: "2026-07-28", carried: a1.status === 200 && result(a1)["resultType"] === "input_required" ? "yes: input_required with an elicitation/create request, and a sealed requestState" : "no", completed: textOf(a2).startsWith("APPROVED") ? "yes (accept)" : "no", latency: `${String(a1.ms)} ms + ${String(a2.ms)} ms (two round trips; human time excluded)`, notes: "the retry must echo requestState; it is bound to principal, tool and arguments" });
+    rows.push({ transport: "(a) MRTR-carried elicitation", era: "2026-07-28", carried: a1.status === 200 && result(a1)["resultType"] === "input_required" ? "yes: input_required with an elicitation/create request, and a sealed requestState" : "no", completed: textOf(a2).startsWith("APPROVED") ? "yes (accept)" : "no", latency: `${String(a1.ms)} ms + ${String(a2.ms)} ms (two round trips; human time excluded)`, notes: "the retry must echo requestState. Every answer in this probe is produced by the probe itself: the server cannot tell a human's answer from the token holder's (channel separation)" });
 
     const d1 = await modern("mrtr: first call (for the decline case)", "tools/call", { name: "approve_via_mrtr", arguments: { action: "delete the demo file" } }, elicit);
     const d2 = await modern("mrtr: retry with decline → expect a refusal", "tools/call", { name: "approve_via_mrtr", arguments: { action: "delete the demo file" }, requestState: result(d1)["requestState"], inputResponses: { approval: { action: "decline" } } }, elicit);
     const d3 = await modern("mrtr: retry with accept but approve:false → expect a refusal", "tools/call", { name: "approve_via_mrtr", arguments: { action: "delete the demo file" }, requestState: result(d1)["requestState"], inputResponses: { approval: { action: "accept", content: { approve: false } } } }, elicit);
-    rows.push({ transport: "(a) MRTR decline", era: "2026-07-28", carried: "yes", completed: `${textOf(d2).startsWith("REFUSED") ? "refused (decline)" : "NOT REFUSED"}; ${textOf(d3).startsWith("REFUSED") ? "refused (approve:false)" : "NOT REFUSED"}`, latency: `${String(d2.ms)} ms`, notes: "a decline is a refusal (isError: true), never a success" });
+    const d4 = await modern("mrtr: the SAME state after the decline, now accept → measures replay", "tools/call", { name: "approve_via_mrtr", arguments: { action: "delete the demo file" }, requestState: result(d1)["requestState"], inputResponses: { approval: { action: "accept", content: { approve: true } } } }, elicit);
+    rows.push({ transport: "(a) MRTR decline", era: "2026-07-28", carried: "yes", completed: `${textOf(d2).startsWith("REFUSED") ? "refused (decline)" : "NOT REFUSED"}; ${textOf(d3).startsWith("REFUSED") ? "refused (approve:false)" : "NOT REFUSED"}`, latency: `${String(d2.ms)} ms`, notes: `a decline refuses that call; but the same sealed state re-presented with accept: ${textOf(d4).startsWith("APPROVED") ? "APPROVED (the state is not single-use: a decline is not final)" : "refused"}` });
 
     const n1 = await modern("mrtr: client does NOT declare elicitation → expect -32021", "tools/call", { name: "approve_via_mrtr", arguments: { action: "x" } }, {});
     const swapped = await modern("mrtr: state from one action replayed for another → expect refusal", "tools/call", { name: "approve_via_mrtr", arguments: { action: "a different action" }, requestState: state, inputResponses: { approval: { action: "accept", content: { approve: true } } } }, elicit);
-    rows.push({ transport: "(a) MRTR without the elicitation capability", era: "2026-07-28", carried: `no: ${String(n1.status)} ${String((n1.json as { error?: { code?: number } }).error?.code)}`, completed: "no", latency: `${String(n1.ms)} ms`, notes: `the core refuses before the tool asks (MissingRequiredClientCapability). A state replayed for another action: ${String(swapped.status)} ${String((swapped.json as { error?: { code?: number } }).error?.code)}` });
+    rows.push({ transport: "(a) MRTR without the elicitation capability", era: "2026-07-28", carried: `no: ${String(n1.status)} ${String((n1.json as { error?: { code?: number } }).error?.code)}`, completed: "no", latency: `${String(n1.ms)} ms`, notes: `the core refuses before the tool asks (MissingRequiredClientCapability). Binding exercised: a state replayed for another action → ${String(swapped.status)} ${String((swapped.json as { error?: { code?: number } }).error?.code)}; principal binding cannot be exercised with one static principal` });
 
     // (a) on the legacy era: no MRTR in 2025-11-25.
     await legacy("legacy initialize (no header)", "initialize", { protocolVersion: "2025-11-25", capabilities: { elicitation: {} }, clientInfo: { name: "probe", version: "0" } }, false);
@@ -137,7 +138,10 @@ export async function runProbe(opts: { grantTtlMs?: number } = {}): Promise<Prob
   } finally {
     await spike.close();
   }
-  return { exchanges, log: log.map((l) => l.replace(/code [0-9A-Z]{5}-[0-9A-Z]{5}/, "code XXXXX-XXXXX")), rows };
+  // Grant codes are identifiers (OPERATOR-PROTOCOL §0): masked everywhere in the report, even
+  // though these are dead, per-run codes.
+  const mask = <T>(v: T): T => JSON.parse(JSON.stringify(v).replace(/[0-9A-Z]{5}-[0-9A-Z]{5}/g, "XXXXX-XXXXX")) as T;
+  return { exchanges: mask(exchanges), log: mask(log), rows };
 }
 
 if (import.meta.main) {

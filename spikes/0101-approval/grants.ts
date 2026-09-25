@@ -41,8 +41,18 @@ function newCode(): string {
   return `${out.slice(0, 5)}-${out.slice(5)}`;
 }
 
+/** A presented code in canonical form, or undefined when it is not a code at all: ASCII only (no
+ *  case folding of non-ASCII look-alikes), upper-cased, with the Crockford aliases O→0 and I/L→1. */
+export function canonicalCode(presented: string): string | undefined {
+  if (!/^[0-9A-Za-z]{5}-[0-9A-Za-z]{5}$/.test(presented)) return undefined;
+  return presented.toUpperCase().replace(/O/g, "0").replace(/[IL]/g, "1");
+}
+
 export class GrantStore {
   readonly #grants = new Map<string, Grant>();
+  /** Codes that expired, kept for a while with no authority at all, so that a late redemption is
+   *  reported as "expired" rather than "unknown" (the sweep would otherwise erase the reason). */
+  readonly #expired = new Map<string, number>();
   readonly #ttlMs: number;
   readonly #now: () => number;
   readonly #sweeper: NodeJS.Timeout;
@@ -68,8 +78,14 @@ export class GrantStore {
    *  whatever the outcome afterwards. A code presented for another principal, tool or arguments is
    *  refused and burnt too, so a leaked code cannot be retried against the right call. */
   redeem(code: string, principal: string, tool: string, args: unknown): Redemption {
-    const grant = this.#find(code);
-    if (grant === undefined) return { ok: false, reason: "unknown-or-used" };
+    const canonical = canonicalCode(code);
+    if (canonical === undefined) return { ok: false, reason: "unknown-or-used" };
+    this.sweep();
+    const grant = this.#find(canonical);
+    if (grant === undefined) {
+      if (this.#expired.delete(canonical)) return { ok: false, reason: "expired" };
+      return { ok: false, reason: "unknown-or-used" };
+    }
     this.#grants.delete(grant.code);
     if (this.#now() >= grant.expiresAt) return { ok: false, reason: "expired" };
     if (grant.principal !== principal || grant.tool !== tool || grant.argsDigest !== argsDigest(args)) return { ok: false, reason: "bound-elsewhere" };
@@ -82,9 +98,11 @@ export class GrantStore {
     for (const [code, g] of this.#grants) {
       if (now >= g.expiresAt) {
         this.#grants.delete(code);
+        this.#expired.set(code, now + 10 * this.#ttlMs);
         removed++;
       }
     }
+    for (const [code, until] of this.#expired) if (now >= until) this.#expired.delete(code);
     return removed;
   }
 
@@ -98,7 +116,7 @@ export class GrantStore {
 
   /** Constant-time comparison against every live code (the set is tiny in a spike). */
   #find(code: string): Grant | undefined {
-    const wanted = Buffer.from(code.toUpperCase());
+    const wanted = Buffer.from(code);
     for (const g of this.#grants.values()) {
       const have = Buffer.from(g.code);
       if (have.length === wanted.length && timingSafeEqual(have, wanted)) return g;

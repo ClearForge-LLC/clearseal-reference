@@ -120,15 +120,15 @@ export function approvalTools(grants: GrantStore, log: (line: string) => void, n
         const code = args["code"];
         if (typeof code !== "string") {
           const g = grants.issue(ctx.principal.id, "approve_via_grant", { action });
-          log(`[approval-spike] GRANT issued: code ${g.code} for approve_via_grant action=${JSON.stringify(action)}; expires in ${String(Math.round((g.expiresAt - g.issuedAt) / 1000))} s; single use`);
-          return Promise.resolve(text(`PENDING via grant: a one-time code for "${action}" was issued out of band (not in this reply). Call approve_via_grant again with the same action and the code within ${String(Math.round((g.expiresAt - g.issuedAt) / 1000))} s.`));
+          log(`[approval-spike] GRANT issued: code ${g.code} for approve_via_grant action=${JSON.stringify(action)}; expires in ${((g.expiresAt - g.issuedAt) / 1000).toFixed(1)} s; single use`);
+          return Promise.resolve(text(`PENDING via grant: a one-time code for "${action}" was issued out of band (not in this reply). Call approve_via_grant again with the same action and the code within ${String((g.expiresAt - g.issuedAt) / 1000)} s.`));
         }
         const r = grants.redeem(code, ctx.principal.id, "approve_via_grant", { action });
         if (!r.ok) {
           log(`[approval-spike] GRANT redemption refused: ${r.reason}`);
           return Promise.resolve(text(`REFUSED via grant: the code is ${r.reason === "expired" ? "expired" : r.reason === "bound-elsewhere" ? "not for this call" : "unknown or already used"}.`, true));
         }
-        log(`[approval-spike] GRANT redeemed after ${String(now() - r.grant.issuedAt)} ms`);
+        log(`[approval-spike] GRANT redeemed for approve_via_grant action=${JSON.stringify(action)} after ${String(now() - r.grant.issuedAt)} ms`);
         return Promise.resolve(text(`APPROVED via grant: "${action}". Redeemed ${String(now() - r.grant.issuedAt)} ms after it was issued.`));
       },
     },
@@ -154,8 +154,8 @@ export interface Spike {
 }
 
 export async function startSpike(o: SpikeOptions): Promise<Spike> {
-  if (o.bearer === undefined || o.bearer.length < MIN_BEARER_LENGTH) {
-    throw new StartRefused(`${BEARER_ENV} must be set to a bearer of at least ${String(MIN_BEARER_LENGTH)} characters; refusing to start open`);
+  if (o.bearer === undefined || !new RegExp(`^[A-Za-z0-9+/=_.~-]{${String(MIN_BEARER_LENGTH)},}$`).test(o.bearer)) {
+    throw new StartRefused(`${BEARER_ENV} must be set to a bearer of at least ${String(MIN_BEARER_LENGTH)} base64 or base64url characters; refusing to start open`);
   }
   const port = o.port ?? 0;
   const loopbackHosts = (p: number): string[] => [`127.0.0.1:${String(p)}`, `localhost:${String(p)}`];
