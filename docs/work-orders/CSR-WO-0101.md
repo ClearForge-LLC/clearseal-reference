@@ -27,6 +27,22 @@ judged against), §7.1 row *A prompt-injected model*; `docs/roadmap.md` P0 and P
 **Cadence:** spike — build the harness, run the local half, hand the operator the protocol,
 **STOP**. The operator's findings are appended by the architect.
 
+> **Rewritten 2026-09-25, before it ran.** The `2026-07-28` revision removed server-initiated
+> requests on streams: elicitation now travels *inside* a Multi Round-Trip Request — the server
+> returns `resultType: "input_required"` with `inputRequests` and an opaque `requestState`, and the
+> client re-issues the call with `inputResponses` and the echoed state. So the three transports
+> this spike offers are now: **(a) MRTR with an elicitation-type input request** (the spec-native
+> path, carried by `-1005`'s transport; the `requestState` is HMAC'd by the core so a resumed call
+> cannot be altered), **(b) the Tasks extension** (`io.modelcontextprotocol/tasks`, negotiated via
+> capabilities — offer it only if the harness can implement `tasks/get`/`update`/`cancel` from the
+> extension text; otherwise record it as not offered), and **(c) the out-of-band grant** as written.
+> The spike now **depends on `-1005`** and runs on the core's own transport, not on the SDK; every
+> mention of the SDK below is superseded. §1.1's `approve_via_elicitation` becomes
+> `approve_via_mrtr`. The channel-separation question in §6 is sharper for (a): the client that
+> holds the token both carries the input request and answers it, so MRTR-carried approval can only
+> be a *lower* assurance tier than an out-of-band grant, whatever the hosted client does with it —
+> the spike measures behaviour; the architecture decides the tier.
+
 ## 1. Scope — numbered, specific
 
 1. **`spikes/0101-approval/`** — private workspace package, SDK pinned to the same exact version

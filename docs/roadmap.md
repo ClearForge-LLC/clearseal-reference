@@ -107,8 +107,9 @@ design depends on measured and recorded.
   probe the negotiated protocol revision and whether `server/discover` is reachable; record the
   result in `architecture.md` §2.3. STOP.
 - `CSR-WO-0101` — spike: whether the hosted client honours multi-round-trip requests for an
-  in-flight approval. **Resequenced after `-1005`:** it needs the core's own `2026-07-28`
-  transport, and the revision deprecates the elicitation path the first draft measured. STOP.
+  in-flight approval. **Resequenced after `-1005`** and rewritten: MRTR-carried elicitation, the
+  Tasks extension if implementable from its text, and the out-of-band grant, on the core's own
+  transport. STOP.
 - `CSR-WO-0102` — spike: the class-5 envelope options in `architecture.md` §5, tested against the
   fleet's existing verifier contract for interoperability. STOP.
 **Exit gate:** CI is green on a pull request that changes a source file; the leak gate's self-test
