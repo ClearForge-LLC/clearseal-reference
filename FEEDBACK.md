@@ -1,360 +1,293 @@
-# FEEDBACK: CSR-WO-0000a (skeleton corrections: lint major, suppression policy, built exports)
+# FEEDBACK: CSR-WO-0002 (governance and supply chain)
 
-Branch `wo/CSR-WO-0000a`. It was cut from `main` at `b2651ec` (CSR-WO-0001 merged;
-`scripts/leak-gate.mjs` present). It was rebased onto `068dd90` (the docs-only `-0001` as-built
-amendment) before the PR opened, and force-pushed with a lease over the branch's only earlier push,
-which had no PR. It is parked as one unmerged pull request. This file replaces `-0001`'s FEEDBACK
-at the root; that one stays in history.
+Branch `wo/CSR-WO-0002`, cut from `main` at `4e51bc2` (CSR-WO-0000a merged; `.github/workflows/ci.yml`
+present). Parked as one unmerged pull request, #9. It was opened as a draft early, because the
+provenance workflow's guarded dry run can only run on a pull request until that workflow exists on
+`main`, and marked ready with this file.
 
-Built on **Node v24.21.0** (npm 11.19.0). The session's default `node` was a different version, so
-every command ran with the version manager's 24.21.0 first on `PATH`. Every commit on the branch
-carries the role identity as both author and committer (checked before each push), and
-`node scripts/leak-gate.mjs --history` was clean before each push. Pushes went over the
-repository's write deploy key. A short-lived token was minted **only** to open this pull request,
-kept in a mode-0600 scratch file for that one API call, never written to git config or a remote,
-and **deleted** straight after.
+Built on **Node v24.21.0**. Every commit carries the role identity as both author and committer, and
+`node scripts/leak-gate.mjs --tree` and `--history` were clean before every push. Pushes went over
+the repository's write deploy key. A short-lived token was minted **only** for the pull-request API
+calls (open, then mark ready and update the description), kept in a mode-0600 scratch file, never
+written to git config or a remote, and **deleted** after the last call.
 
-## Architect review of PR #8: two rulings, both applied on this branch
+## Crossed or parked: two items need the architect, and neither can be completed from this branch
 
-| # | Ruling | What changed | Proof |
-|---|---|---|---|
-| 1 | **`no-undef` OFF on the root JavaScript; the hand-kept globals list removed.** Every linted file is type-checked (the project service refuses a file outside a tsconfig), and TypeScript's checker is the more accurate one. A globals list is a second source of truth that drifts: the same two-copies argument as N1. | `eslint.config.js`: the JavaScript block sets `"no-undef": "off"`, with a comment saying why and not to re-enable it "for safety". TypeScript files already had it off through typescript-eslint, so it is off on every linted file. The globals list is gone | Below: a typo'd identifier in `scripts/` fails `npm run typecheck` (TS2552, exit 2), so `npm run check` fails. ESLint's output carries no `no-undef` entry |
-| 2 | **File-wide and block-wide disables FORBIDDEN everywhere, reason or not.** Only `eslint-disable-line` and `eslint-disable-next-line` with a `-- reason` are honoured outside control source. A file-wide disable suppresses an unknown set of findings at an unknown set of lines, so its scope is not reviewable. | `scripts/check-directives.mjs` accepts only the two line-scoped kinds, each with a reason. It rejects `eslint-disable` (file- or block-wide), its `eslint-enable` pair, inline rule configuration, and `global`/`globals`/`exported`, with or without a reason | Below: five negative cases fail `npm run lint`, and two positive cases pass |
+1. **`CODEOWNERS` protects nothing as written.** A CODEOWNERS owner must be a user or an
+   organization team (`@org/team`) with write access; **an organization handle is not a valid
+   owner.** The platform's validator (`codeowners/errors`) reports `Unknown owner` on all three
+   lines. The organization lists **no teams**, and none has access to this repository. The WO's
+   fallback, a personal handle, is exactly what N6 and §7 forbid, so it was not used. In addition,
+   the default-branch ruleset has `require_code_owner_review: false`, so even a valid file would
+   not gate merges today. · `CODEOWNERS:4-6` · bug (§7-adjacent: the organization handle is not
+   usable) · Create an organization team (for example `maintainers`) with write access to this
+   repository; the change here is then `@ClearForge-LLC` → `@ClearForge-LLC/<team>` on three lines.
+   Turn on code-owner review in the ruleset if the file is meant to gate merges. ·
+   **decision-needed: yes**
+2. **The dependency-update gate clause (§3.6) cannot be met before this merges.** The platform's
+   dependency bot reads `.github/dependabot.yml` **only from the default branch.** Measured:
+   - no bot pull request exists;
+   - the repository has never had a dependency-update run;
+   - the pull request shows no bot check.
 
-Findings 2 and 8 are resolved by these rulings.
+   The configuration's keys are all valid per the documented schema (checked in the adversarial
+   pass), but "accepted by the platform" can only be shown after merge. · `.github/dependabot.yml` ·
+   scope-question · Merge; the first weekly run then opens pull requests (the tree has candidates,
+   for example `@types/node` and a TypeScript major). Or land `dependabot.yml` ahead in its own
+   small PR. Findings 3 and 4 predict what that first run will hit. · **decision-needed: yes**
 
-**Proof 1: an undefined name is still caught, by the type checker**
-
-```
-
-```
-
-**Proof 2: the directive policy, negative and positive cases** (each in a scratch file in `scripts/`,
-suppressing a real finding, removed after):
-
-```
-
-```
-
-## Crossed or parked
-
-**Nothing crossed. No §7 condition fired.**
-- The lint major pins exactly, and its type-aware config still covers the root JavaScript.
-- Enforcing the reason requirement needed no dependency (a script in `scripts/`).
-- The consumer needs no build step.
-- No protected surface changed.
-
-Two findings needed a decision (2 and 8). **Both are now ruled and applied** (the section above).
+Nothing else is crossed. No step needed a stored secret; the attestation uses the job's identity
+token. The attestation action pins to a commit SHA, and so does the action it wraps. No protected
+surface changed.
 
 ## Gates line
 
 | Gate | Result |
 |---|---|
-| `npm ci && npm run check` | exit 0 on the final code: typecheck, then lint plus the directive check, then build, then test (1 test, on source). Tail under §3.1 |
-| §3.2 unawaited promise | **fails lint** in a scratch control-source file **and** in the root JavaScript (`no-floating-promises`, exit 1) |
-| §3.3 suppression policy | **(a)** a directive in `packages/core/src/index.ts`, even correctly named *with* a reason, is ignored under `noInlineConfig`, and lint exits 1. **(b)** The same directive *without* a reason in `scripts/`: `npm run lint` exits 1 at `check-directives`. **(c)** *With* `-- reason`: exit 0 |
-| §3.4 build | `packages/core/dist/index.js` and `index.d.ts` are produced; `dist/` shows only as ignored (`!!`), never in `git status` |
-| §3.5 consumability | a packed tarball installs with `ignore-scripts=true` into a directory **outside any repository** and prints `@clearseal/core`, with **no build step on the consumer side**. Transcript below |
-| §5.5 pack contents | 3 files: `dist/index.d.ts`, `dist/index.js`, `package.json`. No source, test, config, map or build-info file |
-| §3.6 CI | <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36092521997> on `663f22e`: `test (ubuntu-latest)`, `test (windows-latest)` and `leak-gate` all **success**. The pre-rebase push `2c130bf` was also green (run 36091956243). The final commit's run (this file) shows on the PR. **The `test` job's block is unchanged** (`ci.yml` has no diff) |
-| §3.7 dependencies | before and after `npm ls --depth=0` below; only `eslint` and `@eslint/js` changed |
-| Protected surfaces | `git diff origin/main...HEAD --stat -- docs README.md LICENSE NOTICE scripts/test.mjs scripts/leak-gate.mjs packages/core/src packages/core/test .github` is **empty** |
-| Leak gate | `--self-test`, `--tree` and `--history` all exit 0 on the branch; the CI job is green |
+| Bill-of-materials artifact | **`sbom-cyclonedx-35ae6933edaa`** (the final code commit's push run <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36094825676>): **CycloneDX 1.5, 99 components**. Downloaded and parsed independently; it lists all 5 direct dependencies at their lockfile versions, matched by package URL (transcript below) |
+| Bill of materials shown red (N5) | <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36093837841> on `f28c7dc` (output written to a wrong path): `sbom` **failure**, every other job green, **0 artifacts uploaded**. Reverted by the follow-up commit `e305716` (not force-pushed): green again (run 36093921374) |
+| Audit summary | "Dependencies audited: 100. Findings at high or critical: **0** (critical 0, high 0, moderate 0, low 0, info 0)." The job is green by design (reporting only) |
+| Provenance dry run | <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36094830153> (pull request, final workflow): `build` ✓, `attest` ✓, `release` **skipped** (guarded). Attestation created for `clearseal-core-0.0.0.tgz`, **verified independently**, and a tampered tarball fails. The documented release check **refuses** this pull-request attestation (below) |
+| Dependency-update PR | **None yet, and none possible before merge** (crossed item 2) |
+| `test` and `leak-gate` jobs | unchanged: lines 1-46 of `ci.yml` are byte-identical to `main`, and the diff only appends the `sbom` and `audit` jobs. Green on both runners on every run |
+| CI on the final code commit `35ae693` | push <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36094825676> and pull request <https://github.com/ClearForge-LLC/clearseal-reference/actions/runs/36094830216>: `test` ×2, `leak-gate`, `sbom`, `audit` all **success**. The run for this file's commit shows on the PR |
+| Protected surfaces | `git diff origin/main...HEAD --stat -- docs README.md LICENSE NOTICE packages scripts` is **empty** |
+| N6 | the four governance files, both scripts, both workflows and every commit on the branch pass `--tree` and `--history`. The adversarial pass read `SECURITY.md` and `CONTRIBUTING.md` "as a stranger" and found exactly one vulnerability path, the platform's private reporting, with no person, address, handle or path |
 
-### Versions, before and after
+### Every `permissions:` block (WO §6)
 
-| Package | Before | After | Note |
-|---|---|---|---|
-| `eslint` | 9.39.5 (npm: "no longer supported") | **10.11.0** | current `latest`; 9.x is tagged `maintenance` |
-| `@eslint/js` | 9.39.5 | **10.0.1** | its own 10.x line; peer `eslint ^10.0.0` |
-| `typescript-eslint` | 8.70.1 | 8.70.1 | peer range already includes `eslint ^10.0.0` |
-| `typescript` | 6.0.3 | 6.0.3 | unchanged (WO §4: no TypeScript major bump) |
-| `@types/node` | 24.13.6 | 24.13.6 | unchanged |
+Printed with `yaml.safe_load` over each workflow: the workflow-level block, then each job's block
+or "(inherits workflow)".
+
+```
+.github/workflows/ci.yml          workflow        {'contents': 'read'}
+.github/workflows/ci.yml          job:test        (inherits workflow)      <- unchanged from -0000
+.github/workflows/ci.yml          job:leak-gate   {'contents': 'read'}
+.github/workflows/ci.yml          job:sbom        {'contents': 'read'}
+.github/workflows/ci.yml          job:audit       {'contents': 'read'}
+.github/workflows/provenance.yml  workflow        {'contents': 'read'}
+.github/workflows/provenance.yml  job:build       {'contents': 'read'}
+.github/workflows/provenance.yml  job:attest      {'contents': 'read', 'id-token': 'write', 'attestations': 'write'}
+.github/workflows/provenance.yml  job:release     {'contents': 'write'}
+```
+
+`id-token: write` appears in **one** job: `attest`, which runs no npm and no repository code.
+`contents: write` appears only in `release`, which runs only on a pushed `v*` tag.
+
+### Every `uses:` pin (WO §1.10, §6)
+
+```
+.github/workflows/ci.yml:18,34,53,78     actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+.github/workflows/ci.yml:21,41,56,81     actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+.github/workflows/ci.yml:67              actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1   (new)
+.github/workflows/provenance.yml         actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+.github/workflows/provenance.yml         actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+.github/workflows/provenance.yml         actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1   (new)
+.github/workflows/provenance.yml         actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1 (new)
+.github/workflows/provenance.yml         actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2 (new)
+  nested inside attest-build-provenance: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+```
+
+Each new SHA was resolved from the release tag (all lightweight tags) and re-checked with
+`git ls-remote` in the adversarial pass. The attestation action is a composite whose only step
+calls `actions/attest` **by SHA**, so pinning the outer action pins what runs.
 
 ## Findings
 
 Schema: `finding · where · type · recommendation · decision-needed`.
 
-1. **ESLint 10 has no built-in way to require a directive's reason.** It parses `-- reason`, and
-   offers `noInlineConfig`, `reportUnusedDisableDirectives` and `reportUnusedInlineConfigs`, but
-   nothing that requires a description. So, per WO §1.2 and with no plugin,
-   `scripts/check-directives.mjs` does it, run by `npm run lint`.
-   - **Which comments count, and the policy** (as ruled in review 2): every comment whose trimmed
-     text opens with a directive kind ESLint recognises. Only `eslint-disable-line` and
-     `eslint-disable-next-line` are allowed, and each needs a reason. `eslint-disable` (file- or
-     block-wide), `eslint-enable`, inline rule configuration, `global`, `globals` and `exported`
-     are rejected, reason or not.
-   - **What a reason is:** ESLint's own separator (whitespace, two or more dashes, whitespace),
-     followed by text containing a letter or digit.
-   - **How it reads files:** every `//` and every `/*` is treated as a comment start, overlapping,
-     so a stray `/*` in a string or regex cannot hide a later directive. The cost is a false
-     positive on a directive-like string, which fails closed.
-   - **Which files:** tracked plus untracked-but-not-ignored, the set `eslint .` lints.
+3. **The bot's npm updates will probably fail to resolve** (a prediction; the first run will
+   confirm). `.npmrc` sets `engine-strict=true` and `engines.node` is exactly `24.21.0`. Locally, a
+   lockfile update under Node 22 or 24.16 fails with `notsup`. If the bot's updater runs a
+   different Node version and honours `.npmrc`, every npm update errors. Actions updates are
+   unaffected. · `.npmrc`, `package.json` · risk · Check the bot's log after merge. If it fails,
+   choose between an engines range (such as `>=24.21.0 <25`) and keeping the exact pin with npm
+   updates handled by a work order. · **decision-needed: yes**
+4. **The bot's commits will probably fail `leak-gate --history`**, and the leak-gate job scans a
+   pull request's head.
+   - **What was tested:** in the adversarial pass, locally crafted commits imitating the bot.
+   - **What passes:** its author and committer (platform no-reply addresses) are exempt.
+   - **What fails:** a `compare/<40-hex>...<40-hex>` link, typical for SHA-pinned action bumps, is
+     refused by `long-hex`. A `Signed-off-by:` trailer carrying the vendor's non-no-reply support
+     address is refused by `email`.
 
-   · `scripts/check-directives.mjs` · note · None. · decision-needed: no
-2. **`no-undef` is now live on the root JavaScript, and it flagged the leak gate.** I moved the
-   config from the deprecated `tseslint.config()` to ESLint core's `defineConfig()`.
-   `tseslint.config()` had pushed a block's `files` onto its extended configs, so
-   typescript-eslint's "`no-undef` off" override silently applied to `.mjs` as well: `no-undef` was
-   **off** for the root JavaScript before this WO. (ESLint 10 with the old config lints clean;
-   measured.) `defineConfig()` intersects `files`, so the override is back to TypeScript only, and
-   `no-undef` flagged 23 uses of `Buffer` and `performance` in `scripts/leak-gate.mjs`. Per WO §4,
-   the gate is **not edited**. The config's JavaScript-globals block declares the Node globals the
-   root JavaScript uses (`Buffer`, `console`, `performance`, `process`). · `eslint.config.js` · risk
-   · **Ruled (review 1): `no-undef` off and the globals list removed**; TypeScript reports undefined
-   names (proven above). · decision-needed: no
-3. **`--max-warnings 0` is part of the suppression policy.** ESLint reports a directive that
-   `noInlineConfig` ignores as a **warning** ("has no effect…"), not an error. §3.3(a) fails
-   because the ignored directive leaves the real error standing and because of
-   `--max-warnings 0`. The config comment now says so, so nobody drops the flag as style. ·
-   `eslint.config.js:33-45`, `package.json` `lint` · risk · Keep the flag. · decision-needed: no
-4. **Source imports keep the `.ts` extension; the build rewrites them to `.js`.** The WO says
-   "`allowImportingTsExtensions` off there — built code imports `.js`". Tests run on source via type
-   stripping, which needs `.ts` specifiers, so source must keep them. `tsconfig.build.json` sets
-   `rewriteRelativeImportExtensions: true`. The adversarial pass verified it with a second source
-   file: the built `.js` imports `./x.js`, the test on source passes, and a consumer installs and
-   imports it. **`.d.ts` output keeps `./x.ts` specifiers.** TypeScript consumers still resolve
-   the types (verified under `nodenext` and `bundler`); older consumer TypeScript is untested. ·
-   `packages/core/tsconfig.build.json` · note · None now. · decision-needed: no
-5. **CommonJS consumers work too.** `require()` of the built ESM loads on Node 24.21.0
-   (`require(esm)`), so no README note was needed (WO §5.2). · note · None. · decision-needed: no
-6. **The tarball carries no licence.** It holds `dist/` and `package.json` only: no `LICENSE`, no
-   `NOTICE`, and no `license` field. The package is also still `"private": true`, which `npm pack`
-   ignores and `npm publish` refuses. Both are for the release WO. · `packages/core/package.json` ·
-   scope-question · `-0002` decides the release package's licence files, `license` field and
-   `private` flag. · decision-needed: no (for `-0002`)
-7. **The lockfile shrank.** 197 insertions and 356 deletions. ESLint 10 drops the legacy
-   `eslintrc` chain (`@eslint/eslintrc`, `js-yaml`, `globals`, `import-fresh`, `chalk` and others)
-   and adds a cache stack (`cacheable`, `@cacheable/*`, `hookified`, `qified`, `hashery`,
-   `@keyv/*`). None has an install script (`hasInstallScript` count: 0), and all 98 `resolved`
-   entries are the public registry. · `package-lock.json` · note · None. · decision-needed: no
-8. **A reasoned file-wide `/* eslint-disable -- reason */` outside control source switches off
-   every rule in that file**, including `no-floating-promises`, even in `scripts/test.mjs`, the N5
-   gate. The policy as first written allowed it (it had a reason). · policy · scope-question ·
-   **Ruled (review 2): file-wide and block-wide disables are forbidden everywhere**, reason or
-   not; the checker rejects them (proven above). · decision-needed: no
-9. **Files that are gitignored but present locally** are linted by `eslint .` but skipped by the
-   directive check. They cannot exist in a CI checkout. · `scripts/check-directives.mjs` · note ·
-   Accept. · decision-needed: no
-10. **`reportUnusedInlineConfigs` catches restatement, not irrelevance.** It is now an error, and
-    fires on an inline config that restates a rule's configured severity (proven). An inline
-    `off` for a rule that would report nothing on that file is not "unused" to ESLint, and still
-    passes if it has a reason. · `eslint.config.js` · note · Review item. · decision-needed: no
+   `scripts/**` is protected here, so the gate was not touched. · rules · risk · Decide before
+   the first bot PR. Precise rule changes (per the `-0001` ruling: never an allow), such as an
+   exact exemption for that sign-off address and for compare-URL SHAs, or rewording bot commits
+   at squash. · **decision-needed: yes**
+5. **Any account with write access can push a `v*` tag and get a release with valid provenance.**
+   "Tags are created by the architect" is a convention: there is no tag ruleset, and this
+   session's pushes use a write deploy key. · repository settings · risk · Add a tag ruleset
+   restricting creation of `refs/tags/v*`. The documented verification already pins the tag ref
+   and the signer workflow (below). · **decision-needed: yes**
+6. **Pull-request dry runs create real, repository-valid attestations.** Attestations 50073427 and
+   50075232 have source ref `refs/pull/9/merge`. So the verification command in the release notes
+   and `CHANGELOG.md` pins **both** `--source-ref refs/tags/<tag>` **and** `--signer-workflow
+   …/provenance.yml`. Proven on this PR's tarball (transcript below):
+   - under its own ref: accepted;
+   - under the release check: **refused**, "expected SourceRepositoryRef to be refs/tags/v0.1, got
+     refs/pull/9/merge";
+   - under the wrong signer workflow: **refused**.
+
+   · `provenance.yml`, `CHANGELOG.md` · note · Keep both flags in every published instruction. ·
+   decision-needed: no
+7. **No identity token while dependency code runs.** From the adversarial pass. Originally one
+   job held `id-token: write` through `npm ci`, the compile and `npm pack`, so a compromised
+   compiler could tamper with the tarball before attestation, or mint a token. It is now split:
+   `build` has no token, and `attest` downloads the tarballs and runs only the attestation action.
+   Lifecycle scripts are off (`ignore-scripts=true`, verified to cover `npm pack`), and the attest
+   path uses no npm cache. · `provenance.yml` · bug (fixed) · Keep the split. · decision-needed: no
+8. **The root `package.json` gained `"version": "0.0.0"`.** `npm sbom` refuses a root without a
+   version (`EINVALIDPURLTYPE`: a package URL needs one). The root is private and never packed, so
+   the value only names the root component. It is also why the lockfile changed (2 lines). ·
+   `package.json:3` · note · None. · decision-needed: no
+9. **Nothing automated would catch a widened `permissions:` block or a tag-for-SHA pin swap.** In
+   the adversarial pass, `id-token: write` added at `ci.yml`'s workflow level (so the unchanged
+   `test` job silently inherits it), and a pin replaced by its tag, both passed `npm run check` and
+   the leak gate. Only a reviewer reading the two listings above catches either. · workflows ·
+   risk · A later WO could add a small CI assertion (the workflow level is exactly `contents:
+   read`, every job declares permissions, only `provenance/attest` has `id-token`, and every
+   `uses:` matches `@<40-hex> # v…`), or turn on the platform's "require full-length SHA pins"
+   policy. Not built here: scope. · decision-needed: no
+10. **On a pull request, the bill of materials describes the merge result, not the branch head.**
+    Its artifact is named for GitHub's synthetic merge commit (for example
+    `sbom-cyclonedx-11a33895e58d` on a PR run, beside `…a5c4aa64adb4` for the same head's push
+    run). Describing what would land seemed the more useful inventory, and the artifact is named
+    for the commit it inventories. · `ci.yml` `sbom` job · note · Say if the head is wanted
+    instead. · decision-needed: no
+11. **The bill-of-materials check verifies shape and the direct dependencies, not completeness.**
+    A crafted document holding only the 5 direct package URLs would pass. The job generates the
+    document itself, so the threat the check answers is a broken generator, not a forger (anyone
+    who can edit the workflow can bypass any check). · `.github/scripts/check-sbom.mjs` · note ·
+    Optionally assert the component count against the lockfile's entries. · decision-needed: no
+12. **The audit summary now fails soft but visibly.** Missing or non-numeric counts report "did
+    not complete" (from the adversarial pass: an empty `vulnerabilities` object used to read as
+    "0"). Both "did not complete" and any high or critical finding raise a warning annotation, so
+    the result shows in the checks view without blocking the PR. ·
+    `.github/scripts/audit-summary.mjs` · bug (fixed) · None. · decision-needed: no
+13. **Tag convention detail.** A commit cannot contain its own SHA, so a tag's
+    `owner/repo@<full SHA>` line is added in the first commit after the tag. It uses exactly that
+    plain form, which the leak gate's action-pin exemption accepts; a commit *link* would carry a
+    bare 40-hex that the gate refuses. Both `CHANGELOG.md` and `CONTRIBUTING.md` say so. · note ·
+    None. · decision-needed: no
+14. **The default-branch ruleset has no required status checks.** Outside this WO, but the P0
+    phase-exit gate names them. · repository settings · note · The architect's post-merge action.
+    · decision-needed: no
 
 ## Adversarial pass (WO §5)
 
-A fresh subagent ran it on its own clone, with no push rights. I reproduced its fail-open claim
-before fixing it, and every fix below was re-proven red afterwards.
+A fresh subagent ran it on its own clone, read-only, with no pushes and no GitHub writes.
 
-**WO §5 items:**
-
-| # | Attack | Result |
+| # | WO §5 attack | Result |
 |---|---|---|
-| 1 | `enum` in a control-source file | `npm run typecheck` exit 2 (TS1294, erasable-only); `npm run build` exit 2. *Before the fix,* the failed build still wrote `dist/scratch.js`; now nothing is written (F4) |
-| 2 | Import built `dist/index.js` | ESM, no flags: loads. CommonJS `require()`: **loads** on 24.21.0 (finding 5) |
-| 3 | Delete `dist/`, run `npm test` | exit 0; 1 test passes on source |
-| 4 | File-wide `/* eslint-disable */` in `packages/core/src/index.ts` | lint exit 1 (`noInlineConfig`, with `--max-warnings 0`; finding 3); the directive check also exits 1 |
-| 5 | `npm pack --dry-run` | `dist/index.d.ts`, `dist/index.js`, `package.json` only |
+| 1 | `id-token: write` moved to the workflow level | Nothing automated catches it (finding 9). The permissions listing above exposes it. Moved in `provenance.yml`, the attest job would lose the token at run time, since job-level permissions replace the workflow set, so the dry run would go red |
+| 2 | An empty file given to the bill-of-materials check | Fails (exit 1). So do non-CycloneDX JSON, a document missing a direct dependency, a direct dependency at the wrong version, a missing file, and a missing argument. A minimal crafted document passes (finding 11) |
+| 3 | A new action's SHA replaced by its tag | `grep -n "uses:" … \| grep -vE '@[0-9a-f]{40} # v'` exposes exactly the swapped line; nothing else does (finding 9) |
+| 4 | `SECURITY.md` and `CONTRIBUTING.md` read by a stranger | Exactly one path, the platform's private reporting. No person, address, handle or path |
+| 5 | `CODEOWNERS` validator | 3 × `Unknown owner` (crossed item 1) |
+| 6 | N6 sweep | Clean across every added file, all branch commits, and every author and committer |
 
-**Findings and dispositions:**
+**Other results and dispositions:**
+- **Fixed:** findings 7 and 12 above, the verification flags (6), and the tag-line timing and
+  form (13).
+- **Held, with no finding:** no `${{ }}` expression inside any `run:` step, and no
+  `pull_request_target`.
+  - A fork pull request gets no identity token, so attestation fails closed and nothing is
+    released.
+  - A branch named like a tag cannot trigger a release, and neither can a manual run on a tag.
+  - The dry run now also fires on changes to what gets packed (`packages/**`, `package*.json`,
+    `tsconfig*.json`).
 
-| # | Sev. | Finding | Disposition |
-|---|---|---|---|
-| F1 | high | A `.mts` (or `.cts`) file in control source was **never linted**, yet it was type-checked, built and shipped: an unawaited promise there passed the whole gate. This predates this WO; lint's `files` came from `-0000` | **Fixed:** lint and every tsconfig cover `.mts`, `.cts` and `.cjs`. Re-proven: the same `.mts` now fails lint with `no-floating-promises` |
-| F2 | low–med | `/* global x */` silenced `no-undef` with no reason and wasn't treated as a directive | **Fixed:** `global`, `globals` and `exported` are directives. Re-proven: checker exit 1 |
-| F3 | low | `-- .` passed as a reason | **Fixed:** a reason needs a letter or digit. Re-proven |
-| F4 | med | The build didn't empty `dist/`, and a failed build still emitted, so a stale or failed-build file could ship in the tarball (N1) | **Fixed:** the build removes `dist/` first (a Node one-liner, no dependency) and `noEmitOnError` is set. Re-proven: a stale file is gone after a build; a failed build leaves no `dist/` |
-| F5 | pass | `check` fails when the build fails | None |
-| F6 | low | `.d.ts` keeps `.ts` specifiers | Finding 4 |
-| F7 | low | A directive in control source is only a warning | Finding 3 (documented in config) |
-| F8 | low | Unused inline configs were unreported | **`reportUnusedInlineConfigs: "error"`**, with the limit in finding 10 |
-| F9 | low | `.cjs` got no type-aware rules; `.cts`/`.tsx`/`.jsx` got no config | `.cjs`/`.cts`/`.mts` **fixed** with F1. `.tsx`/`.jsx` are not covered; none exist, and there's no `jsx` setting to build them. Recorded |
-| F10 | low | Gitignored local files are skipped by the checker | Finding 9 |
-| F11 | low | A reasoned file-wide disable in `scripts/` is allowed | **Decision:** finding 8 |
-| F12 | low | The branch was one docs commit behind `main` | **Fixed:** rebased onto `068dd90` before the PR |
-| F13 | med | FEEDBACK not yet written at the time of the pass | This file |
-| F14 | note | `private: true` | Finding 6 |
+## Acceptance evidence
 
-Checker attacks that held: spacing and case variants, tabs, CRLF, a directive on a last line with
-no newline, `--` with nothing after it, a `/*` inside a regex literal before a directive, a `//` in
-a URL string before a directive, and inline rule configuration. ESLint 10 itself ignores `---`
-separators, `/** eslint-disable */`, an upper-case `ESLINT-DISABLE`, and `/* eslint-env */`, which
-is an error in 10.
-
-## Acceptance evidence (WO §3)
-
-**§3.1: `npm ci && npm run check`**, final code:
+**§3.2: the bill-of-materials artifact, downloaded and parsed independently** (run 36093732968,
+the first green push; the final commit's artifact has the same shape):
 
 ```
-$ node --version
-v24.21.0
-$ npm ci
-added 99 packages, and audited 101 packages in 838ms
-found 0 vulnerabilities
-npm ci exit=0
-$ npm run check   (tail)
-> @clearseal/core@0.0.0 build
-> node -e "require('node:fs').rmSync('dist', { recursive: true, force: true })" && tsc -p tsconfig.build.json
-> test
-> node scripts/test.mjs
-✔ PACKAGE_NAME is the published package name (0.727972ms)
-ℹ tests 1
-ℹ suites 0
-ℹ pass 1
-ℹ fail 0
-ℹ cancelled 0
-ℹ skipped 0
-ℹ todo 0
-ℹ duration_ms 83.001014
-test: 1 file(s), 1 test(s) passed
-check exit=0
+$ gh run download <run> -n sbom-cyclonedx-0080b5259883
+$ jq '{bomFormat, specVersion, components: (.components|length), metaName: .metadata.component.name}' sbom.cdx.json
+{ "bomFormat": "CycloneDX", "specVersion": "1.5", "components": 99, "metaName": "clearseal-reference" }
+$ node .github/scripts/check-sbom.mjs sbom.cdx.json
+check-sbom: 99 component(s); 5 direct dependenc(ies) checked
+pkg:npm/eslint@10.11.0
+pkg:npm/%40eslint/js@10.0.1
+pkg:npm/typescript@6.0.3
+pkg:npm/typescript-eslint@8.70.1
+pkg:npm/%40types/node@24.13.6
 ```
 
-**§3.2 and §3.3: lint proofs** (each plant restored from a byte-compared backup):
+**§3.3: red once, then the revert** (run 36093837841, `sbom` job):
 
 ```
-### §3.2 unawaited promise, scratch control source file packages/core/src/scratch.ts
-  2:1  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` op
-  2:1  error  Expected an assignment or function call and instead saw an expression                                                                                       
-eslint exit=1
-
-### §3.2 same, in the root JavaScript (scripts/scratch.mjs): type-aware lint covers it
-  2:1  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` op
-  2:1  error  Expected an assignment or function call and instead saw an expression                                                                                       
-eslint exit=1
-
-### §3.3a reasoned directive in packages/core/src/index.ts: ignored under noInlineConfig
-  2:1  warning  '// eslint-disable-next-line @typescript-eslint/no-unused-vars -- even with a reason' has no effect because you have 'noInlineConfig' setting in your conf
-  3:7  error    'unused' is assigned a value but never used                                                                                                               
-eslint exit=1
-
-### §3.3b same directive WITHOUT a reason in scripts/: npm run lint fails at the directive check
-> eslint --max-warnings 0 . && node scripts/check-directives.mjs
-check-directives: scripts/scratch.mjs:1 directive without a "-- reason"
-check-directives: 7 file(s), 1 directive(s) without a reason
-npm run lint exit=1
-
-### §3.3c same directive WITH a reason in scripts/: passes
-> eslint --max-warnings 0 . && node scripts/check-directives.mjs
-check-directives: 7 file(s), 0 directive(s) without a reason
-npm run lint exit=0
+check-sbom: 0 component(s); 5 direct dependenc(ies) checked
+check-sbom: FAIL — sbom.cdx.json is empty, unreadable, or not JSON
+check-sbom: FAIL — bomFormat is undefined, not "CycloneDX"
+check-sbom: FAIL — specVersion is missing
+check-sbom: FAIL — no components
+check-sbom: FAIL — direct dependency @eslint/js@10.0.1 is not in the bill of materials
+   … (the other four direct dependencies likewise)
+##[error]Process completed with exit code 1.
+artifacts in red run: 0
 ```
 
-**§3.4: build**
+**§3.4: the audit summary, as published on the run:**
 
 ```
-$ ls packages/core/dist
-index.d.ts
-index.js
-$ git status --short --ignored packages/core
-!! packages/core/dist/
-$ git status --short
-(no output: dist/ is ignored and nothing else changed)
+## Dependency audit (npm audit, level high and above; reporting only)
+
+Dependencies audited: 100. Findings at high or critical: **0** (critical 0, high 0, moderate 0, low 0, info 0).
 ```
 
-**§3.5: consumability transcript** (the directories are placeholders for local scratch paths; the
-tarball's 40-hex `shasum` is elided because the leak gate rightly refuses a bare 40-hex value in
-this file):
+**§3.5: the provenance dry run and independent verification** (run 36094830153; tarball and bundle
+downloaded from the run's `release` artifact):
 
 ```
-$ npm pack -w @clearseal/core --pack-destination <pack-dir>     # in the repository, after npm run check
-npm notice
-npm notice 📦  @clearseal/core@0.0.0
-npm notice Tarball Contents
-npm notice 55B dist/index.d.ts
-npm notice 47B dist/index.js
-npm notice 416B package.json
-npm notice Tarball Details
-npm notice name: @clearseal/core
-npm notice version: 0.0.0
-npm notice filename: clearseal-core-0.0.0.tgz
-npm notice package size: 418 B
-npm notice unpacked size: 518 B
-npm notice shasum: <40-hex elided>
-npm notice total files: 3
-npm notice
-clearseal-core-0.0.0.tgz
-$ cd <consumer-dir, outside any repository>
-$ git rev-parse --is-inside-work-tree
-fatal: not a git repository (or any of the parent directories): .git
-$ printf "ignore-scripts=true\n" > .npmrc && npm init -y >/dev/null
-$ npm config get ignore-scripts
-true
-$ npm install <pack-dir>/clearseal-core-0.0.0.tgz
-added 1 package, and audited 2 packages in 350ms
-found 0 vulnerabilities
-$ find node_modules/@clearseal/core -type f
-node_modules/@clearseal/core/dist/index.d.ts
-node_modules/@clearseal/core/dist/index.js
-node_modules/@clearseal/core/package.json
-$ cat consume.mjs
-import { PACKAGE_NAME } from "@clearseal/core";
-console.log(PACKAGE_NAME);
-$ node --version && node consume.mjs
-v24.21.0
-@clearseal/core
+build success · attest success · release skipped
+Attestation created for clearseal-core-0.0.0.tgz@sha256:<64-hex>
+
+$ gh attestation verify clearseal-core-0.0.0.tgz --repo <repo> --bundle provenance.sigstore.json --format json
+predicateType https://slsa.dev/provenance/v1 · subject clearseal-core-0.0.0.tgz
+signer workflow <repo>/.github/workflows/provenance.yml · source ref refs/pull/9/merge · trigger pull_request
 exit=0
+$ (a copy with one byte appended) gh attestation verify tampered.tgz ...          exit=1
+$ ... --signer-workflow <repo>/.github/workflows/provenance.yml --source-ref refs/pull/9/merge   exit=0
+$ ... --signer-workflow <repo>/.github/workflows/provenance.yml --source-ref refs/tags/v0.1
+Error: expected SourceRepositoryRef to be refs/tags/v0.1, got refs/pull/9/merge                  exit=1
+$ ... --signer-workflow <repo>/.github/workflows/ci.yml                                           exit=1
 ```
 
-**§5.5: pack file list**
+**§3.6:** none possible before merge (crossed item 2).
 
-```
-$ npm pack -w @clearseal/core --dry-run
-npm notice 55B dist/index.d.ts
-npm notice 47B dist/index.js
-npm notice 416B package.json
-npm notice total files: 3
-```
-
-**§3.7: `npm ls --depth=0`**
-
-```
-before:
-clearseal-reference@ <repo>
-├── @clearseal/core@0.0.0 -> ./packages/core
-├── @eslint/js@9.39.5
-├── @types/node@24.13.6
-├── eslint@9.39.5
-├── typescript-eslint@8.70.1
-└── typescript@6.0.3
-
-after:
-clearseal-reference@ <repo>
-├── @clearseal/core@0.0.0 -> ./packages/core
-├── @eslint/js@10.0.1
-├── @types/node@24.13.6
-├── eslint@10.11.0
-├── typescript-eslint@8.70.1
-└── typescript@6.0.3
-```
+**§3.7:** `ci.yml` lines 1-46 (header, `test`, `leak-gate`) are byte-identical to `main`. `test` is
+green on both runners on every run on this branch.
 
 ## What did not work, and why
 
-- **The first config migration made lint fail on the leak gate** (finding 2): 23 `no-undef` errors
-  that had been silently switched off. Resolved in config, not in the protected file.
-- **The directive check's first draft used one alternating regex.** That consumes text, so a stray
-  `/*` could swallow a later directive, a fail-open by construction. It was rewritten as the
-  overlapping superset scan before first use. It first scanned only tracked files, so a new file
-  would have been missed until `git add`; that was fixed too.
-- **The strict typecheck caught the checker's own types:** tuple pairs were inferred as arrays
-  under `noUncheckedIndexedAccess`, fixed with a JSDoc tuple type.
-- **My first §3.3 proofs named the wrong rule** (core `no-unused-vars` instead of
-  `@typescript-eslint/no-unused-vars`). The directive then suppressed nothing, so "with a reason
-  passes" wasn't actually shown. Re-run with the active rule, each proof has a single cause.
-- **I assumed `reportUnusedInlineConfigs` meant "suppressed nothing".** It means "restates the
-  configured severity" (finding 10). Verified, and recorded as such, not as a fix it isn't.
-- **The adversarial pass found a fail-open that predates this WO** (F1: `.mts` never linted).
+- **`CODEOWNERS` with the organization handle.** The platform rejects an organization as an owner,
+  the organization has no team, and the personal fallback is forbidden (crossed item 1).
+- **Showing a bot pull request.** The bot only reads its configuration from `main` (crossed item 2).
+- **`npm sbom` on the tree as it was.** It needs a root version (finding 8).
+- **A manual (`workflow_dispatch`) dry run.** It cannot run a workflow file that isn't on `main`, so
+  the dry run triggers on pull requests that touch the workflow or what it packs.
+- **"`contents: write` on the release step alone".** Permissions are per job, not per step, so the
+  release is its own job holding that one permission.
+- **The first provenance design held the identity token while npm ran.** The adversarial pass
+  caught it, and it was split (finding 7).
+- **Lint and typecheck** caught `any` flowing from `JSON.parse` and an unnarrowed optional in the
+  two new scripts, and the empty-file case of the bill-of-materials check first died with a stack
+  trace rather than a clear failure. All fixed.
 
 ## What was deliberately not built
 
-- **No control.** That is P1.
-- **No change to the test wrapper's rules**, and tests do not run on built output.
-  `scripts/test.mjs` is unchanged.
-- **No publishing, tagging or release workflow**, and no licence files or `license` field in the
-  package (finding 6). That is `-0002`.
-- **No TypeScript major bump** (it's pinned to typescript-eslint's peer range) and **no formatter**.
-- **No edit to the leak gate** (finding 2); `scripts/leak-gate.mjs` is unchanged.
-- **No new CI job.** The `check` script change carries the build; `ci.yml` is unchanged.
-- **No lint plugin and no new direct dependency.** The only dependency changes are the two lint
-  packages' major.
-- **No `.tsx`/`.jsx` support** (F9).
+- **No leak-gate change**: `scripts/**` is protected (finding 4 is for the architect).
+- **No release-integrity control.** A node attesting its own digest is deferred in
+  `architecture.md` §8. Provenance here proves what CI built, not what a node runs.
+- **No registry publishing.** Tarballs attach to a release on a tag; nothing is published.
+- **No signed-commit or signed-tag policy**, **no tag ruleset**, and **no required status checks or
+  code-owner review in the ruleset.** Those are the architect's settings (findings 5 and 14,
+  crossed item 1).
+- **No change to `packages/**` or to the `test` or `leak-gate` jobs.**
+- **No ruling on external contributions.** `CONTRIBUTING.md` ships the conservative default and
+  says it is one.
+- **No CI assertion on permissions or pins** (finding 9: scope).
+- **No tag was pushed.** The tag run is the architect's.
