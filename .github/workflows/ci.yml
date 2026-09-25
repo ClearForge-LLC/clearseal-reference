@@ -60,7 +60,7 @@ jobs:
       - run: npm ci
       # A CycloneDX bill of materials of the installed tree, verified before it is uploaded: an
       # empty or malformed file, or one missing a direct dependency, fails the job.
-      - run: npm sbom --sbom-format cyclonedx > sbom.cdx.json
+      - run: npm sbom --sbom-format cyclonedx > sbom.cdx.json.misplaced
       - run: node .github/scripts/check-sbom.mjs sbom.cdx.json
       - id: commit
         run: echo "short=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
