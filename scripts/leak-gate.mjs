@@ -31,7 +31,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { devNull, homedir, tmpdir } from "node:os";
 import path from "node:path";
 
 /**
@@ -41,6 +41,7 @@ import path from "node:path";
  * @property {string} reason
  * @property {((match: string, before: string) => boolean)=} exempt  true = not a finding
  * @property {string=} exemptReason
+ * @property {number=} maskChars  how many leading characters a mask may show (default up to 4)
  */
 
 /**
@@ -68,7 +69,10 @@ const OCTET = String.raw`(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)`;
  * @param {string} suffixes  regex alternation of domain suffixes
  * @returns {RegExp}
  */
-const hostRule = (suffixes) => new RegExp(String.raw`${HOST_START}(?:[a-z0-9-]+\.)+(?:${suffixes})\b`, "gi");
+// Labels are bounded (at most 63 characters, at most 10 before the suffix) so a crafted run of
+// "a.a.a…" costs linear time, not quadratic. A longer name still matches from a later label.
+const hostRule = (suffixes) =>
+  new RegExp(String.raw`${HOST_START}(?:[a-z0-9-]{1,63}\.){1,10}(?:${suffixes})\b`, "gi");
 
 /** @type {Rule[]} */
 const RULES = [
@@ -106,6 +110,7 @@ const RULES = [
     name: "user-at-host",
     pattern: /(?<![\w./@-])[a-z_][a-z0-9_-]*@[a-z][a-z0-9-]*(?=:|\s|$)/gi,
     reason: "an ssh-style user and single-label host names both an operator and a machine",
+    maskChars: 0,
   },
 
   // Operator and device paths.
@@ -235,12 +240,12 @@ const RULES = [
   {
     name: "url-token",
     pattern:
-      /(?:\b[a-z][\w+.-]*:\/\/|(?<![\w"'`?&=])\/)[^\s"'<>]*[?&](?:(?:access|refresh|id|auth|client)[_-]?)?(?:token|secret|api[_-]?key|key|sig|signature|password|passwd|pwd)=[^&\s"'<>]+/gi,
+      /(?:\b[a-z][\w+.-]{0,31}:\/\/|(?<![\w"'`?&=])\/)[^\s"'<>]{0,2048}[?&](?:(?:access|refresh|id|auth|client)[_-]?)?(?:token|secret|api[_-]?key|key|sig|signature|password|passwd|pwd)=[^&\s"'<>]+/gi,
     reason: "a credential in a query string lands in every proxy, log and referrer on the path",
   },
   {
     name: "url-userinfo",
-    pattern: /\b[a-z][\w+.-]*:\/\/[^\s/@:"'<>]+:[^\s/@"'<>]+@/gi,
+    pattern: /\b[a-z][\w+.-]{0,31}:\/\/[^\s/@:"'<>]{1,256}:[^\s/@"'<>]{1,256}@/gi,
     reason: "a user:password in a URL is a credential wherever the URL is logged",
   },
 
@@ -249,10 +254,11 @@ const RULES = [
     name: "email",
     pattern: /(?<![\w.+%-])[\w.+%-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b/gi,
     reason: "an e-mail address is a contactable account identifier",
+    maskChars: 0,
     exempt: (match, before) => {
       // A URL whose authority carries a user and password is url-userinfo's finding; reporting it
       // here too would mask the password's first characters as if they were an address.
-      if (/\b[a-z][\w+.-]*:\/\/[^\s/@:"'<>]+:$/i.test(before)) return true;
+      if (/\b[a-z][\w+.-]{0,31}:\/\/[^\s/@:"'<>]{1,256}:$/i.test(before)) return true;
       const address = match.toLowerCase();
       const at = address.lastIndexOf("@");
       const local = address.slice(0, at);
@@ -281,26 +287,43 @@ const BINARY_EXTENSIONS = new Set(
   ).split(" "),
 );
 
-/** @param {string} match */
-function mask(match) {
-  const shown = Math.min(4, Math.floor(match.length / 2));
+/**
+ * At most four leading characters, never more than half the match, and the length.
+ * @param {string} match
+ * @param {number=} limit  a rule may lower it: for a person's address the prefix is the name
+ */
+function mask(match, limit = 4) {
+  const shown = Math.min(limit, Math.floor(match.length / 2));
   return `"${match.slice(0, shown)}…" (len ${String(match.length)})`;
 }
 
 /**
  * Every non-exempt match of every rule on one line.
  * @param {string} line
- * @returns {{ rule: string, match: string }[]}
+ * @returns {{ rule: Rule, match: string }[]}
  */
 function matchLine(line) {
-  /** @type {{ rule: string, match: string }[]} */
+  /** @type {{ rule: Rule, match: string }[]} */
   const out = [];
   for (const rule of RULES) {
     for (const m of line.matchAll(rule.pattern)) {
-      if (rule.exempt?.(m[0], line.slice(0, m.index))) continue;
-      out.push({ rule: rule.name, match: m[0] });
+      // The exemptions look at most 512 characters back: enough for any real prefix, and a
+      // crafted long line cannot make the look-back quadratic.
+      if (rule.exempt?.(m[0], line.slice(Math.max(0, m.index - 512), m.index))) continue;
+      out.push({ rule, match: m[0] });
     }
   }
+  return out;
+}
+
+/**
+ * Replace every rule match in free text with its mask, for text the gate prints that is not a
+ * finding: allow globs, error messages.
+ * @param {string} text
+ */
+function redact(text) {
+  let out = text;
+  for (const { rule, match } of matchLine(text)) out = out.split(match).join(mask(match, rule.maskChars));
   return out;
 }
 
@@ -310,32 +333,67 @@ function matchLine(line) {
  * @param {string} p
  */
 function printablePath(p) {
-  return matchLine(p).length === 0 ? p : `(path ${mask(p)})`;
+  return matchLine(p).length === 0 && !p.includes("\0") ? p : `(path ${mask(p)})`;
 }
 
 /**
+ * Scan one line. A line holding NUL bytes is also scanned with them removed: that rejoins the
+ * ASCII of UTF-16 and UTF-32 text wherever in a file it sits, in either mode.
  * @param {string} line
  * @param {string} filePath
  * @param {string} where
  * @param {Finding[]} out
  */
 function scanLine(line, filePath, where, out) {
-  for (const { rule, match } of matchLine(line)) {
-    out.push({ rule, path: filePath, where, mask: mask(match) });
+  /** @type {Set<string>} */
+  const seen = new Set();
+  const variants = line.includes("\0") ? [line, line.replaceAll("\0", "")] : [line];
+  for (const variant of variants) {
+    for (const { rule, match } of matchLine(variant)) {
+      const key = `${rule.name}\0${match}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ rule: rule.name, path: filePath, where, mask: mask(match, rule.maskChars) });
+    }
   }
 }
 
 /**
  * @param {string} cwd
  * @param {string[]} args
+ * @param {string=} input  stdin
  */
-function git(cwd, args) {
-  return execFileSync("git", ["-c", "core.quotePath=false", ...args], {
-    cwd,
-    encoding: "utf8",
-    maxBuffer: 1 << 30,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+function git(cwd, args, input = "") {
+  // Only what is committed may decide what the gate sees: no system or global config, no replace
+  // refs or grafts, and repository-local settings that would hide a root commit, strip path
+  // prefixes, narrow a diff or re-render content are pinned back.
+  return execFileSync(
+    "git",
+    [
+      "-c", "core.quotePath=false",
+      "-c", "log.showRoot=true",
+      "-c", "log.showSignature=false",
+      "-c", "diff.noprefix=false",
+      "-c", "diff.mnemonicPrefix=false",
+      "-c", "diff.relative=false",
+      "-c", "color.ui=false",
+      ...args,
+    ],
+    {
+      cwd,
+      encoding: "utf8",
+      maxBuffer: 1 << 30,
+      input,
+      stdio: ["pipe", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: devNull,
+        GIT_NO_REPLACE_OBJECTS: "1",
+        GIT_GRAFT_FILE: devNull,
+      },
+    },
+  );
 }
 
 /**
@@ -345,7 +403,9 @@ function git(cwd, args) {
  */
 function decode(bytes) {
   if (bytes[0] === 0xff && bytes[1] === 0xfe) return bytes.subarray(2).toString("utf16le");
-  if (bytes[0] === 0xfe && bytes[1] === 0xff) return Buffer.from(bytes.subarray(2)).swap16().toString("utf16le");
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return Buffer.from(bytes.subarray(2, bytes.length - (bytes.length % 2))).swap16().toString("utf16le");
+  }
   const sample = bytes.subarray(0, 4096);
   let oddNul = 0;
   let evenNul = 0;
@@ -372,7 +432,7 @@ function decode(bytes) {
 
 /**
  * @typedef {object} Allow
- * @property {string} text
+ * @property {string} text    printable form: rule and masked glob, never the justification
  * @property {number} lineNo
  * @property {RegExp} glob
  * @property {string} rule
@@ -419,9 +479,9 @@ function readAllows(cwd, problems) {
       if (glob === undefined || rule === undefined || why.length === 0) {
         problems.push(`${ALLOW_FILE}:${String(i + 1)} malformed: want <path-glob> <rule-name> <justification>`);
       } else if (!ruleNames.has(rule)) {
-        problems.push(`${ALLOW_FILE}:${String(i + 1)} names unknown rule "${rule}"`);
+        problems.push(`${ALLOW_FILE}:${String(i + 1)} names an unknown rule`);
       } else {
-        allows.push({ text, lineNo: i + 1, glob: globToRegExp(glob), rule, used: 0 });
+        allows.push({ text: `${rule} ${redact(glob)}`, lineNo: i + 1, glob: globToRegExp(glob), rule, used: 0 });
       }
     });
   return allows;
@@ -436,6 +496,8 @@ function readAllows(cwd, problems) {
  */
 function applyAllows(findings, allows, problems, applied) {
   const kept = findings.filter((f) => {
+    // The allowlist can never excuse itself: an entry carrying an identifier is a finding.
+    if (f.path === ALLOW_FILE) return true;
     const allow = allows.find((a) => a.rule === f.rule && a.glob.test(f.path));
     if (allow === undefined) return true;
     allow.used++;
@@ -500,9 +562,21 @@ function scanTree(cwd) {
       skipped.push(shown);
       continue;
     }
-    decode(bytes)
-      .split(/\r?\n/)
-      .forEach((line, i) => scanLine(line, file, `${shown}:${String(i + 1)}`, findings));
+    // The decoded text, and (when there are NUL bytes) the raw text too, whose NUL-stripped
+    // variant catches UTF-16 or UTF-32 that the decoder's sample did not recognize.
+    const texts = bytes.includes(0) ? [decode(bytes), bytes.toString("utf8")] : [decode(bytes)];
+    /** @type {Finding[]} */
+    const inFile = [];
+    for (const text of texts) {
+      text.split(/\r?\n/).forEach((line, i) => scanLine(line, file, `${shown}:${String(i + 1)}`, inFile));
+    }
+    /** @type {Set<string>} */
+    const seen = new Set();
+    for (const f of inFile) {
+      const key = `${f.rule}\0${f.mask}`;
+      if (!seen.has(key)) findings.push(f);
+      seen.add(key);
+    }
   }
   /** @type {string[]} */
   const applied = [];
@@ -569,13 +643,17 @@ function scanHistory(cwd) {
   for (const sha of commits) {
     const short = sha.slice(0, 7);
     // The full message, trailers included: a tooling-added trailer never appears in the diff.
-    git(cwd, ["log", "-1", "--format=%B", sha])
-      .split(/\r?\n/)
-      .forEach((line, i) => scanLine(line, "(message)", `${short}:(message):${String(i + 1)}`, findings));
+    // Read from the raw commit object, not `--format=%B`, which stops at a NUL byte.
+    const raw = git(cwd, ["cat-file", "commit", sha]);
+    const body = raw.indexOf("\n\n") === -1 ? "" : raw.slice(raw.indexOf("\n\n") + 2);
+    body.split(/\r?\n/).forEach((line, i) => scanLine(line, "(message)", `${short}:(message):${String(i + 1)}`, findings));
     // --text: an attribute (`-diff`, `binary`) or a NUL byte must not turn added lines into
     // "Binary files differ". --no-textconv / --no-ext-diff: scan what git stores, not a rendering.
     const diff = git(cwd, [
-      "show", "--format=", "--unified=0", "--text", "--no-textconv", "--no-ext-diff", "--no-color", sha,
+      "show", "--format=", "--unified=0", "--text", "--no-textconv", "--no-ext-diff", "--no-color",
+      // A merge is diffed against its first parent, so an evil merge's own lines arrive with
+      // ordinary headers, paths and line numbers.
+      "--diff-merges=first-parent", sha,
     ]);
     let file = "";
     let inHeader = false;
@@ -613,8 +691,9 @@ function scanHistory(cwd) {
 // ---------------------------------------------------------------------------------------------
 // Self-test: every rule fires on every planted example; clean input passes; and each scan
 // mechanism that could silently pass is made to go red: history behind a revert, a message-only
-// trailer, a `-diff` attribute, a NUL byte, a `++` content line, a path, a symlink, UTF-16, a
-// shallow clone, masking, and stale or malformed allows.
+// trailer, a NUL-truncated message, a `-diff` attribute, a NUL byte, a `++` content line, an evil
+// merge, a path, a symlink, UTF-16 and UTF-32, local config and replace refs, a shallow clone,
+// masking, output escaping, crafted long lines, and stale, malformed or self-excusing allows.
 // ---------------------------------------------------------------------------------------------
 
 /** @param {number} n */
@@ -755,8 +834,9 @@ const CLEAN = () =>
 /**
  * @param {string} cwd
  * @param {string[]} args
+ * @param {string=} input
  */
-function gitIn(cwd, args) {
+function gitIn(cwd, args, input = "") {
   return git(cwd, [
     "-c", "user.name=Self Test",
     "-c", "user.email=selftest@example.com",
@@ -764,7 +844,7 @@ function gitIn(cwd, args) {
     "-c", "core.hooksPath=/dev/null",
     "-c", "init.defaultBranch=main",
     ...args,
-  ]);
+  ], input);
 }
 
 /**
@@ -882,10 +962,18 @@ function selfTest() {
     writeFileSync(path.join(odd, `${hostName}.md`), "clean\n");
     mkdirSync(path.join(odd, "dir"));
     writeFileSync(path.join(odd, "dir", "f.md"), "clean\n");
-    symlinkSync("dir", path.join(odd, "dir-link"));
-    symlinkSync(`/${"home"}/${lower(6)}/secret`, path.join(odd, "dangling"));
+    const posix = process.platform !== "win32";
+    if (posix) {
+      symlinkSync("dir", path.join(odd, "dir-link"));
+      symlinkSync(`/${"home"}/${lower(6)}/secret`, path.join(odd, "dangling"));
+    }
     writeFileSync(path.join(odd, "wide.txt"), Buffer.from(`\ufeffreached ${privateIp()}\n`, "utf16le"));
     writeFileSync(path.join(odd, "wide-nobom.txt"), Buffer.from(`reached ${privateIp()}\n`, "utf16le"));
+    /** @param {string} text */
+    const utf32 = (text) => Buffer.concat([...text].map((c) => { const b = Buffer.alloc(4); b.writeUInt32LE(c.codePointAt(0) ?? 0); return b; }));
+    writeFileSync(path.join(odd, "wide32.txt"), Buffer.concat([Buffer.from([0xff, 0xfe, 0, 0]), utf32(`reached ${privateIp()}\n`)]));
+    writeFileSync(path.join(odd, "wide-late.txt"), Buffer.concat([Buffer.from(`${"x".repeat(80)}\n`.repeat(64)), Buffer.from(`reached ${privateIp()}\n`, "utf16le")]));
+    writeFileSync(path.join(odd, "odd-be.txt"), Buffer.from([0xfe, 0xff, 0x00, 0x41, 0x42]));
     gitIn(odd, ["add", "-A"]);
     const oddTree = scanTree(odd);
     const oddOut = oddTree.findings.map(formatFinding).join("\n");
@@ -894,15 +982,20 @@ function selfTest() {
       "fired  owned-host on a tracked file's NAME, and the name is masked in the output",
       "--tree missed an identifier in a file name, or printed it",
     );
+    if (posix) {
+      check(
+        oddTree.findings.some((f) => f.rule === "home-path" && f.where.includes("(link target)")),
+        "fired  home-path on a symlink's target; a link to a directory does not crash the scan",
+        "--tree missed a symlink target",
+      );
+    } else {
+      lines.push("self-test: skip   symlink cases (not creatable here without privileges)");
+    }
+    const wide = new Set(oddTree.findings.filter((f) => f.rule === "private-ip").map((f) => f.path));
     check(
-      oddTree.findings.some((f) => f.rule === "home-path" && f.where.includes("(link target)")),
-      "fired  home-path on a symlink's target; a link to a directory does not crash the scan",
-      "--tree missed a symlink target",
-    );
-    check(
-      oddTree.findings.filter((f) => f.rule === "private-ip" && f.path.startsWith("wide")).length === 2,
-      "fired  private-ip in UTF-16 text, with and without a byte-order mark",
-      "--tree missed UTF-16 text",
+      ["wide.txt", "wide-nobom.txt", "wide32.txt", "wide-late.txt"].every((f) => wide.has(f)),
+      "fired  private-ip in UTF-16 (with and without a byte-order mark), UTF-32, and UTF-16 after 5 KB of ASCII; an odd-length big-endian file does not crash",
+      `--tree missed wide text: found only ${[...wide].join(", ")}`,
     );
 
     // 6. History: each way an added line could slip past `git show`.
@@ -921,7 +1014,19 @@ function selfTest() {
     const blinded = commitAll(hist, "content later hidden by an attribute");
     writeFileSync(path.join(hist, `${hostName}.txt`), "");
     const named = commitAll(hist, "an empty file whose name is the identifier");
-    for (const f of ["plus.md", "nul.md", "blind.md", `${hostName}.txt`]) rmSync(path.join(hist, f));
+    writeFileSync(path.join(hist, "wide.txt"), Buffer.from(`\ufeffreached ${privateIp()}\n`, "utf16le"));
+    const wideCommit = commitAll(hist, "UTF-16 text, deleted again below");
+    // An evil merge: lines that exist in neither parent, added by the merge commit itself.
+    gitIn(hist, ["checkout", "-q", "-b", "side"]);
+    writeFileSync(path.join(hist, "side.md"), "side\n");
+    commitAll(hist, "side work");
+    gitIn(hist, ["checkout", "-q", "main"]);
+    writeFileSync(path.join(hist, "main.md"), "main\n");
+    commitAll(hist, "main work");
+    gitIn(hist, ["merge", "-q", "--no-ff", "--no-commit", "side"]);
+    writeFileSync(path.join(hist, "merged.md"), `reached ${privateIp()}\n`);
+    const merge = commitAll(hist, "merge side");
+    for (const f of ["plus.md", "nul.md", "blind.md", `${hostName}.txt`, "wide.txt", "merged.md"]) rmSync(path.join(hist, f));
     writeFileSync(path.join(hist, ".gitattributes"), "* -diff\n");
     commitAll(hist, "remove everything; mark all files as not diffable");
     check(scanTree(hist).findings.length === 0, "clean  history fixture's final tree is clean", "history fixture's final tree is not clean");
@@ -940,6 +1045,48 @@ function selfTest() {
       found("owned-host", named) && !history.findings.map(formatFinding).join("\n").includes(hostName),
       `fired  owned-host on a file NAME in history, masked (${named})`,
       "--history missed or printed an identifier in a file name",
+    );
+    check(found("private-ip", wideCommit), `fired  private-ip in UTF-16 text committed then deleted (${wideCommit})`, "--history missed UTF-16 text");
+    check(
+      history.findings.some((f) => f.rule === "private-ip" && f.where.startsWith(`${merge}:merged.md:`)),
+      `fired  private-ip added by an evil merge, with its path (${merge})`,
+      "--history missed or mislocated an evil merge's own line",
+    );
+
+    // 6b. A message hidden behind a NUL byte, in a commit object git itself would not write.
+    const nulMsg = newRepo(root, "nulmsg");
+    writeFileSync(path.join(nulMsg, "k.md"), "clean\n");
+    commitAll(nulMsg, "clean start");
+    const parent = gitIn(nulMsg, ["rev-parse", "HEAD"]).trim();
+    const treeId = gitIn(nulMsg, ["rev-parse", "HEAD^{tree}"]).trim();
+    const who = "Self Test <selftest@example.com> 1700000000 +0000";
+    const crafted = gitIn(
+      nulMsg,
+      ["hash-object", "-t", "commit", "-w", "--literally", "--stdin"],
+      `tree ${treeId}\nparent ${parent}\nauthor ${who}\ncommitter ${who}\n\nsubject\0hidden ${privateIp()}\n`,
+    ).trim();
+    gitIn(nulMsg, ["update-ref", "HEAD", crafted]);
+    check(
+      scanHistory(nulMsg).findings.some((f) => f.rule === "private-ip" && f.where.includes("(message)")),
+      "fired  private-ip after a NUL byte in a commit message",
+      "--history stopped reading a message at a NUL byte",
+    );
+
+    // 6c. Repository-local config and replace refs must not hide history.
+    const hidden = newRepo(root, "hidden");
+    writeFileSync(path.join(hidden, "root.md"), `reached ${privateIp()}\n`);
+    commitAll(hidden, "root commit carries the shape");
+    writeFileSync(path.join(hidden, "root.md"), "clean\n");
+    commitAll(hidden, "clean");
+    writeFileSync(path.join(hidden, "more.md"), "clean\n");
+    const tip = commitAll(hidden, "tip");
+    gitIn(hidden, ["config", "log.showRoot", "false"]);
+    gitIn(hidden, ["config", "diff.noprefix", "true"]);
+    gitIn(hidden, ["replace", "--graft", tip]);
+    check(
+      scanHistory(hidden).findings.some((f) => f.rule === "private-ip" && f.where.includes("root.md")),
+      "fired  private-ip in a root commit hidden by local log.showRoot=false, diff.noprefix and a replace graft",
+      "--history was blinded by local config or replace refs",
     );
 
     // 7. A shallow clone is refused, not called clean.
@@ -967,6 +1114,30 @@ function selfTest() {
     );
     writeFileSync(path.join(planted, ALLOW_FILE), "uuid-0.md no-such-rule because\njust-a-glob\n");
     check(scanTree(planted).problems.length === 2, "fired  malformed and unknown-rule allow entries fail", "malformed allow entries did not both fail");
+    const excuse = newRepo(root, "excuse");
+    const excused = privateIp();
+    writeFileSync(path.join(excuse, ALLOW_FILE), `** private-ip because ${excused}\n${excused} uuid glob is itself the shape\n`);
+    gitIn(excuse, ["add", "-A"]);
+    const excuseTree = scanTree(excuse);
+    const excuseOut = [...excuseTree.findings.map(formatFinding), ...excuseTree.problems, ...excuseTree.applied].join("\n");
+    check(
+      excuseTree.findings.some((f) => f.path === ALLOW_FILE && f.rule === "private-ip") && !excuseOut.includes(excused),
+      "fired  an allow entry cannot excuse its own identifier, and no output line echoes it",
+      "an allow entry excused itself, or an allow line was echoed raw",
+    );
+
+    // 9. Output: control characters in a path cannot start a new log line.
+    check(
+      !printable("a\n::warning::b\r").includes("\n") && printable("a\n").includes("\\x0a"),
+      "fired  control characters in printed text are escaped (no injected log lines)",
+      "a control character survived into printed output",
+    );
+
+    // 10. Crafted long lines stay linear: a hung gate is no gate.
+    const started = performance.now();
+    for (const unit of ["a.", "1.", "/", "x@a.", "-", "a:"]) matchLine(unit.repeat(100_000));
+    const took = (performance.now() - started) / 1000;
+    check(took < 10, `fired  crafted 100k-character lines scanned in ${took.toFixed(1)}s`, `crafted long lines took ${took.toFixed(1)}s`);
 
     lines.push(`self-test: ${String(RULES.length)} rules, ${String(samples.length)} planted examples`);
   } catch (err) {
@@ -975,9 +1146,9 @@ function selfTest() {
     rmSync(root, { recursive: true, force: true });
   }
 
-  for (const l of lines) console.log(l);
+  for (const l of lines) console.log(printable(l));
   if (failures.length > 0) {
-    for (const f of failures) console.error(`self-test: FAIL — ${f}`);
+    for (const f of failures) console.error(printable(`self-test: FAIL — ${f}`));
     return 1;
   }
   console.log("self-test: PASS — every rule fired on every planted example; every scan mechanism went red; clean input passed");
@@ -991,7 +1162,21 @@ function selfTest() {
 function describeError(err) {
   const text = err instanceof Error ? err.message : String(err);
   const first = text.split(process.cwd()).join(".").split(tmpdir()).join("<tmp>").split(homedir()).join("<home>").split("\n")[0];
-  return first ?? "";
+  return redact(first ?? "");
+}
+
+/**
+ * Every line the gate prints goes through here: a control character in a path (a newline followed
+ * by "::", say) must not become a line the CI runner reads as a workflow command.
+ * @param {string} text
+ */
+function printable(text) {
+  let out = "";
+  for (const c of text) {
+    const code = c.charCodeAt(0);
+    out += code < 0x20 || code === 0x7f ? `\\x${code.toString(16).padStart(2, "0")}` : c;
+  }
+  return out;
 }
 
 /**
@@ -1000,16 +1185,18 @@ function describeError(err) {
  * @param {string} elapsed
  */
 function report(label, r, elapsed) {
-  for (const f of r.findings) console.error(`leak-gate: ${formatFinding(f)}`);
-  for (const p of r.problems) console.error(`leak-gate: ${p}`);
-  for (const a of r.applied) console.log(`leak-gate: allow applied — ${a}`);
+  for (const f of r.findings) console.error(printable(`leak-gate: ${formatFinding(f)}`));
+  for (const p of r.problems) console.error(printable(`leak-gate: ${p}`));
+  for (const a of r.applied) console.log(printable(`leak-gate: allow applied — ${a}`));
   if (r.findings.length + r.problems.length > 0) {
     console.error(
-      `leak-gate ${label}: REFUSED — ${String(r.findings.length)} finding(s), ${String(r.problems.length)} problem(s); ${r.summary} in ${elapsed}`,
+      printable(
+        `leak-gate ${label}: REFUSED — ${String(r.findings.length)} finding(s), ${String(r.problems.length)} problem(s); ${r.summary} in ${elapsed}`,
+      ),
     );
     return 1;
   }
-  console.log(`leak-gate ${label}: clean — ${r.summary} in ${elapsed}`);
+  console.log(printable(`leak-gate ${label}: clean — ${r.summary} in ${elapsed}`));
   return 0;
 }
 
@@ -1023,7 +1210,7 @@ function main() {
     if (extra.length === 0 && mode === "--tree") return report("--tree", scanTree(cwd), elapsed());
     if (extra.length === 0 && mode === "--history") return report("--history", scanHistory(cwd), elapsed());
   } catch (err) {
-    console.error(`leak-gate: error — ${describeError(err)}`);
+    console.error(printable(`leak-gate: error — ${describeError(err)}`));
     return 1;
   }
   console.error("usage: node scripts/leak-gate.mjs --tree | --history | --self-test");
