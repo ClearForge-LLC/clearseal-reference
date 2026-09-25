@@ -106,8 +106,9 @@ design depends on measured and recorded.
 - `CSR-WO-0100` — spike: install the official SDK at a pinned version, start a stateless server,
   probe the negotiated protocol revision and whether `server/discover` is reachable; record the
   result in `architecture.md` §2.3. STOP.
-- `CSR-WO-0101` — spike: whether the hosted client honours multi-round-trip requests / the tasks
-  extension for an in-flight approval, measured against a local server. STOP.
+- `CSR-WO-0101` — spike: whether the hosted client honours multi-round-trip requests for an
+  in-flight approval. **Resequenced after `-1005`:** it needs the core's own `2026-07-28`
+  transport, and the revision deprecates the elicitation path the first draft measured. STOP.
 - `CSR-WO-0102` — spike: the class-5 envelope options in `architecture.md` §5, tested against the
   fleet's existing verifier contract for interoperability. STOP.
 **Exit gate:** CI is green on a pull request that changes a source file; the leak gate's self-test
@@ -122,6 +123,8 @@ pull request; `main` shows the `test` and `leak-gate` checks as required in its 
 teaching edition through the only registration path there will ever be.
 **Depends on:** P0.
 **Invariants in play:** N1, N2, N3, N4, N7.
+**Order within the phase:** `-1005` (the transport) first — it is the substrate every other P1
+control is proven on, and after `-0100` it is a build rather than a configuration.
 **Work orders:**
 - `CSR-WO-1000` — the canonical form: a written specification (key ordering at every level, number
   serialization, the exact character set description normalization strips, whether Unicode
@@ -144,12 +147,16 @@ teaching edition through the only registration path there will ever be.
 - `CSR-WO-1004` — the teaching edition's skeleton and its first tool (`read_only`), its manifest, and
   the supply-boundary test that fails if an edition exports anything other than tool definitions, a
   manifest, a deploy scaffold, or a registered implementation of a core interface.
-- `CSR-WO-1005` — transport hardening and runtime validation: `Origin` and `Host` checks, body cap,
-  per-call timeout, concurrency cap, batch refusal, bounded stateless `GET` stream, protocol-version
-  header; every call validated against its pinned schema with `additionalProperties: false` by
-  default; result size capped. Each limit is enforced by the core's own layer and asserted by its
-  own test, so an SDK bump that adds or removes a default changes nothing silently (measured in
-  `-0100`: a patch release added two protections).
+- `CSR-WO-1005` — **the transport, owned:** a stateless Streamable HTTP layer written against the
+  `2026-07-28` specification — POST-only JSON-RPC, `_meta` carrying protocol version and client
+  identity on every request, `server/discover`, `resultType`, the routing headers, list TTLs — with
+  the legacy `2025-11-25` `initialize` served on the same endpoint as a pure function for one
+  deprecation window; the official SDK out of the runtime path. Hardening in the same layer:
+  `Origin` and `Host` checks, body cap, per-call timeout, concurrency cap, batch refusal, no
+  session, no server-initiated request; every call validated against its pinned schema with
+  `additionalProperties: false` by default; result size capped. Each limit asserted by its own
+  test; the served revision probed and recorded, never assumed. Spec-first: the WO cites the
+  specification sections it implements.
 **Exit gate:** each of N2, N3, and N4's falsification rows runs as a test and is proven able to fail
 by deleting the control it guards; a hand-edited description leaves that tool absent from
 `tools/list` on restart; `curl -i` unauthenticated returns `401` with a `WWW-Authenticate` header
@@ -319,6 +326,7 @@ Divergence between what was planned and what was built. **History is left as wri
 |---|---|---|
 | 2026-09-24 | Created. P0–P4 scoped to work-order level; P5 scoped; P6 and P7 stated as intent with their spikes named. | First roadmap for this repository, from the same-day planning session. P6 is trigger-gated rather than sequenced because its only justification is a second principal, which no consumer has yet. |
 | 2026-09-24 | Maturity review folded in: `CSR-WO-0002` (governance and supply chain) added to P0; `-1005` (transport hardening and runtime validation) added to P1; `-2002` narrowed to audit, `-2007` (tripwire and rate limit as two controls) and `-2008` (control-deletion job) added to P2; acceptance lines added to `-1000`, `-1001`, `-1003`, `-1004`, `-2001`, `-2005`, `-3000`, `-4001`; P0, P1, P2, P3 and P4 exit gates extended; a maintenance cadence added. | Same review as the architecture's second amendment: what changes a schema or an interface is decided before P1; the rest becomes acceptance lines while the work orders are still unwritten. |
+| 2026-09-25 | P1 reordered: `-1005` first and redefined as the core's own `2026-07-28` transport (the official SDK measured unable to serve it, no 2.x published); `-0101` resequenced after `-1005` and re-aimed at MRTR, since the revision deprecates elicitation. | The gate's direction that the reference serves the current stateless revision, after the `-0100` spike; see `architecture.md` §10. |
 
 ## Provenance
 
