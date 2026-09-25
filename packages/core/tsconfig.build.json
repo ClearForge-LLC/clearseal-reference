@@ -6,7 +6,8 @@
     "outDir": "dist",
     "rootDir": "src",
     "allowImportingTsExtensions": false,
-    "rewriteRelativeImportExtensions": true
+    "rewriteRelativeImportExtensions": true,
+    "noEmitOnError": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.mts", "src/**/*.cts"]
 }

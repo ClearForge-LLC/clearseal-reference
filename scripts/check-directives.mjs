@@ -7,10 +7,12 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-// Directives that suppress or reconfigure. `eslint-enable` only restores, so it needs no reason.
-const DIRECTIVE = /^(eslint-disable(?:-next-line|-line)?|eslint)(?:\s|$)/;
-// ESLint's own separator for a directive's description: whitespace, two or more dashes, whitespace.
-const REASON = /\s-{2,}\s+\S/;
+// Directives that suppress or reconfigure: disables, rule configuration, and `global`/`globals`/
+// `exported`, which silence `no-undef`/`no-unused-vars`. `eslint-enable` only restores: no reason.
+const DIRECTIVE = /^(eslint-disable(?:-next-line|-line)?|eslint|globals?|exported)(?:\s|$)/;
+// ESLint's separator for a directive's description (whitespace, two or more dashes, whitespace),
+// then a reason with at least one letter or digit: `-- .` is not a reason.
+const REASON = /\s-{2,}\s+.*[A-Za-z0-9]/;
 
 // Tracked files and untracked-but-not-ignored ones: the same set `eslint .` lints, so a new file
 // is checked before it is ever added.
