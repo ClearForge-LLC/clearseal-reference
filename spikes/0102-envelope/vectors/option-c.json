@@ -1,0 +1,98 @@
+{
+  "oracle": "spikes/0102-envelope/oracle/gen_vectors.py (Python test oracle; not a control)",
+  "fixture_public_key_b64": "qikRoPRLUGmP2QuEpKRSJLhCB33v3l7Hcoi8vK6tTtY=",
+  "vectors": [
+    {
+      "name": "minimal",
+      "input": {
+        "v": 1,
+        "sender_id": "node.alerter-example",
+        "origin_class": "system",
+        "key_id": "test-fixture-key",
+        "issued_at": 1787700000,
+        "nonce": "AAAABBBBCCCCDDDD",
+        "alert": {
+          "severity": "info",
+          "text": "all clear"
+        }
+      },
+      "now": 1787700000,
+      "text_utf8": "61 6c 6c 20 63 6c 65 61 72",
+      "signed_bytes_b64": "ZXlKaGJHY2lPaUpGWkVSVFFTSXNJblI1Y0NJNkltTnNaV0Z5YzJWaGJDMWpiR0Z6Y3pVcmFuZHpJaXdpYTJsa0lqb2lkR1Z6ZEMxbWFYaDBkWEpsTFd0bGVTSXNJbWxoZENJNk1UYzROemN3TURBd01Dd2laWGh3SWpveE56ZzNOekF3TXpBd0xDSnFkR2tpT2lKQlFVRkJRa0pDUWtORFEwTkVSRVJFSW4wLmV5SjJJam94TENKelpXNWtaWEpmYVdRaU9pSnViMlJsTG1Gc1pYSjBaWEl0WlhoaGJYQnNaU0lzSW05eWFXZHBibDlqYkdGemN5STZJbk41YzNSbGJTSXNJbUZzWlhKMElqcDdJbk5sZG1WeWFYUjVJam9pYVc1bWJ5SXNJblJsZUhRaU9pSmhiR3dnWTJ4bFlYSWlmWDA=",
+      "signed_len": 323,
+      "jws": "eyJhbGciOiJFZERTQSIsInR5cCI6ImNsZWFyc2VhbC1jbGFzczUrandzIiwia2lkIjoidGVzdC1maXh0dXJlLWtleSIsImlhdCI6MTc4NzcwMDAwMCwiZXhwIjoxNzg3NzAwMzAwLCJqdGkiOiJBQUFBQkJCQkNDQ0NEREREIn0..ht-BSyAh6Mvj692VZZTjU5mXSFUEKqrdmB5jBPGDaWSiKan93VKGW0DASaYh4VD3fPzR-gpQsCkS_lg_PfVsBQ",
+      "payload_b64": "eyJ2IjoxLCJzZW5kZXJfaWQiOiJub2RlLmFsZXJ0ZXItZXhhbXBsZSIsIm9yaWdpbl9jbGFzcyI6InN5c3RlbSIsImFsZXJ0Ijp7InNldmVyaXR5IjoiaW5mbyIsInRleHQiOiJhbGwgY2xlYXIifX0=",
+      "wire_b64": "ZXlKaGJHY2lPaUpGWkVSVFFTSXNJblI1Y0NJNkltTnNaV0Z5YzJWaGJDMWpiR0Z6Y3pVcmFuZHpJaXdpYTJsa0lqb2lkR1Z6ZEMxbWFYaDBkWEpsTFd0bGVTSXNJbWxoZENJNk1UYzROemN3TURBd01Dd2laWGh3SWpveE56ZzNOekF3TXpBd0xDSnFkR2tpT2lKQlFVRkJRa0pDUWtORFEwTkVSRVJFSW4wLi5odC1CU3lBaDZNdmo2OTJWWlpUalU1bVhTRlVFS3FyZG1CNWpCUEdEYVdTaUthbjkzVktHVzBEQVNhWWg0VkQzZlB6Ui1ncFFzQ2tTX2xnX1BmVnNCUQp7InYiOjEsInNlbmRlcl9pZCI6Im5vZGUuYWxlcnRlci1leGFtcGxlIiwib3JpZ2luX2NsYXNzIjoic3lzdGVtIiwiYWxlcnQiOnsic2V2ZXJpdHkiOiJpbmZvIiwidGV4dCI6ImFsbCBjbGVhciJ9fQ==",
+      "wire_len": 373
+    },
+    {
+      "name": "m5-nbsp",
+      "input": {
+        "v": 1,
+        "sender_id": "node.alerter-example",
+        "origin_class": "system",
+        "key_id": "test-fixture-key",
+        "issued_at": 1787700000,
+        "nonce": "AAAABBBBCCCCDDD1",
+        "alert": {
+          "severity": "info",
+          "text": "all clear\u00a0"
+        }
+      },
+      "now": 1787700000,
+      "text_utf8": "61 6c 6c 20 63 6c 65 61 72 c2 a0",
+      "signed_bytes_b64": "ZXlKaGJHY2lPaUpGWkVSVFFTSXNJblI1Y0NJNkltTnNaV0Z5YzJWaGJDMWpiR0Z6Y3pVcmFuZHpJaXdpYTJsa0lqb2lkR1Z6ZEMxbWFYaDBkWEpsTFd0bGVTSXNJbWxoZENJNk1UYzROemN3TURBd01Dd2laWGh3SWpveE56ZzNOekF3TXpBd0xDSnFkR2tpT2lKQlFVRkJRa0pDUWtORFEwTkVSRVF4SW4wLmV5SjJJam94TENKelpXNWtaWEpmYVdRaU9pSnViMlJsTG1Gc1pYSjBaWEl0WlhoaGJYQnNaU0lzSW05eWFXZHBibDlqYkdGemN5STZJbk41YzNSbGJTSXNJbUZzWlhKMElqcDdJbk5sZG1WeWFYUjVJam9pYVc1bWJ5SXNJblJsZUhRaU9pSmhiR3dnWTJ4bFlYTENvQ0o5ZlE=",
+      "signed_len": 326,
+      "jws": "eyJhbGciOiJFZERTQSIsInR5cCI6ImNsZWFyc2VhbC1jbGFzczUrandzIiwia2lkIjoidGVzdC1maXh0dXJlLWtleSIsImlhdCI6MTc4NzcwMDAwMCwiZXhwIjoxNzg3NzAwMzAwLCJqdGkiOiJBQUFBQkJCQkNDQ0NEREQxIn0..JQLJMnTQ6V7Fpr84yLkeGjNLF-8xZmyZ_M3Kn9YPgGZY5S6BFwH-B6lmOxLUFL8s54hekQm6k2WRvDwRLeFkAw",
+      "payload_b64": "eyJ2IjoxLCJzZW5kZXJfaWQiOiJub2RlLmFsZXJ0ZXItZXhhbXBsZSIsIm9yaWdpbl9jbGFzcyI6InN5c3RlbSIsImFsZXJ0Ijp7InNldmVyaXR5IjoiaW5mbyIsInRleHQiOiJhbGwgY2xlYXLCoCJ9fQ==",
+      "wire_b64": "ZXlKaGJHY2lPaUpGWkVSVFFTSXNJblI1Y0NJNkltTnNaV0Z5YzJWaGJDMWpiR0Z6Y3pVcmFuZHpJaXdpYTJsa0lqb2lkR1Z6ZEMxbWFYaDBkWEpsTFd0bGVTSXNJbWxoZENJNk1UYzROemN3TURBd01Dd2laWGh3SWpveE56ZzNOekF3TXpBd0xDSnFkR2tpT2lKQlFVRkJRa0pDUWtORFEwTkVSRVF4SW4wLi5KUUxKTW5UUTZWN0Zwcjg0eUxrZUdqTkxGLTh4Wm15Wl9NM0tuOVlQZ0daWTVTNkJGd0gtQjZsbU94TFVGTDhzNTRoZWtRbTZrMldSdkR3UkxlRmtBdwp7InYiOjEsInNlbmRlcl9pZCI6Im5vZGUuYWxlcnRlci1leGFtcGxlIiwib3JpZ2luX2NsYXNzIjoic3lzdGVtIiwiYWxlcnQiOnsic2V2ZXJpdHkiOiJpbmZvIiwidGV4dCI6ImFsbCBjbGVhcsKgIn19",
+      "wire_len": 375
+    },
+    {
+      "name": "m5-composed",
+      "input": {
+        "v": 1,
+        "sender_id": "node.alerter-example",
+        "origin_class": "system",
+        "key_id": "test-fixture-key",
+        "issued_at": 1787700000,
+        "nonce": "AAAABBBBCCCCDDD2",
+        "alert": {
+          "severity": "warn",
+          "text": "caf\u00e9"
+        }
+      },
+      "now": 1787700000,
+      "text_utf8": "63 61 66 c3 a9",
+      "signed_bytes_b64": "ZXlKaGJHY2lPaUpGWkVSVFFTSXNJblI1Y0NJNkltTnNaV0Z5YzJWaGJDMWpiR0Z6Y3pVcmFuZHpJaXdpYTJsa0lqb2lkR1Z6ZEMxbWFYaDBkWEpsTFd0bGVTSXNJbWxoZENJNk1UYzROemN3TURBd01Dd2laWGh3SWpveE56ZzNOekF3TXpBd0xDSnFkR2tpT2lKQlFVRkJRa0pDUWtORFEwTkVSRVF5SW4wLmV5SjJJam94TENKelpXNWtaWEpmYVdRaU9pSnViMlJsTG1Gc1pYSjBaWEl0WlhoaGJYQnNaU0lzSW05eWFXZHBibDlqYkdGemN5STZJbk41YzNSbGJTSXNJbUZzWlhKMElqcDdJbk5sZG1WeWFYUjVJam9pZDJGeWJpSXNJblJsZUhRaU9pSmpZV2JEcVNKOWZR",
+      "signed_len": 318,
+      "jws": "eyJhbGciOiJFZERTQSIsInR5cCI6ImNsZWFyc2VhbC1jbGFzczUrandzIiwia2lkIjoidGVzdC1maXh0dXJlLWtleSIsImlhdCI6MTc4NzcwMDAwMCwiZXhwIjoxNzg3NzAwMzAwLCJqdGkiOiJBQUFBQkJCQkNDQ0NEREQyIn0..grAvx_Xj9qLvO4_6dKxE_bLdLZy0uBGWq_l_S-WqcObvXXTdvmftEoi63PTIeZ3ViCQ7BN4Vrd41jQDUpOFCCw",
+      "payload_b64": "eyJ2IjoxLCJzZW5kZXJfaWQiOiJub2RlLmFsZXJ0ZXItZXhhbXBsZSIsIm9yaWdpbl9jbGFzcyI6InN5c3RlbSIsImFsZXJ0Ijp7InNldmVyaXR5Ijoid2FybiIsInRleHQiOiJjYWbDqSJ9fQ==",
+      "wire_b64": "ZXlKaGJHY2lPaUpGWkVSVFFTSXNJblI1Y0NJNkltTnNaV0Z5YzJWaGJDMWpiR0Z6Y3pVcmFuZHpJaXdpYTJsa0lqb2lkR1Z6ZEMxbWFYaDBkWEpsTFd0bGVTSXNJbWxoZENJNk1UYzROemN3TURBd01Dd2laWGh3SWpveE56ZzNOekF3TXpBd0xDSnFkR2tpT2lKQlFVRkJRa0pDUWtORFEwTkVSRVF5SW4wLi5nckF2eF9YajlxTHZPNF82ZEt4RV9iTGRMWnkwdUJHV3FfbF9TLVdxY09idlhYVGR2bWZ0RW9pNjNQVEllWjNWaUNRN0JONFZyZDQxalFEVXBPRkNDdwp7InYiOjEsInNlbmRlcl9pZCI6Im5vZGUuYWxlcnRlci1leGFtcGxlIiwib3JpZ2luX2NsYXNzIjoic3lzdGVtIiwiYWxlcnQiOnsic2V2ZXJpdHkiOiJ3YXJuIiwidGV4dCI6ImNhZsOpIn19",
+      "wire_len": 369
+    },
+    {
+      "name": "m5-decomposed",
+      "input": {
+        "v": 1,
+        "sender_id": "node.alerter-example",
+        "origin_class": "system",
+        "key_id": "test-fixture-key",
+        "issued_at": 1787700000,
+        "nonce": "AAAABBBBCCCCDDD3",
+        "alert": {
+          "severity": "warn",
+          "text": "cafe\u0301"
+        }
+      },
+      "now": 1787700000,
+      "text_utf8": "63 61 66 65 cc 81",
+      "signed_bytes_b64": "ZXlKaGJHY2lPaUpGWkVSVFFTSXNJblI1Y0NJNkltTnNaV0Z5YzJWaGJDMWpiR0Z6Y3pVcmFuZHpJaXdpYTJsa0lqb2lkR1Z6ZEMxbWFYaDBkWEpsTFd0bGVTSXNJbWxoZENJNk1UYzROemN3TURBd01Dd2laWGh3SWpveE56ZzNOekF3TXpBd0xDSnFkR2tpT2lKQlFVRkJRa0pDUWtORFEwTkVSRVF6SW4wLmV5SjJJam94TENKelpXNWtaWEpmYVdRaU9pSnViMlJsTG1Gc1pYSjBaWEl0WlhoaGJYQnNaU0lzSW05eWFXZHBibDlqYkdGemN5STZJbk41YzNSbGJTSXNJbUZzWlhKMElqcDdJbk5sZG1WeWFYUjVJam9pZDJGeWJpSXNJblJsZUhRaU9pSmpZV1pseklFaWZYMA==",
+      "signed_len": 319,
+      "jws": "eyJhbGciOiJFZERTQSIsInR5cCI6ImNsZWFyc2VhbC1jbGFzczUrandzIiwia2lkIjoidGVzdC1maXh0dXJlLWtleSIsImlhdCI6MTc4NzcwMDAwMCwiZXhwIjoxNzg3NzAwMzAwLCJqdGkiOiJBQUFBQkJCQkNDQ0NEREQzIn0..-yRQaMT2LV9MwApkNles2smWGZCOfAnnKKjxoJ9LEOJulVWNzhEsH7xcvxyqYwJ_QBwMCX4m6U5psoh8b8t1CQ",
+      "payload_b64": "eyJ2IjoxLCJzZW5kZXJfaWQiOiJub2RlLmFsZXJ0ZXItZXhhbXBsZSIsIm9yaWdpbl9jbGFzcyI6InN5c3RlbSIsImFsZXJ0Ijp7InNldmVyaXR5Ijoid2FybiIsInRleHQiOiJjYWZlzIEifX0=",
+      "wire_b64": "ZXlKaGJHY2lPaUpGWkVSVFFTSXNJblI1Y0NJNkltTnNaV0Z5YzJWaGJDMWpiR0Z6Y3pVcmFuZHpJaXdpYTJsa0lqb2lkR1Z6ZEMxbWFYaDBkWEpsTFd0bGVTSXNJbWxoZENJNk1UYzROemN3TURBd01Dd2laWGh3SWpveE56ZzNOekF3TXpBd0xDSnFkR2tpT2lKQlFVRkJRa0pDUWtORFEwTkVSRVF6SW4wLi4teVJRYU1UMkxWOU13QXBrTmxlczJzbVdHWkNPZkFubktLanhvSjlMRU9KdWxWV056aEVzSDd4Y3Z4eXFZd0pfUUJ3TUNYNG02VTVwc29oOGI4dDFDUQp7InYiOjEsInNlbmRlcl9pZCI6Im5vZGUuYWxlcnRlci1leGFtcGxlIiwib3JpZ2luX2NsYXNzIjoic3lzdGVtIiwiYWxlcnQiOnsic2V2ZXJpdHkiOiJ3YXJuIiwidGV4dCI6ImNhZmXMgSJ9fQ==",
+      "wire_len": 370
+    }
+  ]
+}
