@@ -27,7 +27,8 @@ Tags are `v0.<n>` until the first edition is proven on a host, and `v1.<n>` afte
 annotated and are created by the architect at phase boundaries, never by a work order. Every tag's
 `CHANGELOG.md` entry records the tagged commit beside it as
 `ClearForge-LLC/clearseal-reference@<full commit SHA>`, so you can pin either the tag or the
-commit.
+commit. A commit cannot contain its own SHA, so that line is added in the first commit after the
+tag.
 
 ## Checks every change must pass
 

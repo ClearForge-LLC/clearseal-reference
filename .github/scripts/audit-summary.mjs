@@ -20,17 +20,22 @@ try {
 }
 
 const counts = report?.metadata?.vulnerabilities;
-if (report === undefined || counts === undefined) {
+const levels = ["critical", "high", "moderate", "low", "info"];
+const complete = counts !== undefined && levels.every((l) => Number.isInteger(counts[l]));
+if (!complete) {
   lines.push("**The audit did not complete** (no readable report). This run has no audit result.");
+  // An annotation, not a failure: visible in the checks view without blocking the pull request.
+  console.log("::warning title=Dependency audit::The audit did not complete; this run has no audit result.");
 } else {
   const high = (counts.high ?? 0) + (counts.critical ?? 0);
+  if (high > 0) console.log(`::warning title=Dependency audit::${String(high)} finding(s) at high or critical; see the job summary.`);
   lines.push(
-    `Dependencies audited: ${String(report.metadata?.dependencies?.total ?? "unknown")}. ` +
+    `Dependencies audited: ${String(report?.metadata?.dependencies?.total ?? "unknown")}. ` +
       `Findings at high or critical: **${String(high)}** ` +
       `(critical ${String(counts.critical ?? 0)}, high ${String(counts.high ?? 0)}, ` +
       `moderate ${String(counts.moderate ?? 0)}, low ${String(counts.low ?? 0)}, info ${String(counts.info ?? 0)}).`,
   );
-  const rows = Object.entries(report.vulnerabilities ?? {}).filter(([, v]) => v.severity === "high" || v.severity === "critical");
+  const rows = Object.entries(report?.vulnerabilities ?? {}).filter(([, v]) => v.severity === "high" || v.severity === "critical");
   if (rows.length > 0) {
     lines.push("", "| Package | Severity | Fix available |", "|---|---|---|");
     for (const [name, v] of rows) lines.push(`| \`${name}\` | ${v.severity ?? "?"} | ${v.fixAvailable ? "yes" : "no"} |`);

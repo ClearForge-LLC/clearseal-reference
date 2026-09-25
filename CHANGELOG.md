@@ -7,11 +7,14 @@ file**, with one entry per work order, written from its pull-request title.
 **Versions and tags.** Tags are `v0.<n>` until the first edition is proven on a host, and `v1.<n>`
 after. Tags are annotated and created by the architect at phase boundaries, never by a work order.
 Every tag's entry records the tagged commit beside it as
-`ClearForge-LLC/clearseal-reference@<full commit SHA>`, so a consumer can pin either the tag or
-the commit. A release carries the packed tarballs and their signed build-provenance attestation.
-Verify a tarball against its tag, not just this repository, because pull-request dry runs of the
-provenance workflow produce attestations too: `gh attestation verify <tarball> --repo
-ClearForge-LLC/clearseal-reference --source-ref refs/tags/<tag>`.
+`ClearForge-LLC/clearseal-reference@<full commit SHA>`, in exactly that plain form and not as a
+commit link, so a consumer can pin either the tag or the commit. A commit cannot contain its own
+SHA, so the entry is completed in the first commit after the tag. A release carries the packed
+tarballs and their signed build-provenance attestation. Verify a tarball against its tag and the
+provenance workflow, not just this repository, because pull-request dry runs of that workflow
+produce attestations too: `gh attestation verify <tarball> --repo
+ClearForge-LLC/clearseal-reference --source-ref refs/tags/<tag> --signer-workflow
+ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
 
 ## [Unreleased]
 
