@@ -508,6 +508,68 @@ Input:
 
 Result: **refused**.
 
+**A6-5** (tool). Every boolean true and a containment domain: each field's value reaches the bytes. *(Added in stage B, from the adversarial pass: no earlier canonical vector had `elevated: true`. Adding a vector changes no expected result.)*
+
+Input:
+
+```json
+{
+  "name": "echo",
+  "description": "Returns its text.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "additionalProperties": false
+  },
+  "capability_class": "state_change",
+  "untrusted_input_facing": true,
+  "scope": "echo",
+  "privacy_sensitive": true,
+  "recoverability_basis": null,
+  "elevated": true,
+  "containment_domain": [
+    "echo-sink"
+  ]
+}
+```
+
+Canonical bytes (354 bytes):
+
+```
+7b 22 63 61 70 61 62 69 6c 69 74 79 5f 63 6c 61
+73 73 22 3a 22 73 74 61 74 65 5f 63 68 61 6e 67
+65 22 2c 22 63 6f 6e 74 61 69 6e 6d 65 6e 74 5f
+64 6f 6d 61 69 6e 22 3a 5b 22 65 63 68 6f 2d 73
+69 6e 6b 22 5d 2c 22 64 65 73 63 72 69 70 74 69
+6f 6e 22 3a 22 52 65 74 75 72 6e 73 20 69 74 73
+20 74 65 78 74 2e 22 2c 22 65 6c 65 76 61 74 65
+64 22 3a 74 72 75 65 2c 22 69 6e 70 75 74 5f 73
+63 68 65 6d 61 22 3a 7b 22 61 64 64 69 74 69 6f
+6e 61 6c 50 72 6f 70 65 72 74 69 65 73 22 3a 66
+61 6c 73 65 2c 22 70 72 6f 70 65 72 74 69 65 73
+22 3a 7b 22 74 65 78 74 22 3a 7b 22 74 79 70 65
+22 3a 22 73 74 72 69 6e 67 22 7d 7d 2c 22 72 65
+71 75 69 72 65 64 22 3a 5b 22 74 65 78 74 22 5d
+2c 22 74 79 70 65 22 3a 22 6f 62 6a 65 63 74 22
+7d 2c 22 6e 61 6d 65 22 3a 22 65 63 68 6f 22 2c
+22 70 72 69 76 61 63 79 5f 73 65 6e 73 69 74 69
+76 65 22 3a 74 72 75 65 2c 22 72 65 63 6f 76 65
+72 61 62 69 6c 69 74 79 5f 62 61 73 69 73 22 3a
+6e 75 6c 6c 2c 22 73 63 6f 70 65 22 3a 22 65 63
+68 6f 22 2c 22 75 6e 74 72 75 73 74 65 64 5f 69
+6e 70 75 74 5f 66 61 63 69 6e 67 22 3a 74 72 75
+65 7d
+```
+
+SHA-256: `da3b0e12 5fb21330 488580ce 205f93e1 6cb101b1 73faa2a8 e1ff967a 21f8f439`
+
 ## A7 — Set-valued fields
 
 **Rule.** `containment_domain`, the one set-valued field among the ten, is canonicalized to the

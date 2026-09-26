@@ -23,9 +23,12 @@ from decimal import Decimal
 
 CANONICAL_FORM_VERSION = 1
 MAX_MAGNITUDE = 2**53 - 1
-# The specification sets no depth. Both implementations bound their JSON text parser at the same
-# nesting, so a deep text is refused identically rather than crashing differently.
-MAX_PARSE_DEPTH = 512
+# Version 1 of the specification sets no depth. This is an implementation limit on every input,
+# text or value, counted in objects and arrays: beyond it the input is refused. Serialization
+# recurses a few frames per level, so the interpreter's recursion limit is raised far enough that
+# the limit, not the interpreter, decides.
+MAX_NESTING = 512
+sys.setrecursionlimit(max(sys.getrecursionlimit(), 10 * MAX_NESTING))
 
 PINNED_FIELDS = (
     "name", "description", "input_schema", "capability_class", "untrusted_input_facing",
@@ -104,7 +107,9 @@ def _utf16_key(s):
 
 
 # A1: RFC 8785. Members sorted by their names as UTF-16 code units, arrays in order, no whitespace.
-def serialize(v):
+def serialize(v, depth=0):
+    if isinstance(v, (list, dict)) and depth >= MAX_NESTING:
+        raise Refused("A1", "nested deeper than the implementation limit")
     if v is None:
         return "null"
     if v is True:
@@ -116,14 +121,14 @@ def serialize(v):
     if isinstance(v, str):
         return serialize_string(v)
     if isinstance(v, list):
-        return "[" + ",".join(serialize(x) for x in v) + "]"
+        return "[" + ",".join(serialize(x, depth + 1) for x in v) + "]"
     if isinstance(v, dict):
         for name in v:
             if not isinstance(name, str):
                 raise Refused("A1", "a member name that is not a string")
             check_string(name)
         names = sorted(v, key=_utf16_key)
-        return "{" + ",".join(serialize_string(n) + ":" + serialize(v[n]) for n in names) + "}"
+        return "{" + ",".join(serialize_string(n) + ":" + serialize(v[n], depth + 1) for n in names) + "}"
     raise Refused("A1", "not a JSON value")
 
 
@@ -174,7 +179,7 @@ def parse_json_text(text):
         if isinstance(err, Refused):
             raise
         raise Refused("A1", "not JSON text")
-    if _depth(value) > MAX_PARSE_DEPTH:
+    if _depth(value) > MAX_NESTING:
         raise Refused("A1", "nested deeper than the parser allows")
     return value
 
@@ -309,7 +314,8 @@ def answer(request):
 
 def serve():
     # Bytes in and out, so the platform's console encoding never touches the data.
-    for line in sys.stdin.buffer.read().decode("utf-8").splitlines():
+    # Split on LF only: str.splitlines() would also split inside a string at U+2028 and others.
+    for line in sys.stdin.buffer.read().decode("utf-8").split("\n"):
         if line.strip():
             sys.stdout.buffer.write((json.dumps(answer(json.loads(line)), ensure_ascii=True) + "\n").encode("ascii"))
     sys.stdout.buffer.flush()

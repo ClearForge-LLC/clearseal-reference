@@ -122,6 +122,7 @@ case("A6-1", "A6", "tool", ECHO, "The ten-field object, keys in JCS order; sha25
 case("A6-2", "A6", "tool", with_(ECHO, title="Echo"), "A field outside the ten is refused, not dropped.")
 case("A6-3", "A6", "tool", with_(ECHO, elevated="false"), "A boolean field given a string is refused: no truthiness coercion.")
 case("A6-4", "A6", "tool", with_(ECHO, capability_class="admin"), "capability_class outside the four rungs is refused.")
+case("A6-5", "A6", "tool", with_(ECHO, elevated=True, untrusted_input_facing=True, privacy_sensitive=True, capability_class="state_change", containment_domain=["echo-sink"]), "Every boolean true and a containment domain: each field's value reaches the bytes.")
 # A7
 case("A7-1", "A7", "set", ["b", "a", "b", "B"], "Deduplicated, sorted by UTF-16 code units, case preserved.")
 case("A7-2", "A7", "set", [], "The empty set: contained to nothing. Distinct from null.")

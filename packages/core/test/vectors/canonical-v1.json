@@ -568,6 +568,40 @@
       "note": "capability_class outside the four rungs is refused."
     },
     {
+      "id": "A6-5",
+      "rule": "A6",
+      "kind": "tool",
+      "input": {
+        "name": "echo",
+        "description": "Returns its text.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "capability_class": "state_change",
+        "untrusted_input_facing": true,
+        "scope": "echo",
+        "privacy_sensitive": true,
+        "recoverability_basis": null,
+        "elevated": true,
+        "containment_domain": [
+          "echo-sink"
+        ]
+      },
+      "expect": "canonical",
+      "canonical_hex": "7b226361706162696c6974795f636c617373223a2273746174655f6368616e6765222c22636f6e7461696e6d656e745f646f6d61696e223a5b226563686f2d73696e6b225d2c226465736372697074696f6e223a2252657475726e732069747320746578742e222c22656c657661746564223a747275652c22696e7075745f736368656d61223a7b226164646974696f6e616c50726f70657274696573223a66616c73652c2270726f70657274696573223a7b2274657874223a7b2274797065223a22737472696e67227d7d2c227265717569726564223a5b2274657874225d2c2274797065223a226f626a656374227d2c226e616d65223a226563686f222c22707269766163795f73656e736974697665223a747275652c227265636f7665726162696c6974795f6261736973223a6e756c6c2c2273636f7065223a226563686f222c22756e747275737465645f696e7075745f666163696e67223a747275657d",
+      "sha256": "da3b0e125fb21330488580ce205f93e16cb101b173faa2a8e1ff967a21f8f439",
+      "note": "Every boolean true and a containment domain: each field's value reaches the bytes."
+    },
+    {
       "id": "A7-1",
       "rule": "A7",
       "kind": "set",

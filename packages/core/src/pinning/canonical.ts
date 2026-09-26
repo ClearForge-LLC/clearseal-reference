@@ -22,9 +22,11 @@ export const CANONICAL_FORM_VERSION = 1;
 /** The largest accepted magnitude (A2): 2^53 − 1. */
 const MAX_MAGNITUDE = Number.MAX_SAFE_INTEGER;
 
-/** How deep a JSON text given to parseCanonicalJson may nest. The specification sets no depth; this
- *  bounds only the text parser, and it is recorded in the WO's FEEDBACK as a question for version 2. */
-const MAX_PARSE_DEPTH = 512;
+/** How deep any input may nest, counted in objects and arrays, on the text path and the value
+ *  path alike. Version 1 of the specification sets no depth. This is an implementation limit, and
+ *  the Python oracle has the same one, so a deep input is refused by both rather than crashing
+ *  either (recorded in the WO's FEEDBACK for the architect's ruling). */
+const MAX_NESTING = 512;
 
 /** Every refusal the specification defines. `rule` names the rule that refuses. */
 export class CanonicalRefusal extends Error {
@@ -94,32 +96,50 @@ function isPlainObject(v: object): boolean {
   return proto === Object.prototype || proto === null;
 }
 
-function serialize(v: unknown): string {
+/** The members of a plain object, each read once from its property descriptor. Only enumerable,
+ *  string-keyed data properties can be JSON members: an accessor, a symbol key or a non-enumerable
+ *  property is refused, never skipped, so that no value reaches the hash other than the ones
+ *  serialized. */
+function dataMembers(v: object): [string, unknown][] {
+  const out: [string, unknown][] = [];
+  for (const key of Reflect.ownKeys(v)) {
+    const d = Reflect.getOwnPropertyDescriptor(v, key);
+    if (typeof key !== "string" || d === undefined || d.enumerable !== true || !("value" in d)) return refuse("A1", "only enumerable data members with string names are JSON");
+    out.push([key, d.value]);
+  }
+  return out;
+}
+
+/** The elements of an array, each read once; an array carrying anything besides its elements and
+ *  its length, or a hole, is refused. */
+function dataElements(v: unknown[]): unknown[] {
+  const keys = Reflect.ownKeys(v);
+  if (keys.length !== v.length + 1) refuse("A1", "an array with a hole or an extra property is not JSON");
+  const out: unknown[] = [];
+  for (let i = 0; i < v.length; i++) {
+    const d = Reflect.getOwnPropertyDescriptor(v, String(i));
+    if (d === undefined || !("value" in d)) return refuse("A8", "an array hole is not a JSON value");
+    out.push(d.value);
+  }
+  return out;
+}
+
+function serialize(v: unknown, depth = 0): string {
   if (v === null) return "null";
   if (v === true) return "true";
   if (v === false) return "false";
   if (typeof v === "number") return serializeNumber(v);
   if (typeof v === "string") return serializeString(v);
-  if (Array.isArray(v)) {
-    const parts: string[] = [];
-    for (let i = 0; i < v.length; i++) {
-      // A hole in a sparse array is not a JSON value (A8).
-      if (!(i in v)) refuse("A8", "an array hole is not a JSON value");
-      parts.push(serialize(v[i]));
-    }
-    return `[${parts.join(",")}]`;
-  }
+  if (typeof v === "object" && depth >= MAX_NESTING) refuse("A1", `nested deeper than ${String(MAX_NESTING)} (an implementation limit)`);
+  if (Array.isArray(v)) return `[${dataElements(v).map((x) => serialize(x, depth + 1)).join(",")}]`;
   if (typeof v === "object" && isPlainObject(v)) {
-    if (Object.getOwnPropertySymbols(v).length > 0) refuse("A1", "a symbol-keyed member is not JSON");
-    const record = v as Record<string, unknown>;
-    // A1: members ordered by their names as UTF-16 code units, which is the default sort's order.
-    const names = Object.keys(record).sort();
+    // A1: members ordered by their names as UTF-16 code units, which is how < compares strings.
+    const members = dataMembers(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     const parts: string[] = [];
-    for (const name of names) {
-      const value = record[name];
+    for (const [name, value] of members) {
       // A8: a member whose value is not a JSON value is refused, never dropped.
       if (value === undefined) refuse("A8", `member "${name}" has no JSON value`);
-      parts.push(`${serializeString(name)}:${serialize(value)}`);
+      parts.push(`${serializeString(name)}:${serialize(value, depth + 1)}`);
     }
     return `{${parts.join(",")}}`;
   }
@@ -141,7 +161,7 @@ export function canonicalBytes(value: unknown): Buffer {
  *  parsing as -0, so serialization refuses it (A2). */
 export function parseCanonicalJson(text: string): unknown {
   try {
-    return parseJsonStrict(text, MAX_PARSE_DEPTH);
+    return parseJsonStrict(text, MAX_NESTING);
   } catch (err) {
     if (!(err instanceof JsonParseError)) throw err;
     if (err.kind === "duplicate-key") return refuse("A1", "a duplicate key");
@@ -220,7 +240,9 @@ function booleanField(tool: Record<string, unknown>, field: string): boolean {
 /** The canonical tool object, before serialization. */
 export function canonicalToolObject(tool: unknown): Record<string, unknown> {
   if (typeof tool !== "object" || tool === null || Array.isArray(tool) || !isPlainObject(tool)) return refuse("A6", "a tool must be an object");
-  const t = tool as Record<string, unknown>;
+  // A snapshot of the fields, read once, so a field cannot read one way when checked and another
+  // when hashed.
+  const t: Record<string, unknown> = Object.fromEntries(dataMembers(tool));
   for (const field of PINNED_FIELDS) {
     if (!Object.hasOwn(t, field) || t[field] === undefined) refuse("A8", `the field ${field} is missing`);
   }
@@ -273,7 +295,10 @@ export interface ManifestInput {
 }
 
 /** A9: the canonical bytes of a manifest hash object. */
-export function canonicalManifestBytes(manifest: ManifestInput): Buffer {
+export function canonicalManifestBytes(input: ManifestInput): Buffer {
+  const given: unknown = input;
+  if (typeof given !== "object" || given === null || Array.isArray(given) || !isPlainObject(given)) return refuse("A9", "a manifest must be an object");
+  const manifest = Object.fromEntries(dataMembers(given)) as Partial<ManifestInput>;
   if (manifest.canonical_form_version !== CANONICAL_FORM_VERSION) refuse("A10", "a canonical_form_version this implementation does not implement");
   if (!Array.isArray(manifest.tools)) return refuse("A9", "tools must be an array");
   const entries = (manifest.tools as unknown[]).map((tool) => {

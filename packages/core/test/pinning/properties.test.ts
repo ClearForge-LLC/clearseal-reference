@@ -71,12 +71,14 @@ function withoutNegativeZero(v: unknown): unknown {
 const TRICKY = ["e", "́", "é", "Å", "Å", "ﬁ", "﻿", "😀", " ", " ", "\u0000", "\u001f", '"', "\\", "/", "\u007f", "\u0085", "a", "Z", "0"];
 const trickyString = fc.string({ unit: fc.oneof(fc.constantFrom(...TRICKY), fc.string({ unit: "binary", minLength: 1, maxLength: 1 })), maxLength: 12 });
 const json = fc.jsonValue({ maxDepth: 4, stringUnit: "binary" });
+/** Values A2 and A3 accept, so the key-order property compares bytes rather than two refusals. */
+const acceptedJson = json.filter((v) => typescriptAnswer({ kind: "json", input_json_text: toText(v, Math.random) }).ok);
 
 void describe("property-based cross-checks: TypeScript canonicalizer × Python oracle", () => {
   void it("A1 key order and whitespace never change the bytes", () => {
     const requests: Request[] = [];
     fc.assert(
-      fc.property(json, fc.integer(), fc.integer(), (value, s1, s2) => {
+      fc.property(acceptedJson, fc.integer(), fc.integer(), (value, s1, s2) => {
         const a: Request = { kind: "json", input_json_text: toText(value, mulberry(s1)) };
         const b: Request = { kind: "json", input_json_text: toText(value, mulberry(s2)) };
         assert.equal(bytesOf(a), bytesOf(b));
