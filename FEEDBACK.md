@@ -3,7 +3,10 @@
 Branch `wo/CSR-WO-1000`, cut from `main` at `b93e1b3`. This is a **draft** pull request, and there
 is no implementation code. The deliverables are `docs/canonical-form.md` (ten rules, 63 vectors)
 and `packages/core/test/vectors/canonical-v1.json`: the same 63 vectors, 41 canonical and 22
-refusals. Built on Node v24.21.0.
+refusals. Built on Node v24.21.0. Pushed over the repository's write deploy key. A short-lived token
+was minted only to open this draft pull request, kept in a mode-0600 scratch file for that call,
+and deleted straight after. `npm run check` exits 0 (no code changed), and `leak-gate --tree` and
+`--history` exited 0 before every push, each checked by exit code.
 
 **How the vectors were made:**
 - A throwaway Python script, **not committed**, computed them. It carries its own JCS: ECMAScript
