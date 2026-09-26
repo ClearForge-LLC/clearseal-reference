@@ -32,6 +32,15 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
   `x-mcp-header` handling, HMAC-sealed MRTR `requestState`, and a refuse-all verifier seam.
   `packages/core/src/transport/SPEC-MAP.md` maps it to the specification.
 
+- **CSR-WO-1002:** containment.
+  - `containment_domain` entries are parsed under three schemes (`fs:`, `host:`, `svc:`); a
+    malformed or non-canonical entry is refused at construction, never fixed.
+  - A `Cage` interface; the core's `RecordingCage` enforces the domain in-process and records every
+    reach.
+  - N7 at construction: `arbitrary_exec` is refused a domain, and refused outright while
+    `EXEC_TOOLS_FORBIDDEN` is on, which is the default.
+  - `tools/call` runs every handler inside a per-call cage and refuses an undeclared reach.
+  - A reusable reach harness for editions.
 - **CSR-WO-1001:** the pin gate. A node serves a tool only when its hash matches the approved
   manifest.
   - The manifest format and schema carry `build` slots, present but not enforced.

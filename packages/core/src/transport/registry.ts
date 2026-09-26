@@ -12,6 +12,7 @@ import type { JsonValue } from "./json.ts";
 import { isPlainObject } from "./jsonrpc.ts";
 import { walkSchema } from "./schema-walk.ts";
 import type { Principal } from "./verifier.ts";
+import type { Cage, Reach } from "../containment/cage.ts";
 
 export type ContentBlock = Record<string, unknown> & { type: string };
 
@@ -31,6 +32,9 @@ export interface CallContext {
   inputResponses?: Record<string, unknown>;
   /** MRTR retry: the state this server sealed, verified and opened. Never the raw token. */
   state?: JsonValue;
+  /** The only sanctioned route to files, network and services, built per call from the tool's
+   *  pinned containment domain (CSR-WO-1002). */
+  cage: Cage;
 }
 
 export interface ToolDefinition {
@@ -50,6 +54,8 @@ export interface RegisteredTool {
   handler: Tool["handler"];
   validate: (args: unknown) => boolean | Promise<boolean>;
   paramHeaders: readonly ParamHeader[];
+  /** A fresh cage for one call, built from the tool's pinned domain. Absent: an empty domain. */
+  newCage?: (onRefused?: (reach: Reach) => void) => Cage;
 }
 
 /** What the pin gate decided, as the transport needs it: counts for /health, the refusals for the

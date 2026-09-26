@@ -4,7 +4,7 @@
 
 import { buildManifest, type PinnableTool, serializeManifest } from "../../src/pinning/manifest.ts";
 import { PinGate } from "../../src/pinning/gate.ts";
-import { PinnedRegistry } from "../../src/pinning/registry.ts";
+import { PinnedRegistry, type PinnedRegistryOptions } from "../../src/pinning/registry.ts";
 import type { Limits } from "../../src/transport/config.ts";
 import type { SchemaCompiler, Tool } from "../../src/transport/registry.ts";
 import { tag } from "./tools.ts";
@@ -16,8 +16,8 @@ export function asPinnable(tool: Tool | PinnableTool): PinnableTool {
 }
 
 /** Approves the tools in memory and builds the registry from the gate's admission. */
-export function pinForTest(tools: readonly (Tool | PinnableTool)[], compile: SchemaCompiler, limits: Pick<Limits, "maxSchemaDepth" | "maxSchemaNodes">, strict = true): PinnedRegistry {
+export function pinForTest(tools: readonly (Tool | PinnableTool)[], compile: SchemaCompiler, limits: Pick<Limits, "maxSchemaDepth" | "maxSchemaNodes">, strict = true, extra: Pick<PinnedRegistryOptions, "execToolsForbidden" | "cageFor"> = {}): PinnedRegistry {
   const pinnable = tools.map(asPinnable);
   const gate = PinGate.load(serializeManifest(buildManifest(pinnable)));
-  return new PinnedRegistry(gate.admit(pinnable), { compile, limits, strict });
+  return new PinnedRegistry(gate.admit(pinnable), { compile, limits, strict, ...extra });
 }

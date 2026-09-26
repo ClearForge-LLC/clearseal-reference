@@ -21,6 +21,7 @@ import {
 import type { CallContext, RegisteredTool, ToolRegistry, ToolResult } from "./registry.ts";
 import { argumentsDigest, openState, sealState, type StateBinding } from "./request-state.ts";
 import { ValidationTimeout } from "./schema-pool.ts";
+import { type Reach, RecordingCage } from "../containment/cage.ts";
 import type { Principal } from "./verifier.ts";
 
 const PV = "io.modelcontextprotocol/protocolVersion";
@@ -230,6 +231,8 @@ function checkNoCursor(params: Record<string, unknown>): void {
   if (params["cursor"] !== undefined) throw new Refusal(400, INVALID_PARAMS, "Invalid cursor");
 }
 
+const REACH_KIND: Readonly<Record<Reach["kind"], string>> = { fs: "file system", net: "network", svc: "service" };
+
 class HandlerTimeout extends Error {}
 
 async function callTool(era: Era, params: Record<string, unknown>, caps: Record<string, unknown>, ctx: DispatchContext): Promise<Record<string, unknown>> {
@@ -259,7 +262,14 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
   if (!valid) throw new Refusal(400, INVALID_PARAMS, `Invalid arguments for tool ${name}`);
   const binding = { principal: ctx.principal.id, method: "tools/call", tool: name, args: argumentsDigest(args) };
 
-  const callCtx: Omit<CallContext, "signal"> & { signal?: AbortSignal } = { principal: ctx.principal, protocolVersion: era, clientCapabilities: caps };
+  // CSR-WO-1002 §1.6: a fresh cage per call, from the tool's pinned domain (empty if none).
+  // Every refusal is audited as it happens, including one made after the handler returned; the
+  // response never carries the sink.
+  const onRefused = (r: Reach): void => {
+    ctx.audit("containment-refused", { tool: name, kind: r.kind, sink: r.sink });
+  };
+  const cage = tool.newCage?.(onRefused) ?? new RecordingCage(undefined, undefined, undefined, onRefused);
+  const callCtx: Omit<CallContext, "signal"> & { signal?: AbortSignal } = { principal: ctx.principal, protocolVersion: era, clientCapabilities: caps, cage };
   if (modern) {
     const inputResponses = params["inputResponses"];
     if (inputResponses !== undefined) {
@@ -291,9 +301,22 @@ async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, c
   });
   const running = Promise.resolve().then(() => tool.handler(args, { ...callCtx, signal }));
   ctx.trackHandler(running);
+  // An undeclared reach fails the call even if the handler caught the refusal (N4: refused, never
+  // logged-and-allowed). The audit seam gets the full reach; the response names only its kind.
+  // Captured before the handler runs, so a handler cannot replace what dispatch reads.
+  const reached = callCtx.cage.reached.bind(callCtx.cage);
+  const containment = (): Refusal | undefined => {
+    const refused = reached().filter((r) => !r.allowed);
+    if (refused.length === 0) return undefined;
+    const kind = (refused[0] as Reach).kind;
+    return new Refusal(500, INTERNAL_ERROR, `The tool reached outside its containment domain (${REACH_KIND[kind]})`);
+  };
+  let result: ToolResult;
   try {
-    return await Promise.race([running, deadline]);
+    result = await Promise.race([running, deadline]);
   } catch (err) {
+    const refusal = containment();
+    if (refusal !== undefined) throw refusal;
     if (err instanceof HandlerTimeout) {
       timeout.abort(new Error("handler timeout"));
       const disconnected = ctx.signal.aborted;
@@ -307,6 +330,9 @@ async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, c
   } finally {
     clearTimeout(timer);
   }
+  const refusal = containment();
+  if (refusal !== undefined) throw refusal;
+  return result;
 }
 
 function shapeResult(era: Era, binding: StateBinding, result: ToolResult, caps: Record<string, unknown>, ctx: DispatchContext): Record<string, unknown> {

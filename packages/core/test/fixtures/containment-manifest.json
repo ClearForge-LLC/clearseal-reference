@@ -1,0 +1,28 @@
+{
+  "manifest_version": 1,
+  "canonical_form_version": 1,
+  "generated_at": "2026-09-26T12:41:36.276Z",
+  "tools": [
+    {
+      "name": "fetch_status",
+      "tool_hash": "bafe6c446353b8e73505efa18765f916322b2bca744af2c8c30e2ea0b2d2627c"
+    },
+    {
+      "name": "pure_sum",
+      "tool_hash": "caafd643df0461465fcd6005d5dd2aed432f24a2b9937f462c24688207f03a2a"
+    },
+    {
+      "name": "read_note",
+      "tool_hash": "33f34d1af0641185603d1445a87caf513d4a9aef5daa924cda6f17be9ac7c5d4"
+    }
+  ],
+  "manifest_hash": "23b8af472803c52f6651fcf6375acc136592e11750ea4cb0cd065ca2c3e38b3d",
+  "build": {
+    "commit": null,
+    "distribution_digest": null,
+    "signature": null,
+    "kid": null,
+    "key_valid_from": null,
+    "key_valid_to": null
+  }
+}
