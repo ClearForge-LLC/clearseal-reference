@@ -32,6 +32,8 @@ export interface Started {
   t: RunningTransport;
   close: () => Promise<void>;
   audits: string[];
+  /** Each audit line in full: the event, then its fields as JSON. */
+  lines: string[];
 }
 
 export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifier | null; key?: Uint8Array | null; config?: TransportOptions["config"] } = {}): Promise<Started> {
@@ -40,6 +42,7 @@ export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifie
   // The fixture tools through the pin gate, against the manifest the CLI approved.
   const registry = loadPinnedRegistry(FIXTURE_MANIFEST, definitions, { compile: pool.compile, limits, strict: true });
   const audits: string[] = [];
+  const lines: string[] = [];
   const t = await startTransport({
     registry,
     serverInfo: { name: "@clearseal/core", version: "0.0.0" },
@@ -47,7 +50,10 @@ export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifie
     ...(opts.verifier === null ? {} : { verifier: opts.verifier ?? new TestBearerVerifier() }),
     ...(opts.key === null ? {} : { requestStateKey: opts.key ?? randomBytes(32) }),
     validationPool: pool,
-    audit: (event) => audits.push(event),
+    audit: (event, fields) => {
+      audits.push(event);
+      lines.push(`${event} ${JSON.stringify(fields)}`);
+    },
   });
   return {
     t,
@@ -56,6 +62,7 @@ export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifie
       await pool.close();
     },
     audits,
+    lines,
   };
 }
 

@@ -102,7 +102,7 @@ void describe("§1.1 a kernel link refusal is a containment refusal (WO §3.2, �
         assert.equal(readFileSync(VICTIM, "utf8"), "VICTIM-CONTENT", `mode ${mode}: the victim is byte-identical`);
         assert.equal(r.status, 500);
         assert.deepEqual((r.json as { error: unknown }).error, { code: -32603, message: "The tool reached outside its containment domain (file system)" });
-        assert.deepEqual(lines, [`containment-refused {"tool":"${writer.name}","kind":"fs","sink":"${leaf}"}`], `mode ${mode}: exactly one audit line`);
+        assert.deepEqual(lines, [`containment-refused {"tool":"${writer.name}","kind":"fs","sink":"${leaf}","principal":"test-principal"}`], `mode ${mode}: exactly one audit line`);
       } finally {
         await t.close();
       }
@@ -246,7 +246,7 @@ void describe("§1.2 a read_only tool's cage admits read modes only (WO §3.3, �
       const b = await modern(t, "tools/call", { name: "sc_writer", arguments: {} });
       console.log(`DISPATCH read_only w: ${String(a.status)} ${a.text}\nDISPATCH audit ${audits.filter((x) => x.startsWith("containment")).join(" | ")}\nDISPATCH state_change w: ${String(b.status)}`);
       assert.equal(a.status, 500);
-      assert.deepEqual(audits.filter((x) => x.startsWith("containment-refused")), [`containment-refused {"tool":"ro_writer","kind":"fs","sink":"${roTarget}"}`]);
+      assert.deepEqual(audits.filter((x) => x.startsWith("containment-refused")), [`containment-refused {"tool":"ro_writer","kind":"fs","sink":"${roTarget}","principal":"test-principal"}`]);
       assert.equal(readFileSync(roTarget, "utf8"), "INSIDE-ORIGINAL");
       assert.equal(b.status, 200);
       assert.equal(readFileSync(scTarget, "utf8"), "WRITTEN");

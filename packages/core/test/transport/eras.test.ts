@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { after, before, describe, it } from "node:test";
 
 import { LEGACY_PATH_REVIEW_BY } from "../../src/transport/config.ts";
+import { JwtVerifier } from "../../src/auth/verifier.ts";
 import { BEARER, legacyHeaders, modern, modernBody, modernHeaders, raw, start, type Started } from "./helpers.ts";
 
 void describe("served revisions and the legacy era", () => {
@@ -101,25 +102,39 @@ void describe("served revisions and the legacy era", () => {
   });
 });
 
-void describe("WO §1.11: the shipped verifier refuses everything", () => {
+void describe("WO §1.11, CSR-WO-1003: the core's verifier, configured, with no reachable key set, refuses everything", () => {
   let s: Started;
   before(async () => {
-    s = await start({ verifier: null });
+    // A JWKS URL on a closed loopback port: every token is refused (cold cache, fetch fails), fail closed.
+    s = await start({ verifier: new JwtVerifier({ issuer: "https://issuer.example.invalid", jwksUrl: "https://127.0.0.1:9/jwks", audience: "https://mcp.example.invalid/mcp" }), config: { resourceUrl: "https://mcp.example.invalid/mcp" } });
   });
   after(async () => {
     await s.close();
   });
 
-  void it("AU-2 with the default RefuseAllVerifier, even a valid bearer and request get 401 and a challenge", async () => {
+  void it("AU-2 even a well-formed bearer and request get 401 and a challenge", async () => {
     const r = await modern(s.t, "server/discover");
-    console.log(`REFUSEALL ${String(r.status)} ${String(r.headers["www-authenticate"])}`);
+    console.log(`UNREACHABLE-JWKS ${String(r.status)} ${String(r.headers["www-authenticate"])}`);
     assert.equal(r.status, 401);
     assert.match(String(r.headers["www-authenticate"]), /resource_metadata="/);
   });
 
-  void it("/health and the metadata document stay reachable", async () => {
+  void it("/health and the metadata document stay reachable; the document names the verifier's issuer", async () => {
     assert.equal((await raw(s.t, { method: "GET", path: "/health" })).status, 200);
-    assert.equal((await raw(s.t, { method: "GET", path: "/.well-known/oauth-protected-resource" })).status, 200);
+    const prm = await raw(s.t, { method: "GET", path: "/.well-known/oauth-protected-resource" });
+    assert.equal(prm.status, 200);
+    assert.deepEqual((prm.json as { authorization_servers: string[]; scopes_supported: string[] }).authorization_servers, ["https://issuer.example.invalid"]);
+  });
+
+  void it("G1: without a verifier and without AUTH_* configuration, the transport refuses to start", async () => {
+    let err: unknown;
+    try {
+      // Closed if it starts after all, so a regression fails here rather than hanging the run.
+      await (await start({ verifier: null })).close();
+    } catch (e) {
+      err = e;
+    }
+    assert.match(String(err), /AUTH_ISSUER is not configured/);
   });
 });
 
