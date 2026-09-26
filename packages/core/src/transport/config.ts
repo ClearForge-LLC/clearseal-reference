@@ -7,7 +7,7 @@
  *  `server/discover` actually answers (WO §1.13), never only from this constant. */
 export const MODERN_VERSION = "2026-07-28";
 export const LEGACY_VERSION = "2025-11-25";
-export const SUPPORTED_VERSIONS: readonly string[] = [MODERN_VERSION, LEGACY_VERSION];
+export const SUPPORTED_VERSIONS: readonly string[] = Object.freeze([MODERN_VERSION, LEGACY_VERSION]);
 
 /** The legacy (`initialize`) path is marked for removal at the end of the protocol's deprecation
  *  window. The specification's deprecated-features registry gives no date for `2025-11-25`; this
@@ -40,7 +40,7 @@ export interface Limits {
   requestTimeoutMs: number;
 }
 
-export const DEFAULT_LIMITS: Readonly<Limits> = {
+export const DEFAULT_LIMITS: Readonly<Limits> = Object.freeze({
   maxBodyBytes: 1024 * 1024,
   maxJsonDepth: 64,
   maxInFlight: 32,
@@ -53,7 +53,7 @@ export const DEFAULT_LIMITS: Readonly<Limits> = {
   validationWorkers: 2,
   verifierTimeoutMs: 5_000,
   requestTimeoutMs: 30_000,
-};
+});
 
 export interface TransportConfig {
   /** The MCP endpoint path. Default "/mcp". */
@@ -81,19 +81,19 @@ export interface TransportConfig {
   limits: Limits;
 }
 
-export const DEFAULT_CONFIG: Readonly<TransportConfig> = {
+export const DEFAULT_CONFIG: Readonly<TransportConfig> = Object.freeze({
   endpointPath: "/mcp",
   host: "127.0.0.1",
   port: 0,
-  allowedHosts: [],
-  allowedOrigins: [],
+  allowedHosts: Object.freeze([]),
+  allowedOrigins: Object.freeze([]),
   resourceUrl: "",
-  authorizationServers: [],
+  authorizationServers: Object.freeze([]),
   instructions: "A ClearSeal reference node. Tools are pinned before they are listed.",
   discoverTtlMs: 60_000,
   toolsListTtlMs: 60_000,
   limits: DEFAULT_LIMITS,
-};
+});
 
 export class ConfigError extends Error {
   override name = "ConfigError";
@@ -101,7 +101,14 @@ export class ConfigError extends Error {
 
 /** Merges and validates. Throws ConfigError on any value that is not what its name says. */
 export function resolveConfig(partial: Partial<Omit<TransportConfig, "limits">> & { limits?: Partial<Limits> } = {}): TransportConfig {
-  const config: TransportConfig = { ...DEFAULT_CONFIG, ...partial, limits: { ...DEFAULT_LIMITS, ...partial.limits } };
+  // A snapshot of plain data, not the caller's objects: a value that cannot be cloned (a function, a
+  // toJSON method) refuses the start, and nothing the caller still holds is shared with the node.
+  let config: TransportConfig;
+  try {
+    config = structuredClone({ ...DEFAULT_CONFIG, ...partial, limits: { ...DEFAULT_LIMITS, ...partial.limits } });
+  } catch {
+    throw new ConfigError("the configuration must be plain data");
+  }
   const positive = (name: string, v: number): void => {
     if (!Number.isSafeInteger(v) || v <= 0) throw new ConfigError(`${name} must be a positive integer`);
   };
@@ -111,5 +118,13 @@ export function resolveConfig(partial: Partial<Omit<TransportConfig, "limits">> 
   }
   if (!config.endpointPath.startsWith("/") || config.endpointPath.includes("?")) throw new ConfigError("endpointPath must be an absolute path");
   if (!Number.isSafeInteger(config.port) || config.port < 0 || config.port > 65535) throw new ConfigError("port must be 0–65535");
-  return config;
+  // Deeply frozen: the running node's config, limits and every nested value included, cannot change
+  // after start (CSR-WO-1006a, -1006 A7; adversarial C5).
+  return deepFreeze(config);
+}
+
+function deepFreeze<T>(value: T): T {
+  if (typeof value !== "object" || value === null) return value;
+  for (const key of Reflect.ownKeys(value)) deepFreeze((value as Record<PropertyKey, unknown>)[key]);
+  return Object.freeze(value);
 }

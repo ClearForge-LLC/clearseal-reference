@@ -113,6 +113,19 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
 
 ### Fixed
 
+- **CSR-WO-1006a:** two transport corrections from the `-1006` adversarial pass, before the P1
+  exit red-team.
+  - Dispatch calls a handler as a plain function, so its `this` is `undefined`. Before, `this` was
+    the tool's frozen `RegisteredTool`, and a handler could build a cage from it that dispatch
+    never saw. A reach through that cage was refused, but no audit line was written and the call
+    returned `200`.
+  - The running transport's config is deeply frozen, its limits and lists included, and the lists
+    are copies of the caller's. Before, the code that started a node could set
+    `config.limits.maxInFlight = 0` after start, and every call answered `503`.
+  - From the adversarial pass: a handler's `ctx.cage` is a frozen facade over dispatch's cage, so
+    `ctx.cage.constructor` builds no unaudited cage. The config is a plain-data snapshot, deep-frozen,
+    and a value that is not plain data refuses the start. `SUPPORTED_VERSIONS`, `DEFAULT_LIMITS`,
+    `DEFAULT_CONFIG` and the returned `RunningTransport` are frozen.
 - **CSR-WO-1006:** three core corrections from the `-1004` adversarial pass.
   - Admitted tools are immutable (N2). Each tool the pinned registry holds is frozen at
     construction: the object, its definition, the schema and its parameter headers. `list()` and
