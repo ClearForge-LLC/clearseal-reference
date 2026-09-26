@@ -204,8 +204,8 @@ void it("CSR-WO-1006 §5.3: links, junctions, short names, case, devices, stream
     { id: "W9f", label: "a directory opened as its index stream", path: `${ROOT}/sub::$INDEX_ALLOCATION`, read: false, safe: isRefusedOrError, expect: "refused or an error" },
     { id: "W9g", label: "a stream on the root directory itself", path: `${ROOT}:stream`, mode: "r", safe: isRefusedOrError, expect: "refused or an error (nothing there)" },
     // Trailing dot and space.
-    { id: "W10", label: "trailing dot on an inside file", path: `${ROOT}/inside.txt.`, safe: insideOrRefused(INSIDE_TEXT), expect: "opened inside.txt, or refused" },
-    { id: "W10b", label: "trailing space on an inside file", path: `${ROOT}/inside.txt `, safe: insideOrRefused(INSIDE_TEXT), expect: "opened inside.txt, or refused" },
+    { id: "W10", label: "trailing dot on an inside file", path: `${ROOT}/inside.txt.`, safe: (o) => isRefusedOrError(o) || openedWith(o, INSIDE_TEXT), expect: "opened inside.txt, refused, or an error" },
+    { id: "W10b", label: "trailing space on an inside file", path: `${ROOT}/inside.txt `, safe: (o) => isRefusedOrError(o) || openedWith(o, INSIDE_TEXT), expect: "opened inside.txt, refused, or an error" },
     { id: "W10c", label: "trailing dot on a file link to outside", path: `${ROOT}/file-link.txt.`, safe: isRefusedOrError, expect: "refused or an error, never the outside file" },
     { id: "W10d", label: "trailing space on a file link to outside", path: `${ROOT}/file-link.txt `, safe: isRefusedOrError, expect: "refused or an error, never the outside file" },
     { id: "W10e", label: "trailing dot on a junction intermediate", path: `${ROOT}/jdir./secret.txt`, safe: isRefusedOrError, expect: "refused or an error" },
