@@ -22,10 +22,8 @@ export const CANONICAL_FORM_VERSION = 1;
 /** The largest accepted magnitude (A2): 2^53 − 1. */
 const MAX_MAGNITUDE = Number.MAX_SAFE_INTEGER;
 
-/** How deep any input may nest, counted in objects and arrays, on the text path and the value
- *  path alike. Version 1 of the specification sets no depth. This is an implementation limit, and
- *  the Python oracle has the same one, so a deep input is refused by both rather than crashing
- *  either (recorded in the WO's FEEDBACK for the architect's ruling). */
+/** A1: an input nested deeper than 512 objects and arrays, counted together, is refused, on the
+ *  text path and the value path alike. */
 const MAX_NESTING = 512;
 
 /** Every refusal the specification defines. `rule` names the rule that refuses. */
@@ -130,7 +128,7 @@ function serialize(v: unknown, depth = 0): string {
   if (v === false) return "false";
   if (typeof v === "number") return serializeNumber(v);
   if (typeof v === "string") return serializeString(v);
-  if (typeof v === "object" && depth >= MAX_NESTING) refuse("A1", `nested deeper than ${String(MAX_NESTING)} (an implementation limit)`);
+  if (typeof v === "object" && depth >= MAX_NESTING) refuse("A1", `nested deeper than ${String(MAX_NESTING)}`);
   if (Array.isArray(v)) return `[${dataElements(v).map((x) => serialize(x, depth + 1)).join(",")}]`;
   if (typeof v === "object" && isPlainObject(v)) {
     // A1: members ordered by their names as UTF-16 code units, which is how < compares strings.

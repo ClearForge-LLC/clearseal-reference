@@ -1,6 +1,6 @@
 // The canonicalizer's boundaries, from the CSR-WO-1000 stage-B adversarial pass:
-// - the nesting limit (F1): the same in both implementations, on the text path and the value path,
-//   and a refusal rather than a crash;
+// - the nesting rule (F1, ruled into A1 of version 1): 512 accepted, 513 refused, the same in both
+//   implementations, on the text path and the value path, and a refusal rather than a crash;
 // - the API boundary (F2, F3): only JSON-shaped values reach the hash.
 
 import assert from "node:assert/strict";

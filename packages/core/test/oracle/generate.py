@@ -73,6 +73,8 @@ json_case("A1-3", "A1", '{"9":1,"10":2,"a":3,"B":4}', 'Keys are strings, sorted 
 json_case("A1-4", "A1", '["\\u0000\\b\\t\\n\\f\\r\\u001f\\"\\\\\\/\\u007f\\u2028\\u00e9"]', "String escapes: the five short forms, \\u00XX in lower-case hex for other controls, quote and backslash escaped; solidus, U+007F, U+2028 and non-ASCII emitted raw as UTF-8.")
 json_case("A1-5", "A1", '{"a":1,"a":2}', "A duplicate key is refused: JCS requires I-JSON, which has none.")
 json_case("A1-6", "A1", "[true,false,null,{},[]]", "Literals and empty containers are emitted as given.")
+json_case("A1-7", "A1", "[" * 512 + "]" * 512, "512 arrays nested: the deepest accepted input.")
+json_case("A1-8", "A1", "[" * 513 + "]" * 513, "513 arrays nested: refused. Objects and arrays count together.")
 # A2
 json_case("A2-1", "A2", "1.0", '1.0 is the number one: "1".')
 json_case("A2-2", "A2", "1e21", "Refused: magnitude over 2^53-1 (every such double is integral, so this is the prior's integer bound). JCS's positive-exponent form is therefore unreachable.")
@@ -88,6 +90,8 @@ json_case("A2-11", "A2", "1E2", 'Exponent input, integral value: "100".')
 json_case("A2-12", "A2", "12.50", 'Trailing zeros are not significant: "12.5".')
 for i, special in enumerate(["NaN", "Infinity", "-Infinity"]):
     V.append({"id": "A2-%d" % (13 + i), "rule": "A2", "kind": "json-special", "input_special": special, "note": "Not a JSON value; a native value that reaches the canonicalizer is refused."})
+json_case("A2-16", "A2", "9007199254740991.4", "A literal is first rounded to the nearest double: this one is 2^53-1, accepted.")
+json_case("A2-17", "A2", "-1e-400", "Rounded to the nearest double this is negative zero: refused.")
 # A3
 json_case("A3-1", "A3", '"\\u00e9"', "Composed e-acute (NFC).")
 json_case("A3-2", "A3", '"e\\u0301"', "Decomposed e-acute (NFD): different bytes and a different hash from A3-1. No normalization.")
@@ -105,6 +109,7 @@ case("A4-5", "A4", "description", "one two ", "U+2028 is neither a line brea
 case("A4-6", "A4", "description", "  indented　", "Leading spaces and a trailing U+3000 are preserved.")
 case("A4-7", "A4", "description", "\n\n\n", "Only newlines: the empty string.")
 case("A4-8", "A4", "tool", with_(ECHO, description="Echo.  ", input_schema={"type": "object", "properties": {"text": {"type": "string", "description": "Text.  "}}}), "Only the top-level description is normalized: its trailing spaces go; the schema's inner description keeps them.")
+case("A4-9", "A4", "tool", with_(ECHO, description="\n\ufeffabc"), "The leading-U+FEFF rule applies to the description as given and after normalization: once the LF is removed, it begins with U+FEFF, so it is refused.")
 # A5
 for id, name, note in [
     ("A5-1", "echo", "Accepted."),
@@ -117,11 +122,11 @@ for id, name, note in [
     ("A5-8", "echo\n", "A trailing newline is refused: the pattern must match the whole string (an end anchor that also matches before a final newline is the trap)."),
 ]:
     case(id, "A5", "name", name, note)
+case("A5-9", "A5", "tool", with_(ECHO, capability_class="admin"), "capability_class, the other identifier (A5), outside the four rungs is refused.")
 # A6
 case("A6-1", "A6", "tool", ECHO, "The ten-field object, keys in JCS order; sha256 is tool_hash.")
 case("A6-2", "A6", "tool", with_(ECHO, title="Echo"), "A field outside the ten is refused, not dropped.")
 case("A6-3", "A6", "tool", with_(ECHO, elevated="false"), "A boolean field given a string is refused: no truthiness coercion.")
-case("A6-4", "A6", "tool", with_(ECHO, capability_class="admin"), "capability_class outside the four rungs is refused.")
 case("A6-5", "A6", "tool", with_(ECHO, elevated=True, untrusted_input_facing=True, privacy_sensitive=True, capability_class="state_change", containment_domain=["echo-sink"]), "Every boolean true and a containment domain: each field's value reaches the bytes.")
 # A7
 case("A7-1", "A7", "set", ["b", "a", "b", "B"], "Deduplicated, sorted by UTF-16 code units, case preserved.")

@@ -23,10 +23,9 @@ from decimal import Decimal
 
 CANONICAL_FORM_VERSION = 1
 MAX_MAGNITUDE = 2**53 - 1
-# Version 1 of the specification sets no depth. This is an implementation limit on every input,
-# text or value, counted in objects and arrays: beyond it the input is refused. Serialization
-# recurses a few frames per level, so the interpreter's recursion limit is raised far enough that
-# the limit, not the interpreter, decides.
+# A1: an input nested deeper than 512 objects and arrays, counted together, is refused, whether it
+# arrives as text or as a value. Serialization recurses a few frames per level, so the
+# interpreter's recursion limit is raised far enough that the rule, not the interpreter, decides.
 MAX_NESTING = 512
 sys.setrecursionlimit(max(sys.getrecursionlimit(), 10 * MAX_NESTING))
 
@@ -109,7 +108,7 @@ def _utf16_key(s):
 # A1: RFC 8785. Members sorted by their names as UTF-16 code units, arrays in order, no whitespace.
 def serialize(v, depth=0):
     if isinstance(v, (list, dict)) and depth >= MAX_NESTING:
-        raise Refused("A1", "nested deeper than the implementation limit")
+        raise Refused("A1", "nested deeper than 512")
     if v is None:
         return "null"
     if v is True:
