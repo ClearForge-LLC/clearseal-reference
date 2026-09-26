@@ -23,7 +23,7 @@ import {
 import type { CallContext, RegisteredTool, ToolRegistry, ToolResult } from "./registry.ts";
 import { argumentsDigest, openState, sealState, type StateBinding } from "./request-state.ts";
 import { ValidationTimeout } from "./schema-pool.ts";
-import { type Reach, RecordingCage } from "../containment/cage.ts";
+import { type Cage, type Reach, RecordingCage } from "../containment/cage.ts";
 import type { Principal } from "./verifier.ts";
 
 const PV = "io.modelcontextprotocol/protocolVersion";
@@ -306,8 +306,11 @@ async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, c
   });
   // Called as a plain function, never as a method: a handler's `this` is undefined, so it cannot
   // reach its RegisteredTool and build a cage dispatch does not own (CSR-WO-1006a, -1006 A5).
+  // Its cage is a frozen facade over dispatch's own: the four methods, bound, and nothing else, so no
+  // `ctx.cage.constructor` builds a cage with another domain and no audit hook (CSR-WO-1006a
+  // adversarial H6).
   const handler = tool.handler;
-  const running = Promise.resolve().then(() => Reflect.apply(handler, undefined, [args, { ...callCtx, signal }]));
+  const running = Promise.resolve().then(() => Reflect.apply(handler, undefined, [args, { ...callCtx, signal, cage: cageFacade(callCtx.cage) }]));
   ctx.trackHandler(running);
   // An undeclared reach fails the call even if the handler caught the refusal (N4: refused, never
   // logged-and-allowed). The audit seam gets the full reach; the response names only its kind.
@@ -396,3 +399,14 @@ function shapeResult(era: Era, binding: StateBinding, result: ToolResult, caps: 
 }
 
 export type { JsonValue };
+
+/** What a handler holds as its cage: a frozen plain object whose four methods call dispatch's own
+ *  cage. It has no constructor of its own and no path back to the cage object. */
+function cageFacade(cage: Cage): Cage {
+  return Object.freeze({
+    open: (path: string, mode?: string) => cage.open(path, mode),
+    connect: (host: string, port: number) => cage.connect(host, port),
+    service: (name: string) => cage.service(name),
+    reached: () => cage.reached(),
+  });
+}

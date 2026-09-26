@@ -483,7 +483,8 @@ export async function startTransport(options: TransportOptions): Promise<Running
   allowedOrigins = (config.allowedOrigins.length > 0 ? config.allowedOrigins : [`http://${authority}`, `http://localhost:${String(port)}`]).map((o) => o.toLowerCase());
   resourceUrl = config.resourceUrl !== "" ? config.resourceUrl : `http://${authority}${config.endpointPath}`;
 
-  return {
+  // Frozen, so `config` here stays the frozen config the node runs on (CSR-WO-1006a).
+  return Object.freeze({
     port,
     url: `http://${authority}${config.endpointPath}`,
     config,
@@ -495,5 +496,5 @@ export async function startTransport(options: TransportOptions): Promise<Running
       });
       await options.validationPool?.close();
     },
-  };
+  });
 }
