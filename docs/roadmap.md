@@ -151,14 +151,18 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   check, the principal handed downstream and carried on every audit row; an in-process test issuer;
   key-set caching, one refetch on an unknown key id, fail-closed on fetch failure, and a stated
   clock-skew constant, each with its negative test (`architecture.md` §5, *Key-set fetching*).
-- `CSR-WO-1003a` — (WO written 2026-09-26) auth corrections from the `-1003` review and red-team: an
+- `CSR-WO-1003a` — (built, merged `fcb415f` 2026-09-26) auth corrections from the `-1003` review and red-team: an
   issuer outage answers `503` with `Retry-After`; a token lifetime horizon; `typ` spellings and an
   optional strict mode; audit-line escaping of line separators and bidirectional controls; scoped
   private-CA trust; an audit line when audience and resource URL differ; JSON-RPC errors audited
   (`architecture.md` §5, *Token acceptance*).
-- `CSR-WO-1004` — (WO written 2026-09-26; owns the supply-boundary and P1 evidence clauses) the teaching edition's skeleton and its first tool (`read_only`), its manifest, and
+- `CSR-WO-1004` — (built, merged `bfeb418` 2026-09-26; owns the supply-boundary and P1 evidence clauses) the teaching edition's skeleton and its first tool (`read_only`), its manifest, and
   the supply-boundary test that fails if an edition exports anything other than tool definitions, a
   manifest, a deploy scaffold, or a registered implementation of a core interface.
+- `CSR-WO-1006` — (WO written 2026-09-26; **P1 exits after it**) core corrections from the `-1004`
+  adversarial pass: admitted tools deeply frozen so nothing in the process changes what `tools/list`
+  serves (N2); the cage opens without blocking and admits regular files only; the Windows cage
+  resolves symlinks and junctions, measured on `windows-latest`.
 - `CSR-WO-1005b` — era-dependent status mapping: legacy-era JSON-RPC errors at `200` with the
   error object (measured: the official SDK client drops the body at `400`); HTTP-level refusals
   and the modern era untouched; the official SDK returns only as a test-only dev dependency to
