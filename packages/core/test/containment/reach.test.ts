@@ -143,7 +143,7 @@ void describe("dispatch runs every handler inside a per-call cage (WO §1.6, §3
       assert.equal(r.status, 500);
       assert.deepEqual((r.json as { error: unknown }).error, { code: -32603, message: "The tool reached outside its containment domain (file system)" });
       assert.ok(!r.text.includes(OUTSIDE) && !r.text.includes("secret"), "the path never reaches the response");
-      assert.ok(audits.includes(`containment-refused {"tool":"null_reacher","kind":"fs","sink":"${OUTSIDE}"}`));
+      assert.ok(audits.includes(`containment-refused {"tool":"null_reacher","kind":"fs","sink":"${OUTSIDE}","principal":"test-principal"}`));
       assert.equal(s.status, 500, "a handler that swallows the refusal still fails the call (N4)");
     } finally {
       await t.close();

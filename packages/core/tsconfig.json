@@ -1,5 +1,15 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*.ts", "src/**/*.mts", "src/**/*.cts", "test/**/*.ts", "test/**/*.mts", "test/**/*.cts"],
-  "exclude": ["test/sdk-client/**"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.mts",
+    "src/**/*.cts",
+    "test/**/*.ts",
+    "test/**/*.mts",
+    "test/**/*.cts",
+    "dev/**/*.ts"
+  ],
+  "exclude": [
+    "test/sdk-client/**"
+  ]
 }

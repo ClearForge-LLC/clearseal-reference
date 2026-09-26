@@ -28,14 +28,16 @@ import { dispatch, type DispatchContext } from "./dispatch.ts";
 import { JsonParseError, parseJsonStrict } from "./json.ts";
 import { classify, INTERNAL_ERROR, INVALID_REQUEST, PARSE_ERROR, Refusal, type RequestId } from "./jsonrpc.ts";
 import { PinnedRegistry, PinRefusedError } from "../pinning/registry.ts";
-import { type Principal, RefuseAllVerifier, type Verdict, type Verifier } from "./verifier.ts";
+import type { Principal, Verdict, Verifier } from "./verifier.ts";
+import { JwtVerifier, jwtVerifierFromEnv } from "../auth/verifier.ts";
 
 export interface TransportOptions {
   config?: Parameters<typeof resolveConfig>[0];
   /** The pinned registry: the only registry the transport serves, built only from the pin gate's
    *  admission (CSR-WO-1001, N2). Anything else is refused at start. */
   registry: PinnedRegistry;
-  /** Defaults to RefuseAllVerifier: nothing dispatches until -1003 supplies a real one. */
+  /** Defaults to the JwtVerifier configured from AUTH_* (CSR-WO-1003); without that configuration,
+   *  and a configured resource URL, the transport refuses to start. */
   verifier?: Verifier;
   /** MRTR requestState key (CLEARSEAL_REQUEST_STATE_KEY). Without it, state is refused. */
   requestStateKey?: Uint8Array;
@@ -63,6 +65,14 @@ export interface RunningTransport {
 const JSON_TYPE = "application/json";
 const PRM_PATH = "/.well-known/oauth-protected-resource";
 
+/** An access token offered other than in the Authorization header: an `access_token` query
+ *  parameter, or a form-encoded body, which is the only body RFC 6750 carries one in. */
+function tokenElsewhere(target: string, contentTypes: readonly string[] | undefined): boolean {
+  const q = target.indexOf("?");
+  if (q !== -1 && new URLSearchParams(target.slice(q + 1)).has("access_token")) return true;
+  return (contentTypes ?? []).some((c) => /^\s*application\/x-www-form-urlencoded\b/i.test(c));
+}
+
 function send(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
   if (res.headersSent || res.destroyed) return;
   const text = body === undefined ? "" : JSON.stringify(body);
@@ -78,6 +88,27 @@ function send(res: ServerResponse, status: number, body: unknown, headers: Recor
 
 function refuse(res: ServerResponse, refusal: Refusal, id?: RequestId): void {
   send(res, refusal.status, refusal.body(id), { ...refusal.headers });
+}
+
+// Every HTTP-level refusal the transport sends writes exactly one audit line (CHECKS.md H1, red-team
+// F1): its one-word reason, and the principal once known. An event that already wrote its own line
+// (auth-refused, verifier-timeout, verifier-contract, transport-error) is marked and not written again.
+// JSON-RPC errors that dispatch returns for a well-formed request are not HTTP-level refusals here:
+// their status is the era's, and their audit events are dispatch's own.
+const REASONS = new WeakMap<Refusal, string>();
+const AUDITED = new WeakSet<Refusal>();
+
+/** A refusal with its one-word audit reason. */
+function refusal(status: number, code: number, message: string, reason: string, data?: unknown, headers: Record<string, string> = {}): Refusal {
+  const r = new Refusal(status, code, message, data, headers);
+  REASONS.set(r, reason);
+  return r;
+}
+
+/** A refusal whose event has already been audited under its own name. */
+function audited(r: Refusal): Refusal {
+  AUDITED.add(r);
+  return r;
 }
 
 /** Does the Accept header admit application/json (SH-7; narrower than the client MUST)? */
@@ -104,7 +135,7 @@ function readBody(req: IncomingMessage, max: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const declared = req.headers["content-length"];
     if (declared !== undefined && Number(declared) > max) {
-      reject(new Refusal(413, INVALID_REQUEST, `The request body exceeds ${String(max)} bytes`, undefined, { Connection: "close" }));
+      reject(refusal(413, INVALID_REQUEST, `The request body exceeds ${String(max)} bytes`, "body-too-large", undefined, { Connection: "close" }));
       return;
     }
     const chunks: Buffer[] = [];
@@ -114,7 +145,7 @@ function readBody(req: IncomingMessage, max: number): Promise<Buffer> {
       if (size > max) {
         req.off("data", onData);
         req.pause();
-        reject(new Refusal(413, INVALID_REQUEST, `The request body exceeds ${String(max)} bytes`, undefined, { Connection: "close" }));
+        reject(refusal(413, INVALID_REQUEST, `The request body exceeds ${String(max)} bytes`, "body-too-large", undefined, { Connection: "close" }));
         return;
       }
       chunks.push(chunk);
@@ -132,16 +163,16 @@ function parseBody(bytes: Buffer, limits: Limits): unknown {
   try {
     text = STRICT_UTF8.decode(bytes);
   } catch {
-    throw new Refusal(400, PARSE_ERROR, "Parse error: the body is not UTF-8");
+    throw refusal(400, PARSE_ERROR, "Parse error: the body is not UTF-8", "body-not-utf8");
   }
   try {
     return parseJsonStrict(text, limits.maxJsonDepth);
   } catch (err) {
     if (err instanceof JsonParseError) {
-      if (err.kind === "depth") throw new Refusal(400, INVALID_REQUEST, `The body is nested deeper than ${String(limits.maxJsonDepth)}`);
-      if (err.kind === "duplicate-key") throw new Refusal(400, PARSE_ERROR, "Parse error: duplicate object key");
-      if (err.kind === "lone-surrogate") throw new Refusal(400, PARSE_ERROR, "Parse error: lone surrogate escape");
-      throw new Refusal(400, PARSE_ERROR, "Parse error");
+      if (err.kind === "depth") throw refusal(400, INVALID_REQUEST, `The body is nested deeper than ${String(limits.maxJsonDepth)}`, "body-depth");
+      if (err.kind === "duplicate-key") throw refusal(400, PARSE_ERROR, "Parse error: duplicate object key", "duplicate-key");
+      if (err.kind === "lone-surrogate") throw refusal(400, PARSE_ERROR, "Parse error: lone surrogate escape", "lone-surrogate");
+      throw refusal(400, PARSE_ERROR, "Parse error", "parse-error");
     }
     throw err;
   }
@@ -161,7 +192,6 @@ export async function startTransport(options: TransportOptions): Promise<Running
     throw err;
   }
   const { limits } = config;
-  const verifier = options.verifier ?? new RefuseAllVerifier();
   const now = options.now ?? Date.now;
   const audit = options.audit ?? ((event, fields) => console.error(`[audit-seam] ${event} ${JSON.stringify(fields)}`));
 
@@ -182,6 +212,16 @@ export async function startTransport(options: TransportOptions): Promise<Running
     }
     audit("pin-non-strict", { admitted: pinning.admitted, refused: pinning.refused.length });
   }
+  let verifier: Verifier;
+  try {
+    verifier = options.verifier ?? jwtVerifierFromEnv();
+    // G1: with the core's verifier, the resource URL comes from configuration, never inferred.
+    if (verifier instanceof JwtVerifier && config.resourceUrl === "") throw new Error("the resource URL is not configured: the node does not start without it");
+  } catch (err) {
+    await options.validationPool?.close();
+    throw err;
+  }
+  const issuers: readonly string[] = verifier instanceof JwtVerifier ? [verifier.issuer] : config.authorizationServers;
   let inFlight = 0;
   // Filled once the port is known (port 0 binds an ephemeral one).
   let allowedHosts: string[] = [];
@@ -208,17 +248,26 @@ export async function startTransport(options: TransportOptions): Promise<Running
     }
     if (verdict === "timeout") {
       audit("verifier-timeout", { limitMs: limits.verifierTimeoutMs });
-      throw new Refusal(503, INTERNAL_ERROR, "Authentication is unavailable; retry later", undefined, { "Retry-After": "1" });
+      throw audited(new Refusal(503, INTERNAL_ERROR, "Authentication is unavailable; retry later", undefined, { "Retry-After": "1" }));
     }
     if (verdict.ok === true) {
       const id: unknown = (verdict.principal as Principal | undefined)?.id;
       if (typeof id === "string" && id !== "") return verdict.principal;
       audit("verifier-contract", { reason: "ok without a principal" });
-      throw new Refusal(500, INTERNAL_ERROR, "Internal error");
+      throw audited(new Refusal(500, INTERNAL_ERROR, "Internal error"));
     }
+    audit("auth-refused", { reason: verdict.reason ?? "refused" });
     const header = challenge();
     if (verdict.error !== undefined) header["WWW-Authenticate"] = `${header["WWW-Authenticate"] ?? ""}, error="${verdict.error}"`;
-    throw new Refusal(401, INVALID_REQUEST, "Unauthorized", undefined, header);
+    // RFC 6750: a malformed request is 400, a missing or failed token 401; both carry the challenge.
+    if (verdict.error === "invalid_request") throw audited(new Refusal(400, INVALID_REQUEST, "Bad Request", undefined, header));
+    throw audited(new Refusal(401, INVALID_REQUEST, "Unauthorized", undefined, header));
+  };
+
+  /** A refusal sent before the pipeline's try block: audited here, then sent with no body. */
+  const refuseEarly = (res: ServerResponse, status: number, reason: string, headers: Record<string, string> = {}): void => {
+    audit("http-refused", { status, reason });
+    send(res, status, undefined, headers);
   };
 
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -226,7 +275,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
     //    only origin-form ("/..."), so the Host check always sees the authority used (F9).
     const target = req.url ?? "";
     if (!target.startsWith("/")) {
-      send(res, 400, undefined);
+      refuseEarly(res, 400, "request-target");
       return;
     }
     const path = target.split("?", 1)[0] ?? "";
@@ -234,7 +283,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
     const isHealth = path === "/health";
     const isPrm = path === PRM_PATH || path === `${PRM_PATH}${config.endpointPath}`;
     if (!isEndpoint && !isHealth && !isPrm) {
-      send(res, 404, undefined);
+      refuseEarly(res, 404, "not-found");
       return;
     }
 
@@ -242,7 +291,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
     // On every route, /health and the metadata document included (F16).
     const hosts = req.headersDistinct.host ?? [];
     if (hosts.length !== 1) {
-      send(res, 400, undefined);
+      refuseEarly(res, 400, "host-count");
       return;
     }
     const origins = req.headersDistinct.origin;
@@ -251,22 +300,22 @@ export async function startTransport(options: TransportOptions): Promise<Running
 
     if (isHealth || isPrm) {
       if (req.method !== "GET") {
-        send(res, 405, undefined, { Allow: "GET" });
+        refuseEarly(res, 405, "method", { Allow: "GET" });
         return;
       }
       if (!hostOk || !originOk) {
-        send(res, 403, undefined);
+        refuseEarly(res, 403, hostOk ? "origin-not-allowed" : "host-not-allowed");
         return;
       }
       // The pinned counts only: the refused tools' names are in the start-up log, never here.
       if (isHealth) send(res, 200, { status: "ok", version: options.serverInfo.version, protocolVersions: [...SUPPORTED_VERSIONS], pinned: { admitted: pinning.admitted, refused: pinning.refused.length } });
-      else send(res, 200, { resource: resourceUrl, authorization_servers: [...config.authorizationServers], bearer_methods_supported: ["header"] });
+      else send(res, 200, { resource: resourceUrl, authorization_servers: [...issuers], bearer_methods_supported: ["header"], scopes_supported: [] });
       return;
     }
 
     // 2. method
     if (req.method !== "POST") {
-      send(res, 405, undefined, { Allow: "POST" });
+      refuseEarly(res, 405, "method", { Allow: "POST" });
       return;
     }
 
@@ -276,6 +325,8 @@ export async function startTransport(options: TransportOptions): Promise<Running
     let slotHeld = false;
     let responseClosed = false;
     let handlerSettled = true;
+    // Known once authenticated, so a transport-level error after that names the caller too.
+    let principalId: string | undefined;
     const release = (): void => {
       if (slotHeld && responseClosed && handlerSettled) {
         slotHeld = false;
@@ -290,30 +341,44 @@ export async function startTransport(options: TransportOptions): Promise<Running
 
     try {
       // 3. Host, Origin
-      if (!hostOk) throw new Refusal(403, INVALID_REQUEST, "Forbidden: Host is not allowed");
-      if (!originOk) throw new Refusal(403, INVALID_REQUEST, "Forbidden: Origin is not allowed");
+      if (!hostOk) throw refusal(403, INVALID_REQUEST, "Forbidden: Host is not allowed", "host-not-allowed");
+      if (!originOk) throw refusal(403, INVALID_REQUEST, "Forbidden: Origin is not allowed", "origin-not-allowed");
 
       // 4. auth: one Authorization header at most, then the verifier (F10).
-      if ((req.headersDistinct.authorization?.length ?? 0) > 1) throw new Refusal(400, INVALID_REQUEST, "Authorization is sent more than once");
+      if ((req.headersDistinct.authorization?.length ?? 0) > 1) throw refusal(400, INVALID_REQUEST, "Authorization is sent more than once", "duplicate-authorization");
+      // RFC 6750: the token travels in the header only here. One offered in the query or a form
+      // body as well is a second method, a malformed request, and it is never read.
+      if (tokenElsewhere(target, req.headersDistinct["content-type"])) {
+        audit("auth-refused", { reason: "token-elsewhere" });
+        throw audited(new Refusal(400, INVALID_REQUEST, "The access token is accepted in the Authorization header only", undefined, { "WWW-Authenticate": `${challenge()["WWW-Authenticate"] ?? ""}, error="invalid_request"` }));
+      }
       const principal = await authenticate(req);
+      principalId = principal.id;
 
       // 5. capacity
-      if (inFlight >= limits.maxInFlight) throw new Refusal(503, INTERNAL_ERROR, "The server is at capacity; retry later", undefined, { "Retry-After": "1" });
+      if (inFlight >= limits.maxInFlight) throw refusal(503, INTERNAL_ERROR, "The server is at capacity; retry later", "capacity", undefined, { "Retry-After": "1" });
       inFlight++;
       slotHeld = true;
       if (responseClosed) release();
 
       // 6. Accept, Content-Type, codings (F10, F11)
-      if (!acceptsJson(req.headers.accept)) throw new Refusal(406, INVALID_REQUEST, "Not Acceptable: this server responds with application/json");
+      if (!acceptsJson(req.headers.accept)) throw refusal(406, INVALID_REQUEST, "Not Acceptable: this server responds with application/json", "not-acceptable");
       const contentTypes = req.headersDistinct["content-type"] ?? [];
-      if (contentTypes.length !== 1 || !isJsonContentType(contentTypes[0])) throw new Refusal(415, INVALID_REQUEST, "Unsupported Media Type: send application/json");
+      if (contentTypes.length !== 1 || !isJsonContentType(contentTypes[0])) throw refusal(415, INVALID_REQUEST, "Unsupported Media Type: send application/json", "content-type");
       const coding = req.headers["content-encoding"];
-      if (coding !== undefined && coding.trim().toLowerCase() !== "identity") throw new Refusal(415, INVALID_REQUEST, "Unsupported Media Type: content codings are not accepted");
+      if (coding !== undefined && coding.trim().toLowerCase() !== "identity") throw refusal(415, INVALID_REQUEST, "Unsupported Media Type: content codings are not accepted", "content-coding");
       const te = req.headers["transfer-encoding"];
-      if (te !== undefined && te.trim().toLowerCase() !== "chunked") throw new Refusal(400, INVALID_REQUEST, "Only the chunked transfer coding is accepted", undefined, { Connection: "close" });
+      if (te !== undefined && te.trim().toLowerCase() !== "chunked") throw refusal(400, INVALID_REQUEST, "Only the chunked transfer coding is accepted", "transfer-coding", undefined, { Connection: "close" });
 
       // 7. body; 8. framing
-      const classified = classify(parseBody(await readBody(req, limits.maxBodyBytes), limits));
+      const parsed = parseBody(await readBody(req, limits.maxBodyBytes), limits);
+      let classified: ReturnType<typeof classify>;
+      try {
+        classified = classify(parsed);
+      } catch (err) {
+        if (err instanceof Refusal) REASONS.set(err, "framing");
+        throw err;
+      }
 
       // 9, 10: era, headers, dispatch
       const ctx: DispatchContext = {
@@ -326,7 +391,11 @@ export async function startTransport(options: TransportOptions): Promise<Running
         requestStateKey: options.requestStateKey,
         signal: aborter.signal,
         now,
-        audit,
+        // Every call-scoped event carries the caller (CSR-WO-1003 §1.7), including a containment
+        // refusal that fires after the handler has returned.
+        audit: (event, fields) => {
+          audit(event, { ...fields, principal: principal.id });
+        },
         trackHandler: (running) => {
           handlerSettled = false;
           const settled = (): void => {
@@ -341,9 +410,11 @@ export async function startTransport(options: TransportOptions): Promise<Running
       else if (outcome.kind === "refused") refuse(res, outcome.refusal, outcome.id);
       else send(res, 200, outcome.body);
     } catch (err) {
-      if (err instanceof Refusal) refuse(res, err);
-      else {
-        audit("transport-error", { reason: err instanceof Error ? err.name : "unknown" });
+      if (err instanceof Refusal) {
+        if (!AUDITED.has(err)) audit("http-refused", { status: err.status, reason: REASONS.get(err) ?? "refused", ...(principalId === undefined ? {} : { principal: principalId }) });
+        refuse(res, err);
+      } else {
+        audit("transport-error", { reason: err instanceof Error ? err.name : "unknown", ...(principalId === undefined ? {} : { principal: principalId }) });
         refuse(res, new Refusal(500, INTERNAL_ERROR, "Internal error"));
       }
     }
@@ -351,6 +422,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
 
   const server: Server = createServer({ requestTimeout: limits.requestTimeoutMs }, (req, res) => {
     handle(req, res).catch(() => {
+      audit("transport-error", { reason: "unhandled" });
       if (!res.headersSent) send(res, 500, undefined);
     });
   });

@@ -41,6 +41,30 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     `EXEC_TOOLS_FORBIDDEN` is on, which is the default.
   - `tools/call` runs every handler inside a per-call cage and refuses an undeclared reach.
   - A reusable reach harness for editions.
+- **CSR-WO-1003:** the resource server's token verifier, AS-agnostic.
+  - `packages/core/src/auth/CHECKS.md` lists every check, from RFC 8725, RFC 6750, RFC 9728 and
+    the MCP authorization page, each with its negative test.
+  - `JwtVerifier` is configured by `AUTH_ISSUER`, `AUTH_JWKS_URL` and `AUTH_AUDIENCE`, and the
+    node refuses to start without them. It verifies ES256, EdDSA and RS256 with `node:crypto`
+    only; no JOSE library is a runtime dependency. `none` and HMAC are refused before any key is
+    looked up. `aud` is one audience, string-equal. The skew is a stated constant. The principal's
+    id is the token's `sub`.
+  - The key-set client is HTTPS only, cached for a TTL, refetches once per window on an unknown
+    `kid`, serves a valid cache when the issuer is down and refuses with a cold one. It is capped at
+    64 KiB and 32 keys, with a 3 s timeout.
+  - Every `401` names the RFC 9728 metadata document. A failed token adds `error=invalid_token`;
+    the reason goes to the audit seam only. A token offered in the query or a form body as well is
+    `400 invalid_request`. The resource URL must be configured.
+  - The principal's id is on every call-scoped audit line, including a containment refusal that
+    fires after the handler returned.
+  - An in-process HTTPS test issuer keeps the suite off the network. A dev harness
+    (`packages/core/dev/oidc`, not for deployment) runs one end-to-end call against
+    node-oidc-provider, a dev dependency pinned exactly.
+  - `RefuseAllVerifier` is removed.
+  - From the external red team: every HTTP-level refusal the transport sends writes exactly one
+    audit line with a one-word reason and the principal once known. An RSA key is used only with an
+    odd exponent of at least 65537 and a 2048 to 8192 bit modulus, which closes an e = 1 forgery.
+    Token and key-set bytes decode as strict UTF-8.
 - **CSR-WO-1001:** the pin gate. A node serves a tool only when its hash matches the approved
   manifest.
   - The manifest format and schema carry `build` slots, present but not enforced.

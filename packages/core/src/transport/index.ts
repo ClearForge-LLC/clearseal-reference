@@ -10,5 +10,4 @@ export { ValidationPool, ValidationTimeout } from "./schema-pool.ts";
 export type { ValidationPoolOptions } from "./schema-pool.ts";
 export { startTransport } from "./server.ts";
 export type { RunningTransport, TransportOptions } from "./server.ts";
-export { RefuseAllVerifier } from "./verifier.ts";
 export type { Principal, Verdict, Verifier } from "./verifier.ts";
