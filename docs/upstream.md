@@ -71,4 +71,10 @@ resolved entry gets its resolution appended.
     parentheticals before reading; the next version should keep identifiers out of asides in any
     sentence that enumerates. *Evidence:* `-1001` FEEDBACK; `packages/core/test/pinning/spec-check.test.ts`.
     *Status:* open, wording only.
-
+12. **§3 calls `containment_domain` a sink set but gives no sink grammar.** Two conforming
+    implementations can pin the same intent as different strings, so a manifest hash would differ
+    across them. The reference proposes three schemes — `fs:<absolute root>`, `host:<name>[:port]`,
+    `svc:<name>` — canonical, lower-case hosts matched by name never address, refused rather than
+    repaired when malformed; the next version should name a grammar, this one or another.
+    *Evidence:* `packages/core/src/containment/domain.ts`; `architecture.md` §5, *Containment matching*.
+    *Status:* open, proposal.
