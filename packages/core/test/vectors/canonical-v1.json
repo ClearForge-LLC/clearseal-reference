@@ -63,7 +63,7 @@
       "kind": "json",
       "input_json_text": "{\"a\":1,\"a\":2}",
       "expect": "refuse",
-      "note": "A duplicate key is refused: JCS assumes I-JSON, which has none."
+      "note": "A duplicate key is refused: JCS requires I-JSON, which has none."
     },
     {
       "id": "A1-6",

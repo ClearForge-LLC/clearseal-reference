@@ -25,6 +25,11 @@ jobs:
       - run: node --version
       - run: npm ci
       - run: npm run check
+      # CSR-WO-1000: the canonical-form vectors are written only by the Python oracle. Regenerate
+      # them and fail on any difference from the committed file. This runs on Linux, where the
+      # checkout keeps the file's line endings as committed.
+      - if: runner.os == 'Linux'
+        run: python3 packages/core/test/oracle/generate.py && git diff --exit-code -- packages/core/test/vectors/canonical-v1.json
 
   leak-gate:
     runs-on: ubuntu-latest
