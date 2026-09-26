@@ -184,6 +184,14 @@ and all three are named below.
 | A15 | A nonsense port was allowed on a portless entry | low | **Fixed:** 1 to 65535, integers only. Tested |
 | A16 | Semantics, stated for the architect | info | See below |
 
+### Architect review finding R-1 (fixed in a fix-up commit)
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| R-1 | **A write-mode open through a leaf swapped between check and open mutated a file outside the root.** The post-open descriptor check (A3) refused the handle, but in `w` or `a` mode the open had already created or truncated the file. My A3 test used a read, where nothing is mutated, so it passed. The architect reproduced the defect: a swap of `root/f.txt` for a link to `outside/victim.txt`, then an open with `w`, left the victim truncated to `""` | **high** | **Fixed:** on POSIX the open now carries numeric flags from the mode string OR'd with `O_NOFOLLOW`, so the kernel refuses a symlink leaf atomically, inside the open. An unknown mode is refused. The `lstat` pre-check and the `/proc/self/fd` post-check stay as further layers. **Red-proof:** a swap-then-open in `w` and in `a` leaves the outside victim byte-identical and the call refused; with `O_NOFOLLOW` removed, the test fails with "mode w: the victim is byte-identical" |
+
+**The limit, stated in `open()`'s docstring.** `O_NOFOLLOW` covers the final path component only. An intermediate directory swapped for a symlink between the check and the open is **not** closed in-process: the open follows it, and in a write mode a file outside the root can be created or truncated before the post-open check refuses the handle. Closing that needs an open resolved beneath a directory (`openat2` with `RESOLVE_BENEATH`), which Node does not expose. That is the edition OS cage's job. On Windows none of the POSIX layers apply.
+
 ### Rules and semantics stated (WO §5 item 3, adversarial A16)
 
 - **Names, never addresses.** The cage matches the declared host string, lower-cased. A connect by

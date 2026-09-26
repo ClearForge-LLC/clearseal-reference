@@ -3,7 +3,7 @@
 // named service. The core defines the interface and ships one implementation, RecordingCage;
 // editions implement Cage with OS primitives and must pass the same reach harness.
 
-import { lstatSync, realpathSync } from "node:fs";
+import { constants, lstatSync, realpathSync } from "node:fs";
 import { open as openFile, type FileHandle } from "node:fs/promises";
 import { connect as netConnect, type Socket } from "node:net";
 import { posix } from "node:path";
@@ -47,13 +47,36 @@ export interface Cage {
 
 /** What a reach does once allowed. The defaults are Node's own; tests and editions supply others. */
 export interface CageEffects {
-  open(path: string, mode: string): Promise<FileHandle>;
+  /** `flags` are numeric open(2) flags; on POSIX they include O_NOFOLLOW. */
+  open(path: string, flags: number): Promise<FileHandle>;
   connect(host: string, port: number): Promise<Socket>;
   service(name: string): Promise<unknown>;
 }
 
+/** The numeric open(2) flags for a mode string; undefined for a mode this cage does not know. On
+ *  POSIX, O_NOFOLLOW is added, so the kernel refuses a symlink in the final path component inside
+ *  the open itself, atomically. */
+function flagsFor(mode: string): number | undefined {
+  const { O_RDONLY, O_WRONLY, O_RDWR, O_CREAT, O_TRUNC, O_APPEND, O_EXCL } = constants;
+  const table: Readonly<Record<string, number>> = {
+    r: O_RDONLY,
+    "r+": O_RDWR,
+    w: O_WRONLY | O_CREAT | O_TRUNC,
+    "w+": O_RDWR | O_CREAT | O_TRUNC,
+    wx: O_WRONLY | O_CREAT | O_TRUNC | O_EXCL,
+    "wx+": O_RDWR | O_CREAT | O_TRUNC | O_EXCL,
+    a: O_WRONLY | O_CREAT | O_APPEND,
+    "a+": O_RDWR | O_CREAT | O_APPEND,
+    ax: O_WRONLY | O_CREAT | O_APPEND | O_EXCL,
+    "ax+": O_RDWR | O_CREAT | O_APPEND | O_EXCL,
+  };
+  const flags = table[mode];
+  if (flags === undefined) return undefined;
+  return process.platform === "win32" ? flags : flags | constants.O_NOFOLLOW;
+}
+
 const DEFAULT_EFFECTS: CageEffects = {
-  open: (path, mode) => openFile(path, mode),
+  open: (path, flags) => openFile(path, flags),
   connect: (host, port) =>
     new Promise((resolve, reject) => {
       const socket = netConnect({ host, port });
@@ -128,9 +151,23 @@ export class RecordingCage implements Cage {
     return this.#realRoots.some((root) => within(real, root));
   }
 
-  /** The path is checked before the open, and the opened file is checked after it: a symlink leaf is
-   *  refused outright (a dangling one would be created outside the root on write), and the real path
-   *  of the open descriptor must lie under a root, so a swap between check and open is refused too. */
+  /**
+   * Three layers, and one limit.
+   * - Before the open: a symlink leaf is refused (lstat), and the path's real path must lie under a
+   *   root's real path.
+   * - The open itself: on POSIX it carries O_NOFOLLOW, so a symlink swapped into the final path
+   *   component between the check and the open is refused by the kernel, atomically. Nothing is
+   *   created or truncated through it.
+   * - After the open (Linux): the descriptor's real path must lie under a root, or the file is
+   *   closed and the reach refused.
+   *
+   * The limit, stated plainly: O_NOFOLLOW covers the final component only. If an intermediate
+   * directory is swapped for a symlink between the check and the open, the open follows it. In a
+   * write mode, a file outside the root can then be created or truncated before the post-open check
+   * refuses the handle. Closing that needs an open resolved beneath a directory (openat2 with
+   * RESOLVE_BENEATH), which Node does not expose. It is the edition's OS-level Cage's job, not this
+   * in-process one's. On Windows none of the POSIX layers apply, and the OS cage is the boundary.
+   */
   async open(path: string, mode = "r"): Promise<FileHandle> {
     const normalized = posix.isAbsolute(path) && !path.includes("\\") && !/^[a-zA-Z]:/.test(path) ? posix.normalize(path) : undefined;
     let leafIsLink = false;
@@ -141,9 +178,10 @@ export class RecordingCage implements Cage {
         // Nothing there yet: no link to follow.
       }
     }
-    const allowed = normalized !== undefined && !leafIsLink && this.#inside(resolveReal(normalized));
+    const flags = flagsFor(mode);
+    const allowed = normalized !== undefined && flags !== undefined && !leafIsLink && this.#inside(resolveReal(normalized));
     this.#record({ kind: "fs", sink: path, mode, allowed });
-    const handle = await this.#effects.open(normalized ?? path, mode);
+    const handle = await this.#effects.open(normalized ?? path, flags ?? constants.O_RDONLY);
     if (process.platform === "linux" && typeof handle.fd === "number") {
       let real: string | undefined;
       try {

@@ -52,6 +52,27 @@ void describe("the cage (A2, A3, A13, A15)", () => {
     await assert.rejects(cage([`fs:${IN}`], swapping).open(`${IN}/ok.txt`), ContainmentRefusal);
   });
 
+  void it("R-1: a symlink swapped into the leaf between check and open cannot create or truncate a file outside the root (O_NOFOLLOW)", async () => {
+    if (!POSIX) return;
+    const victim = `${ROOT}/out/victim.txt`;
+    for (const mode of ["w", "a"]) {
+      writeFileSync(victim, "VICTIM-CONTENT");
+      const leaf = `${IN}/swap-${mode}.txt`;
+      writeFileSync(leaf, "inside");
+      // The check sees an ordinary file; the effect swaps it for a link to the victim, then opens.
+      const swapping: CageEffects = {
+        ...effects,
+        open: (p, flags) => {
+          rmSync(p);
+          symlinkSync(victim, p);
+          return openFile(p, flags);
+        },
+      };
+      await assert.rejects(cage([`fs:${IN}`], swapping).open(leaf, mode), (e: unknown) => e instanceof Error, mode);
+      assert.equal(fs.readFileSync(victim, "utf8"), "VICTIM-CONTENT", `mode ${mode}: the victim is byte-identical`);
+    }
+  });
+
   void it("A13: a path with a backslash or a drive prefix is refused", async () => {
     await assert.rejects(cage([`fs:${IN}`]).open(`${IN}/..\\..\\out\\secret.txt`), ContainmentRefusal);
     await assert.rejects(cage([`fs:${IN}`]).open("C:/Windows/win.ini"), ContainmentRefusal);
