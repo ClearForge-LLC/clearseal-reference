@@ -242,7 +242,9 @@ function build(dir) {
     const cwd = path.join(dir, pkg);
     fs.rmSync(path.join(cwd, "dist"), { recursive: true, force: true });
     const r = spawnSync(process.execPath, [TSC, "-p", "tsconfig.build.json"], { cwd, encoding: "utf8" });
-    if (r.status !== 0) return `the build of ${pkg} failed: ${`${r.stdout}${r.stderr}`.split("\n").slice(0, 3).join(" ")}`;
+    // tsc's own "file(l,c): error TSnnnn" form is reworded, so a CI problem matcher does not turn a
+    // red-proof's expected build failure into an error annotation on a green run.
+    if (r.status !== 0) return `the build of ${pkg} failed: ${`${r.stdout}${r.stderr}`.split("\n").slice(0, 3).join(" ").replace(/: error (TS\d+)/g, ": $1")}`;
   }
   return undefined;
 }
