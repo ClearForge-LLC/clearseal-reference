@@ -21,4 +21,6 @@ DEV_OIDC_CLIENT_SECRET=... node packages/core/dev/oidc/harness.ts --serve  # sta
 ```
 
 In `--serve` mode it prints the two loopback URLs and the path of the provider's public certificate
-(for `curl --cacert`), and runs until interrupted. Nothing binds anything but `127.0.0.1`.
+(for `curl --cacert`), and runs until interrupted. `kill -USR1 <pid>` takes the authorization
+server down and back up; with `AUTH_JWKS_TTL_S=30` the node's key-set cache expires quickly enough
+to see the outage answer (`503` with `Retry-After`). Nothing binds anything but `127.0.0.1`.

@@ -36,7 +36,11 @@ export interface JwksOptions {
 
 /** Every key served under the kid, in the order served: RFC 7517 lets one kid name keys of
  *  different types, and the verifier tries the ones that fit the token's alg. */
-export type KeyLookup = { ok: true; jwks: readonly Jwk[] } | { ok: false; reason: "unknown-kid" | "jwks-unavailable" };
+export type KeyLookup =
+  | { ok: true; jwks: readonly Jwk[] }
+  | { ok: false; reason: "unknown-kid" }
+  /** The key set cannot be had now; `retryAfterMs` is what remains of the failure cooldown. */
+  | { ok: false; reason: "jwks-unavailable"; retryAfterMs: number };
 
 /** GET over HTTPS, capped, with a deadline on the whole exchange (not only on idle time, which a
  *  server dripping one byte a second would never trip); resolves the body text or rejects. */
@@ -93,6 +97,8 @@ export class JwksClient {
   #keys: ReadonlyMap<string, readonly Jwk[]> | undefined;
   #fetchedAt = Number.NEGATIVE_INFINITY;
   #failedAt = Number.NEGATIVE_INFINITY;
+  /** Fetches that succeeded: how a caller tells whether its refresh landed. */
+  #landed = 0;
   #lastUnknownRefetch = Number.NEGATIVE_INFINITY;
   #inflight: Promise<void> | undefined;
   /** How many fetches were made, for tests and the operator. */
@@ -126,6 +132,12 @@ export class JwksClient {
     return this.#keys !== undefined && this.#within(this.#fetchedAt);
   }
 
+  /** What remains of the cooldown after the last failure; the whole cooldown when none is running. */
+  #cooldownLeft(): number {
+    const left = JWKS_FAILURE_COOLDOWN_MS - (this.#now() - this.#failedAt);
+    return this.#within(this.#failedAt, JWKS_FAILURE_COOLDOWN_MS) ? left : JWKS_FAILURE_COOLDOWN_MS;
+  }
+
   /** One fetch at a time, and none inside the cooldown after a failure; a failure leaves the cache
    *  as it was. */
   #refresh(): Promise<void> {
@@ -147,6 +159,7 @@ export class JwksClient {
         }
         this.#keys = keys;
         this.#fetchedAt = this.#now();
+        this.#landed++;
       } catch (err) {
         if (!(err instanceof Error) && !(err instanceof JsonParseError)) throw err;
         // A failure is not fatal here; the caller decides from what the cache holds.
@@ -161,12 +174,21 @@ export class JwksClient {
   /** The key for a kid, by the J2–J4 rules. */
   async key(kid: string): Promise<KeyLookup> {
     if (!this.#valid()) await this.#refresh();
-    if (!this.#valid()) return { ok: false, reason: "jwks-unavailable" };
+    if (!this.#valid()) return { ok: false, reason: "jwks-unavailable", retryAfterMs: this.#cooldownLeft() };
     // Map.get, never an object lookup: a kid of __proto__ or constructor names nothing.
     let jwks = this.#keys?.get(kid);
     if (jwks === undefined && !this.#within(this.#lastUnknownRefetch)) {
+      const previous = this.#lastUnknownRefetch;
+      const landedBefore = this.#landed;
       this.#lastUnknownRefetch = this.#now();
       await this.#refresh();
+      // The refetch did not land (the issuer is down, or inside the cooldown): the kid may be a
+      // genuine new key, so this is an outage, not a verdict on the token, and the window is not
+      // spent on a fetch that never happened (adversarial A1).
+      if (this.#landed === landedBefore) {
+        this.#lastUnknownRefetch = previous;
+        return { ok: false, reason: "jwks-unavailable", retryAfterMs: this.#cooldownLeft() };
+      }
       jwks = this.#valid() ? this.#keys?.get(kid) : undefined;
     }
     return jwks === undefined ? { ok: false, reason: "unknown-kid" } : { ok: true, jwks };

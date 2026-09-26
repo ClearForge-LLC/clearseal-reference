@@ -9,8 +9,13 @@ export interface Principal {
   readonly id: string;
 }
 
-/** A refusal's `reason` is one word for the audit seam; it never reaches the client. */
-export type Verdict = { ok: true; principal: Principal } | { ok: false; error?: "invalid_request" | "invalid_token" | "insufficient_scope"; reason?: string };
+/** A refusal's `reason` is one word for the audit seam; it never reaches the client.
+ *  `unavailable` says the verifier could not judge the token at all (its issuer's key set is
+ *  unreachable): the transport answers 503 with Retry-After, so a correct client keeps its token
+ *  (CSR-WO-1003a §1.1). It is the verdict's field, never inferred from `reason`. */
+export type Verdict =
+  | { ok: true; principal: Principal }
+  | { ok: false; error?: "invalid_request" | "invalid_token" | "insufficient_scope"; reason?: string; unavailable?: { readonly retryAfterS: number } };
 
 export interface Verifier {
   verify(headers: IncomingHttpHeaders): Promise<Verdict>;

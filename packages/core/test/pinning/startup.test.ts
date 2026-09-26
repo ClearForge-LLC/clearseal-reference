@@ -128,7 +128,8 @@ void describe("WO §1.4, §3.3 strict vs non-strict", () => {
       assert.equal(call.status, 400);
       assert.deepEqual((call.json as { error: { code: number; message: string } }).error, { code: -32602, message: 'The tool "echo" is refused by the pin gate' });
       assert.deepEqual((health.json as { pinned: unknown }).pinned, { admitted: definitions.length - 1, refused: 1 });
-      assert.deepEqual(audits, ['pin-refused {"tool":"echo","reason":"drifted"}', `pin-non-strict {"admitted":${String(definitions.length - 1)},"refused":1}`]);
+      // The refused call writes its rpc-refused line (CSR-WO-1003a §1.7).
+      assert.deepEqual(audits, ['pin-refused {"tool":"echo","reason":"drifted"}', `pin-non-strict {"admitted":${String(definitions.length - 1)},"refused":1}`, 'rpc-refused {"code":-32602,"method":"tools/call","principal":"test-principal"}']);
       const unknown = await modern(t, "tools/call", { name: "nope", arguments: {} });
       assert.equal((unknown.json as { error: { message: string } }).error.message, "Unknown tool", "a name the gate never saw is not echoed");
     } finally {

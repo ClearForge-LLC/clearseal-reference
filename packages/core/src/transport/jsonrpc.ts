@@ -33,6 +33,16 @@ export interface JsonRpcErrorBody {
 
 /** A refusal: the HTTP status and the JSON-RPC error that go back. `id` is omitted when the
  *  request's id could not be read (BI-4). */
+/** Refusals whose event has already been audited under its own name (auth-refused, handler-error,
+ *  containment-refused and the rest), so the transport writes no second line for them. */
+export const AUDITED_REFUSALS = new WeakSet<Refusal>();
+
+/** Marks a refusal as audited, and returns it. */
+export function audited(r: Refusal): Refusal {
+  AUDITED_REFUSALS.add(r);
+  return r;
+}
+
 export class Refusal extends Error {
   override name = "Refusal";
   readonly status: number;
