@@ -65,4 +65,10 @@ resolved entry gets its resolution appended.
     second: *admins are not exempt from required checks* — `enforce_admins` on, from the first
     protection rule. *Evidence:* `architecture.md` §10, 2026-09-26. *Status:* both applied here;
     SoP line pending in the skills repository.
+11. **§3's field list names a capability class inside a parenthetical.** The standard's pinned-field
+    sentence at `66b640d` puts `owned_state` in backticks inside an aside, so a naive parser counts
+    eleven fields where the standard's own heading says ten. The reference's detector strips
+    parentheticals before reading; the next version should keep identifiers out of asides in any
+    sentence that enumerates. *Evidence:* `-1001` FEEDBACK; `packages/core/test/pinning/spec-check.test.ts`.
+    *Status:* open, wording only.
 

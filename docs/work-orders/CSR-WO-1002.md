@@ -51,7 +51,10 @@ row *A prompt-injected model*; §8 rows *`containment_domain` as a sink set* and
    sanctioned route to files, network and services — the fixture tools and the first shipped tool
    (`-1004`) use it. This WO does not and cannot stop a handler from calling `fs` directly; the
    reach harness (§1.5) is what catches that, and the edition's OS cage is what stops it.
-4. **N7 at construction.** The registry refuses, at construction, a definition whose
+4. **N7 at construction.** The construction hook is `-1001`'s `Admission → PinnedRegistry`
+   path: the domain is parsed from the **frozen** admitted definition (the copy the gate hashed),
+   never from a live object, and the cage for each call is built from that same frozen copy. The
+   registry refuses, at construction, a definition whose
    `capability_class` is `arbitrary_exec` and whose `containment_domain` is non-null — a shell
    cannot be caged by a list, and the reference ships no exec tool at all; it also refuses any
    `arbitrary_exec` definition outright under a flag that is on by default (`EXEC_TOOLS_FORBIDDEN`,
