@@ -1,343 +1,323 @@
-# FEEDBACK: CSR-WO-1004 (the teaching edition's skeleton, its first tool, its manifest, and the supply-boundary test)
+# FEEDBACK: CSR-WO-1006 (frozen admitted tools, regular files only, a Windows cage that resolves links)
 
-Branch `wo/CSR-WO-1004`, cut from `main` at `fcb415f`, one commit. Parked as one unmerged pull
-request. Built on Node v24.21.0. **This WO carries the P1 exit gate.**
+Branch `wo/CSR-WO-1006`, cut from `main` at `9761796` (the docs commit after `-1004`'s merge at
+`bfeb418`). Parked as one unmerged pull request. Built on Node v24.21.0. **P1 exits only after this
+merges.**
 
-## Read this first: the Windows measurement (WO §1.3)
+## Read this first
 
-`windows-latest`, measured by CI on this branch (`notes.test.ts`, the `WINDOWS-MEASURE` lines):
+- **The three items are built, each with red-proofs, and CI is green on both runners.** Admitted
+  tools are frozen. The cage refuses any non-regular file without waiting. On Windows the cage
+  resolves links, measured first on `windows-latest`. The `-1004` Windows known-limit test now
+  asserts the refusal.
+- **Scope amendment (architect's ruling, recorded as such): A1 and D-1 are fixed in `transport/`.**
+  The adversary found a second N2 route (A1). `transport/server.ts` checked `PinnedRegistry.isGenuine`
+  once at start (line 217). It then passed `options.registry`, `options.serverInfo` and
+  `options.requestStateKey`, re-read from the caller's options object, into every request's
+  dispatch. So code still holding that object could swap in a forged registry after start: the
+  forged description was served, and a call ran a forged handler with a forged `validate`. By
+  rewriting the key buffer's bytes, it could also forge MRTR state the node would trust. `transport/**`
+  was protected in this WO, so the first cut flagged it (§7) and asserted it as a known limit.
+  The architect confirmed A1 and amended the scope **for one commit only**: `transport/server.ts` and
+  `dispatch.ts` may change, and only (1) so that `startTransport` captures once at start the
+  registry value it checked, a private copy of `requestStateKey` (copied bytes, not the caller's
+  buffer) and a frozen copy of `serverInfo`, with the request path reading only those; and (2) so
+  that the `containment-refused` audit line also carries `fileType` when the reach names one (D-1).
+  **The reason:** N2 is "nothing inside the process can change what `tools/list` serves after
+  admission", and a frozen tool looked up in a replaceable registry does not meet it. The known-limit
+  test flipped to asserting that nothing changes; see *§A1 after the amendment*. Nothing else in
+  `transport/**` changed. `startTransport` still reads `options.validationPool` at `close()`, which
+  decides which pool is closed but nothing served or trusted, and which the ruling excluded.
+- **Found and fixed in the working surface: A9.** Before this WO, a link inside a root into a
+  directory whose real path is longer than `PATH_MAX` made `resolveReal` judge an ancestor
+  instead. A `w` open then truncated the outside file before the Linux post-open check refused
+  it. Now a resolution that fails for any reason but absence matches no root.
 
-```
-WINDOWS-MEASURE platform=win32 root=/tmp/clearseal-teaching-01c6d3d8c265/notes read today.md: 200 text returned
-WINDOWS-MEASURE platform=win32 refused names: "../outside.md" → 400; "/tmp/…/no → 400; "/etc/passwd" → 400; "a\u0000.md" → 400; "..\\outside.md" → 400; "aaaa…(65).md" → 400; "today" → 400; ".hidden.md" → 400; "TODAY.md" → 400; 5 → 400
-WINDOWS-MEASURE platform=win32 planted symlink read: 200 {"result":{"content":[{"type":"text","text":"SECRET OUTSIDE THE ROOT\n"}] …
-```
+## §3.2 Admitted tools are immutable: the mutation attempts, then `tools/list` again
 
-- **What runs honestly on Windows:** the notes root is a POSIX-style path (`/tmp/…`), which Windows
-  maps to a directory on the current drive, so the `fs:` grammar (POSIX-only, upstream entry 13)
-  can declare it without widening. `notes.read` reads a note there, and every hostile name is
-  refused by the pinned schema before the handler runs, exactly as on Linux. The P1 evidence test
-  passes there in full.
-- **What does not hold on Windows, measured:** the runner could create a symlink, and **a link
-  planted in the notes root let `notes.read` return a file outside the root** (`200`, the outside
-  text). On Linux the same case is refused by the cage (`500`, a `containment-refused` line). This
-  is the core's in-process cage's stated Windows limit (architecture §5 *Containment matching*: it
-  compares paths lexically there and resolves no links; the edition's OS cage is the boundary). The
-  test asserts the refusal on POSIX, where the cage makes the claim, and on Windows asserts the known
-  outcome as measured, so a change in it is seen (adversarial A12).
-- **Decision (mine, for the architect to confirm or overrule):** the file tests run on Windows, with
-  the link case measured and recorded rather than asserted. I did not flag-and-stop, because the
-  reads and refusals run honestly there; but **a teaching node run on Windows with the core's cage
-  is not contained against a link someone with write access puts in its notes root.** See
-  *Decision-needed*.
-
-## §3.4 `curl -i` against a started teaching node
-
-A node started by the edition's `start()` from the environment alone (`TEACHING_*`, `AUTH_*`), with
-the core's in-process test issuer on loopback HTTPS trusted through `AUTH_JWKS_CA_FILE`. Tokens elided.
-
-```
-$ curl -i -X POST http://127.0.0.1:<port>/mcp   # no Authorization
-HTTP/1.1 401 Unauthorized
-Content-Type: application/json
-Content-Length: 66
-Cache-Control: no-store
-X-Content-Type-Options: nosniff
-WWW-Authenticate: Bearer resource_metadata="https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp"
-
-{"jsonrpc":"2.0","error":{"code":-32600,"message":"Unauthorized"}}
-
-$ curl -i -X POST http://127.0.0.1:<port>/mcp -H "Authorization: Bearer <token, aud another.example.invalid>"
-HTTP/1.1 401 Unauthorized
-Content-Type: application/json
-Content-Length: 66
-Cache-Control: no-store
-X-Content-Type-Options: nosniff
-WWW-Authenticate: Bearer resource_metadata="https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp", error="invalid_token"
-
-{"jsonrpc":"2.0","error":{"code":-32600,"message":"Unauthorized"}}
-
-$ curl -i -X POST http://127.0.0.1:<port>/mcp -H "Authorization: Bearer <valid token>"   # notes.read today.md
-HTTP/1.1 200 OK
-Content-Type: application/json
-Content-Length: 212
-Cache-Control: no-store
-X-Content-Type-Options: nosniff
-
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Water the plants.\n"}],"resultType":"complete","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"@clearseal/teaching","version":"0.0.0"}}}}
-```
-
-The audit seam for the same run: `auth-refused {"reason":"missing"}`, `auth-refused {"reason":"aud"}`.
-
-## §3.3 The P1 exit gate, as one test (`packages/teaching/test/p1-exit.test.ts`)
-
-Every clause of the roadmap's P1 exit gate, each naming its sentence. The node clauses run against a
-real teaching node started by the edition's scaffold; the core-property clauses run the core's own
-suites, each of which carries its red case.
+`packages/core/test/pinning/frozen.test.ts`, on a started node. Every attempt goes through a value
+`list()` or `get()` returned, or a value the caller kept. `tools/list` is then asked again with the
+identical request, and the two bodies are compared byte for byte:
 
 ```
-EXIT | unauthenticated returns 401 with resource_metadata | 401 WWW-Authenticate: Bearer resource_metadata="https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp"
-EXIT | a token with a different audience also returns 401 | 401 error="invalid_token"
-EXIT | N4: a failed signature refuses | 401 invalid_token
-EXIT | a valid token lists notes.read and reads a note | tools/list ["notes.read"]; notes.read today.md → 200
-EXIT | a hand-edited description leaves that tool absent from tools/list on restart | PIN_STRICT=false: tools/list [], audit pin-refused drifted; default: start refused (PinRefusedError)
-EXIT | N4: a missing manifest or an unpinned tool refuses to start | missing: ManifestError; unpinned: PinRefusedError
-EXIT | a forged Origin and an extra request property are each refused before any handler runs | teaching node: forged Origin → 403, extra property → 400; counting node: forged Origin → 403, extra property → 400; handler runs during both refusals: 0 (a valid call: 1)
-EXIT | N3: every gate-read field is in the hash, and the subset test can go red | packages/core/test/pinning/subset.test.ts: test: 1 file(s), 4 test(s) passed
-EXIT | every committed cross-language vector hashes identically in the core | packages/core/test/pinning/vectors.test.ts: test: 1 file(s), 71 test(s) passed
-EXIT | the enumeration detector goes red when a local copy of the standard's field list is edited | packages/core/test/pinning/spec-check.test.ts: test: 1 file(s), 2 test(s) passed
-EXIT | the supply-boundary test exists and goes red on a planted edition-side control | packages/core/test/boundary/supply-boundary.test.ts: test: 1 file(s), 24 test(s) passed
+FROZEN mutation attempts, then tools/list again (502 bytes before, 502 after, identical: true):
+FROZEN get().definition.description = …: TypeError
+FROZEN list()[0].definition.description = …: TypeError
+FROZEN get().definition = { … }: TypeError
+FROZEN Object.defineProperty(definition, description): TypeError
+FROZEN Object.defineProperty(definition, title) (a new served field): TypeError
+FROZEN Object.setPrototypeOf(definition, { toJSON }): TypeError
+FROZEN definition.toJSON = …: TypeError
+FROZEN schema.properties.q.description = …: TypeError
+FROZEN schema.properties.injected = …: TypeError
+FROZEN schema.required.push(…): TypeError
+FROZEN delete schema.properties.q: TypeError
+FROZEN get().handler = evil: TypeError
+FROZEN Object.defineProperty(tool, handler): TypeError
+FROZEN get().validate = () => true: TypeError
+FROZEN get().paramHeaders.push(…): TypeError
+FROZEN get().paramHeaders[0].header = …: TypeError
+FROZEN list()[0] = evil tool: TypeError
+FROZEN list().push(evil tool): TypeError
+FROZEN the caller's schema: properties.q.description = …: no error
+FROZEN the caller's definition: description = …: no error
+FROZEN the caller's definition: handler = evil: no error
+FROZEN the caller's Proxy answers differently after admission: no error
+FROZEN tools/call a.search after the attempts → 200 "original handler"; missing required q → 400
 ```
 
-- **"refused before any handler runs"** is proven by a second node serving the **same pinned
-  definition** with its handler wrapped in a counter (the handler is outside the hash): the counter
-  reads 0 through both refusals and 1 for a valid call.
-- **"a hand-edited description … on restart":** the node is restarted against a manifest approved
-  before the edit (the pinned text differs from the running definition; the gate compares hashes, so
-  this is the same state as editing the source after pinning). `PIN_STRICT=false`: `tools/list` is
-  empty and `pin-refused … drifted` is audited. The strict default: the node does not start.
-- **"proven able to fail by deleting the control it guards"** (N2, N3, N4): the in-test red cases
-  above, and the deletion matrices recorded in the FEEDBACK of `-1000` through `-1003a`; they are not
-  re-run here.
+The four "caller's" rows succeed on the caller's own objects and change nothing served. The gate
+served its canonical snapshot (`JSON.parse` of the hashed canonical JSON, deep-frozen, `gate.ts`
+line 126), not the caller's objects, so a shared schema, a later-edited definition and a Proxy that
+answers differently after admission all reach nothing. That confirms §1.1's "already a frozen
+snapshot". Every route through a value the registry handed out throws `TypeError` where it is
+tried, and the test asserts it.
 
-## §3.2 The supply-boundary test's red-proofs
+## §3.3 FIFO, socket, device and directory refusals, with timings and the slot count after
 
-`packages/core/test/boundary/` (in the core's suite: the rule is the core's). The kinds are data in one
-place (`KINDS`); an edition declares each export's kind in its `package.json`
-(`"clearseal": { "exports": { … } }`), and the check applies that kind's structural test. The source
-rules are read from the syntax tree (the TypeScript compiler API). The three WO red-proofs, and the kind
-rules, each a planted edition:
+`packages/core/test/containment/regular-files.test.ts` (Linux run; the FIFO, socket and device
+cases are POSIX, and the directory case runs on both runners):
 
 ```
-BOUNDARY teaching: clean
-PLANTED planted-verifier
-  src/index.ts: control-constructed: a verify member: an edition does not verify tokens
-  ./src/index.ts: kind-mismatch: export verifier: declared deploy-scaffold, but it is not a function
-  ./src/index.ts: control-exported: export verifier: carries a verifier (a verify method)
-PLANTED planted-deep-import
-  src/index.ts: import-outside-exports: "../../../../../src/transport/server.ts" resolves outside the edition (../../../../src/transport/server.ts)
-PLANTED planted-mislabelled
-  ./src/index.ts: kind-mismatch: export definitions: declared configuration-schema, but it is not a JSON Schema object with type object
-  ./src/index.ts: export-undeclared: export extra: not declared in package.json clearseal.exports
-  ./src/index.ts: kind-reserved: export notifier: "approval-notifier": the core defines no such interface yet
-PLANTED ungated
-  src/index.ts: ungated-registry: startTransport is given a registry that is not loadPinnedRegistry's: the gate is the only registration path
-PLANTED verifier-shorthand
-  src/index.ts: option-forbidden: startTransport is given "verifier": an edition may pass only registry, serverInfo, config, validationPool, requestStateKey, audit
-  src/index.ts: control-constructed: a verify member: an edition does not verify tokens
-PLANTED self-pin
-  src/index.ts: core-import: import * as core: a namespace reaches every control; import the allowed names
-PLANTED self-pin-named
-  src/index.ts: core-import: PinGate: an edition imports only loadPinnedRegistry, startTransport, ValidationPool, compileSchema, DEFAULT_LIMITS, requestStateKeyFromEnv from the core
-PLANTED globals
-  src/index.ts: forbidden-global: process.getBuiltinModule: reaches native code or another module
-  src/index.ts: forbidden-global: fetch: code loading and network access go through the core and the cage
-  src/index.ts: forbidden-global: eval: code loading and network access go through the core and the cage
-  src/index.ts: forbidden-global: Function: code loading and network access go through the core and the cage
-PLANTED nested-test
-  src/test/evil.ts: builtin-forbidden: "node:fs": an edition reaches outside the process only through a tool's cage
-PLANTED encoded
-  src/index.ts: import-outside-exports: "./%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/core/src/index.ts": an encoded specifier cannot be checked
-  ./src/index.ts: entry-unloadable: the entry does not load: The requested module './%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/core/src/index.ts' does not provide an export named 'start'
-PLANTED exec
-  src/index.ts: option-forbidden: loadPinnedRegistry is given "execToolsForbidden": an edition may pass only compile, limits
-  ./src/index.ts: kind-mismatch: export definitions: declared tool-definitions, but it is not t: not an arbitrary_exec tool (N7: an edition ships none)
-PLANTED mutate
-  src/index.ts: registry-touched: registry: an admitted registry goes to startTransport untouched
-PLANTED accessor-proxy
-  src/index.ts: control-constructed: a verify member: an edition does not verify tokens
-  src/index.ts: forbidden-global: Proxy: code loading and network access go through the core and the cage
-  ./src/index.ts: control-exported: export config: carries an accessor (properties), which can answer differently each time it is read
-PLANTED exported-proxy
-  src/index.ts: forbidden-global: Proxy: code loading and network access go through the core and the cage
-  ./src/index.ts: control-exported: export config: carries a Proxy, whose members cannot be read
-PLANTED computed
-  src/index.ts: computed-member: a member whose name is computed cannot be checked
-PLANTED conditional
-  src/evil.ts: control-constructed: a verify member: an edition does not verify tokens
-  package.json: conditional-exports: exports["."] has conditions node: an edition has one entry, and what is checked is what loads
-PLANTED reexport
-  src/index.ts: core-reexport: re-exports from "@clearseal/core": an edition exports its own kinds, never the core's values
-  ./src/index.ts: control-exported: export start: carries a value the core exports: an edition exports its own kinds, never the core's
-PLANTED aliased
-  src/index.ts: core-aliased: startTransport: the core's entry points are called by name, never passed around or renamed
-  src/index.ts: registry-touched: registry: an admitted registry goes to startTransport untouched
-PLANTED symlink
-  src/reg.ts: symlink: a symbolic link in an edition's tree could lead anywhere; editions hold files
+REGULAR directory, mode r: ContainmentRefusal fileType=directory in 0.2 ms
+REGULAR fifo, mode r: ContainmentRefusal fileType=fifo in 0.1 ms
+REGULAR fifo, mode w: ContainmentRefusal fileType=fifo in 0.1 ms
+REGULAR fifo, mode a: ContainmentRefusal fileType=fifo in 0.1 ms
+REGULAR fifo, mode r+: ContainmentRefusal fileType=fifo in 0.1 ms
+REGULAR socket, mode r: ContainmentRefusal fileType=socket in 0.1 ms
+REGULAR /dev/null under a declared root /dev, mode r: ContainmentRefusal fileType=character-device in 0.1 ms
+REGULAR /dev/zero under a declared root /dev, mode r: ContainmentRefusal fileType=character-device in 0.1 ms
+REGULAR /dev/tty under a declared root /dev, mode r: ContainmentRefusal fileType=character-device in 0.1 ms
+REGULAR regular → fifo, mode r (opens at once under O_NONBLOCK; the fstat refuses it): ContainmentRefusal fileType=fifo in 3.8 ms
+REGULAR regular → fifo, mode w (no reader: ENXIO under O_NONBLOCK): ContainmentRefusal fileType=fifo in 2.0 ms
+REGULAR regular → fifo, mode r+: ContainmentRefusal fileType=fifo in 3.3 ms
+REGULAR regular → fifo, mode wx (O_EXCL: EEXIST, and a fifo now at the leaf): ContainmentRefusal fileType=fifo in 2.2 ms
+REGULAR regular → fifo, mode ax+ (O_EXCL: EEXIST): ContainmentRefusal fileType=fifo in 3.5 ms
+REGULAR regular → directory, mode w (EISDIR): ContainmentRefusal fileType=directory in 0.3 ms
+REGULAR regular → directory, mode a+ (EISDIR): ContainmentRefusal fileType=directory in 0.2 ms
+REGULAR regular → directory, mode wx (EEXIST): ContainmentRefusal fileType=directory in 0.2 ms
+REGULAR regular → socket, mode r (ENXIO): ContainmentRefusal fileType=socket in 0.4 ms
+REGULAR node: 8 fifo.read calls against 2 slots, handler timeout 3000 ms → statuses [500], slowest 12.2 ms; containment-refused lines 8; handler-timeout lines 0; inFlight after 0; a regular read after → 200
+REGULAR audit line: containment-refused {"tool":"fifo.read","kind":"fs","sink":"/tmp/clearseal-regular-…/root/fifo","principal":"test-principal"}
 ```
 
-## §3.6 The committed manifest and its drift test
+The swap rows use a `CageEffects` wrapper that replaces the path just before the real open, so they
+exercise the race between the lstat and the open. Before this WO, the same node case under the
+`-1004` cage (`cage.ts` from `main`) did not finish in 60 s, and `timeout` terminated it. Blocking
+FIFO opens pinned libuv's pool threads, and the close and every later call queued behind them.
 
-`pins/teaching.json`, produced by the core's pin path (`npm run pin -- approve --definitions
-packages/teaching/src/index.ts --manifest pins/teaching.json --yes`) and committed. `pin verify`: 1
-admitted, 0 refused.
+## §3.4 The Windows measurement (`windows-latest`, CI run 36267618144, measure first)
+
+The probe (`windows-links.test.ts`, its MEASURE lines) was pushed alone, before any change to the
+cage. What `realpathSync.native` and `lstat` report there:
 
 ```
-MANIFEST admitted notes.read 8d8cfa77e141; refused []
+MEASURE platform=win32 realpath.native /tmp/clearseal-links-…/root: "D:\\tmp\\clearseal-links-…\\root"
+MEASURE platform=win32 lstat /tmp/clearseal-links-…/root/junction: {"link":true,"dir":false,"file":false}
+MEASURE platform=win32 realpath.native /tmp/clearseal-links-…/root/junction: "D:\\tmp\\clearseal-links-…\\outside"
+MEASURE platform=win32 realpath.native /tmp/clearseal-links-…/root/junction/secret.txt: "D:\\tmp\\clearseal-links-…\\outside\\secret.txt"
+MEASURE platform=win32 realpath.native /tmp/clearseal-links-…/root/unc-link.txt: "\\\\localhost\\C$\\Windows\\win.ini"
+MEASURE platform=win32 realpath.native variant /TMP/CLEARSEAL-LINKS-…/ROOT: "D:\\tmp\\clearseal-links-…\\root"
+MEASURE platform=win32 realpath.native variant /tmp/clearseal-links-…/ROOT: "D:\\tmp\\clearseal-links-…\\root"
+MEASURE platform=win32 realpath.native variant d:/tmp/clearseal-links-…/root: "D:\\tmp\\clearseal-links-…\\root"
+MEASURE platform=win32 realpath.native variant D:/tmp/clearseal-links-…/root: "D:\\tmp\\clearseal-links-…\\root"
+MEASURE platform=win32 realpath.native variant d:\tmp\clearseal-links-…\root: "D:\\tmp\\clearseal-links-…\\root"
+MEASURE platform=win32 realpath.native variant \\?\D:\tmp\clearseal-links-…\root: "D:\\tmp\\clearseal-links-…\\root"
 ```
 
-The drift test loads the committed manifest into the core's gate and admits the edition's
-definitions; anything unpinned, drifted or removed fails it. Red-proofs below (a description edited,
-the root moved, the class widened: each red).
+So `realpathSync.native` follows symlinks and junctions (a junction's target is returned), and
+`lstat` reports a junction as a link. One spelling comes back for every variant tried: the drive
+letter upper-cased, backslashes, the on-disk case, the `\\?\` prefix dropped, and an 8.3 short
+name expanded. The runner's temp directory, which `os.tmpdir()` reports with a `~1` component,
+came back in its long spelling; those two lines are left out here because they carry a
+user-profile path. That is an honest root comparison, so there was no flag-and-stop. Roots and
+paths both go through the same resolver and compare exactly.
 
-## The choices (WO §1.3, §1.5)
+After the change (CI run 36268330192), real opens through the cage, then the teaching node:
 
-- **§1.3, the notes root:** `DEFAULT_NOTES_ROOT = /srv/clearseal/teaching/notes`, pinned in the
-  committed manifest. `TEACHING_NOTES_ROOT` moves it, and the node then refuses to start until a
-  manifest for the new root is approved: the root is part of the contract. Tests pin their own
-  temporary root.
-- **§1.5, where the boundary test lives:** `packages/core/test/boundary/`, because the rule is the
-  core's and the next edition is checked without being edited. It discovers editions as every package
-  under `packages/` other than `core`.
-- **§1.5, how the check holds against a hostile edition** (after the adversarial pass): the export
-  rules run in a fresh child process per edition, with the built-ins they use captured before the
-  edition loads, reading descriptors so no getter runs; Proxies, accessors, conditional exports and
-  the core's own values are refused. The source rules are a strict allowlist: the core only through
-  six named imports (`loadPinnedRegistry`, `startTransport`, `ValidationPool`, `compileSchema`,
-  `DEFAULT_LIMITS`, `requestStateKeyFromEnv`), no namespace or default import, no re-export, no
-  dynamic import; `startTransport` and `loadPinnedRegistry` given only allowlisted option keys and
-  called by name; the admitted registry handed to `startTransport` and touched nowhere else; no
-  `eval`, `Function`, `fetch`, `globalThis`, `Proxy`, `process.getBuiltinModule` and the like; no
-  computed member names; no symbolic links in the tree; relative paths resolved as URLs and real
-  paths. **A static reading of JavaScript is best effort, not a sandbox** (stated in the checker):
-  the boundaries that hold at run time are the core's brand on the registry and the cage.
-- **§1.5, how a kind is told apart without judgement:** the edition declares each export's kind; the
-  check refuses an undeclared export, an unknown kind, a reserved kind (`approval-notifier`,
-  `audit-store`: the core defines no such interface yet), and a value that fails its kind's
-  structural test. Independently, any exported value carrying a `verify` method, a core `PinGate` or a
-  genuine `PinnedRegistry` (searched through arrays, objects and prototypes) is refused. The source
-  rules: imports only from `@clearseal/core`, the edition's own files, and `node:path`/`node:url`;
-  no computed or `createRequire` import; no reference to `PinGate` or `PinnedRegistry`; no `verify`
-  member or `implements Verifier`; `startTransport` only with a registry from `loadPinnedRegistry`.
+```
+LINKS platform=win32 a \\?\ prefix (\\?\D:\tmp\clearseal-links-…\root\inside.txt): refused
+LINKS platform=win32 a dangling symlink (/tmp/clearseal-links-…/root/dangling.txt): refused
+LINKS platform=win32 a drive-letter spelling (D:/tmp/clearseal-links-…/root/inside.txt): refused
+LINKS platform=win32 a file symlink at the leaf, to outside (/tmp/clearseal-links-…/root/file-link.txt): refused
+LINKS platform=win32 a file through a directory symlink, to outside (/tmp/clearseal-links-…/root/dir-link/secret.txt): refused
+LINKS platform=win32 a file through a junction, to outside (/tmp/clearseal-links-…/root/junction/secret.txt): refused
+LINKS platform=win32 a junction at the leaf (/tmp/clearseal-links-…/root/junction): refused
+LINKS platform=win32 a regular file inside the root (/tmp/clearseal-links-…/root/inside.txt): opened "inside\n"
+LINKS platform=win32 a symlink at the leaf to a file inside the root (a link is refused, wherever it points) (/tmp/clearseal-links-…/root/inside-link.txt): refused
+LINKS platform=win32 a symlink to a UNC path (/tmp/clearseal-links-…/root/unc-link.txt): refused
+LINKS platform=win32 backslash separators (\tmp\clearseal-links-…\root\inside.txt): refused
+LINKS platform=win32 the root spelled upper-case (/TMP/CLEARSEAL-LINKS-…/ROOT/INSIDE.TXT): opened "inside\n"
+LINKS platform=win32 the root's last component in another case (/tmp/clearseal-links-…/ROOT/inside.txt): opened "inside\n"
+WINDOWS-MEASURE platform=win32 planted junction read: 500 {"jsonrpc":"2.0","id":14,"error":{"code":-32603,"message":"The tool reached outside its containment domain (file system)
+WINDOWS-MEASURE platform=win32 planted symlink read: 500 {"jsonrpc":"2.0","id":13,"error":{"code":-32603,"message":"The tool reached outside its containment domain (file system)
+test (windows-latest)	Run npm run check	2026-09-26T20:08:01.6440943Z REGULAR directory, mode r: ContainmentRefusal fileType=directory in 0.4 ms
+```
 
-## Red-proofs (N5)
+The `-1004` teaching test flipped. It had asserted `200` with the outside text on win32 as a known
+limit, and now asserts the refusal on every platform. It also gained a planted junction. The
+`-1004` run measured `planted symlink read: 200 … SECRET OUTSIDE THE ROOT`, and that is the
+before.
 
-Mutants on a committed tree, each limited to 400 s: the WO's red-proofs, and one per rule the
-adversarial pass added. **All 28 go red.** (The runtime Proxy rule first stayed green, because its only
-fixture built the Proxy inside a function the static rule already refused; a fixture exporting a Proxy
-was added and it went red.)
+**What is and is not closed on Windows.** Closed: a symlink, directory symlink or junction planted
+in a root, at the leaf or on the way, pointing outside; a UNC target; a dangling link; a leaf link
+even to a file inside the root; and case and drive-letter spellings, which resolve to one form.
+Drive-letter, `\\?\` and backslash spellings were already refused by the path grammar and still
+are. **Not closed:** the check-then-open race. Windows has no `O_NOFOLLOW` and no post-open path
+check here, so a link swapped in between the check and the open is followed. That stays the edition
+OS cage's job (P4), and the docstring says so. Hard links are unchanged: not detectable here, as
+stated.
 
-| § | Mutant | Red in |
-|---|---|---|
-| §1.4 | a description edited after pinning | manifest.test.ts RED 2: admits every definition the edition exports, with nothing unpinned, drifted or removed |
-| §1.4 | the notes root moved without re-pinning | manifest.test.ts RED 2: admits every definition the edition exports, with nothing unpinned, drifted or removed |
-| §1.4 | the class widened to state_change | manifest.test.ts RED 2: admits every definition the edition exports, with nothing unpinned, drifted or removed |
-| §1.4 A13 | the scaffold registers something the exports do not | manifest.test.ts RED 1: start() with the committed manifest and the default root admits every tool under the strict default |
-| §1.5 (a) | exported controls not looked for | supply-boundary.test.ts RED 4: red-proof (a) an exported verifier: the planted edition goes red, naming the file and the rule |
-| §1.5 (b) | relative imports not resolved | supply-boundary.test.ts RED 1: red-proof (b) a deep import into core/src: the planted edition goes red, naming the file and the rule |
-| §1.5 (c) | startTransport registry not checked | supply-boundary.test.ts RED 1: red-proof (c) a tool served without the gate |
-| §1.5 | kind structure not checked | supply-boundary.test.ts RED 2: red-proof an export whose value is not its declared kind: the planted edition goes red, naming the file and  |
-| A1 | any option passed to the transport | supply-boundary.test.ts RED 2: red-proof A1: a verifier passed to the transport by shorthand |
-| A2 | any core name importable | supply-boundary.test.ts RED 1: red-proof A2: PinGate imported by name |
-| A2 | namespace imports allowed | supply-boundary.test.ts RED 1: red-proof A2: a self-approved registry through a namespace import |
-| A3 | globals not refused | supply-boundary.test.ts RED 2: red-proof A3: code loading and network reach without an import |
-| A4 | nested test/ directories skipped | supply-boundary.test.ts RED 1: red-proof A4: a control in a nested test/ directory |
-| A5 | encoded specifiers resolved leniently | supply-boundary.test.ts RED 1: red-proof A5: an encoded relative path into the core |
-| A5 | symlinks in the tree followed | supply-boundary.test.ts RED 1: red-proof A5: a symbolic link in an edition's tree |
-| A6 | the registry may be touched | supply-boundary.test.ts RED 1: red-proof A6: an admitted tool edited after admission |
-| A7 | arbitrary_exec accepted as a tool definition | supply-boundary.test.ts RED 1: red-proof A7: an arbitrary_exec tool, and the exec switch turned off |
-| A8 | accessors read through | supply-boundary.test.ts RED 1: red-proof A8: an accessor and a Proxy in the exports |
-| A8 | Proxies read through | supply-boundary.test.ts RED 1: red-proof A8: an exported Proxy, whose members the check cannot read |
-| A8 | computed member names allowed | supply-boundary.test.ts RED 1: red-proof A8: a verify member under a computed name |
-| A8 | conditional exports allowed | supply-boundary.test.ts RED 1: red-proof A8: a conditional export that loads something else |
-| A9 | core values re-exported | supply-boundary.test.ts RED 1: red-proof A9: a core function re-exported under an edition's name |
-| A9 | core re-export statements allowed | supply-boundary.test.ts RED 1: red-proof A9: a core function re-exported under an edition's name |
-| A16 | the core entry points aliased | supply-boundary.test.ts RED 1: red-proof A16-form: the transport renamed and called indirectly |
-| §1.2 | the input schema has no name pattern | notes.test.ts RED 1: WO §5.1: names that climb, are absolute, carry a NUL or a backslash, or are very long are refused by the pin |
-| §1.2 | the schema admits extra properties | p1-exit.test.ts RED 1: a forged Origin and an extra request property are each refused before any handler runs |
-| A15 | an oversized note not told apart | notes.test.ts RED 1: a note larger than a result may be, and a note that is not UTF-8, are tool errors |
-| §1.1 | configuration not validated | config.test.ts RED 4: refuses start: no resource URL |
+## §3.5 Red-proofs (N5), each on a committed tree
 
-**Green, stated:** `notes.read`'s own name check is a layer behind the pinned schema, which refuses
-the same names before the handler runs (the `-1003` convention: a layer is named, not hidden).
+Each mutant is applied to the committed source, the named test is run, and the file is restored.
+The tree was asserted clean after each matrix.
+
+| # | Mutant | Test | Result |
+|---|---|---|---|
+| M1 | `frozenTool` returns the tool as prepared | frozen | RED |
+| M2 | the definition copied, not frozen | frozen | RED |
+| M3 | `paramHeaders` not frozen | frozen | RED |
+| M4 | the tool object not frozen (handler, validator swappable) | frozen | RED |
+| M5 | `deepFreeze` stops at the top level | frozen | RED |
+| M6 | `list()` returns an unfrozen array | frozen | RED |
+| M7 | no `O_NONBLOCK` | regular-files | RED (timed out: the open waits) |
+| M8 | no `fstat` of the descriptor after the open | regular-files | RED |
+| M9 | no lstat pre-check of the leaf's type | regular-files | RED (the FIFO is opened) |
+| M10 | `ENXIO` not recorded as a refusal | regular-files | RED |
+| M11 | a FIFO counts as regular | regular-files | RED |
+| M12 | a directory counts as regular | regular-files | RED |
+| M13w | the pre-open leaf lstat removed, and no `O_NOFOLLOW` (the Windows layering, on Linux) | windows-links | RED |
+| M14w | `resolveReal` unresolved, and no post-open `/proc` check (the `-1004` Windows cage, on Linux) | windows-links | RED |
+| M15 | `resolveReal` walks up past any error (the pre-A9 fallback) | windows-links | RED |
+| M16 | `EISDIR`, and `EEXIST` under `O_EXCL`, from a swap not recorded (the pre-P6-REC open) | regular-files | RED |
+
+Two first-cut mutants stayed green on Linux, and that is how the composite rows came about. With
+the leaf lstat alone removed, `O_NOFOLLOW` refuses the leaf link in the kernel. With `resolveReal`
+alone unresolved, the Linux post-open `/proc/self/fd` check refuses the outside file. Windows has
+neither layer, which is exactly why this WO's two checks matter there. So each composite mutant
+removes the Linux layer as well, simulating the Windows cage on Linux. M13w first stayed green a
+second time, because `nonRegular()` on the same lstat names a leaf link `symlink` and refuses it.
+The mutant that goes red removes the pre-open lstat entirely. The Windows-native red is the
+`-1004` CI measurement above.
+
+## The choices (WO §1.1, §1.3)
+
+- **§1.1: frozen in place, not frozen copies.** `list()` and `get()` return the registry's own
+  objects, frozen at construction. The object dispatch runs is then the object `tools/list`
+  serves, there is one identity per tool, and a `tools/list` costs no copy. Nothing that holds one
+  can change it. `list()`'s array is fresh per call and frozen too.
+- **§1.1: functions held by frozen references, not frozen themselves.** The handler is the
+  edition's function object, and the validator and the cage factory are the core's. Freezing them
+  would change objects the core does not own, and nothing served is read from them. What must not
+  change is which function runs, and the frozen tool fixes that.
+- **§1.1, the boundary stated: patching shared built-ins.** Code that patches
+  `Object.prototype.toJSON`, `JSON.stringify` or `ServerResponse` changes every response, envelope
+  and all. The adversary confirmed `Object.prototype.toJSON` and `Map.prototype.get` (A3, A4). No
+  per-value freeze reaches that. It is whole-process compromise, which the supply-boundary check
+  refuses edition-side (its forbidden globals) and an OS boundary contains.
+- **§1.3: an exact comparison of canonical spellings, no case-folding.** Both sides come from
+  `realpathSync.native`, which returns the on-disk case. Case-folding on top would wrongly match
+  two directories that differ only in case under NTFS per-directory case sensitivity. An exact
+  comparison fails closed there.
+- **§1.2: the pre-open lstat refuses a non-regular leaf without opening it.** Only the descriptor
+  `fstat` would suffice for the refusal, but opening a FIFO has an effect: it wakes a writer blocked
+  on the other end. So a FIFO seen by the lstat is never opened (asserted by counting opens,
+  M9). The `O_NONBLOCK` open plus `fstat` catches one swapped in after the lstat.
 
 ## Deviations
 
-| # | Deviation | Why |
-|---|---|---|
-| D-1 | **The edition declares the core as a `peerDependency`, not a `dependency`.** The protected SBOM check (`.github/scripts/check-sbom.mjs`) looks every direct dependency up under `node_modules/<name>` in the lockfile; a workspace dependency is a link entry with no version there, so it failed with `direct dependency @clearseal/core@? is not in the bill of materials`. A peer dependency says what is true of an edition (the core is supplied alongside it) and the check does not count it | `.github/**` is protected. **The checker's gap is the architect's to fix;** if it is taught to follow workspace links, the edition can declare a plain dependency |
-| D-2 | **A `.leak-gate-allow` line for `pins/*.json`**, the committed manifests' tool and manifest digests (64 hex), matching the precedent for `packages/core/test/fixtures/*.json` | The gate's long-hex rule; the digests are public by design |
-| D-3 | **The edition's `tsconfig.json` maps `@clearseal/core` to the core's source for typecheck and lint only.** `npm run check` typechecks before it builds, so the package entry (`dist/`) may not exist yet; the build and every run resolve the core through its package entry, and the boundary test holds the source to that | No core change, and no deep import in the source |
-| D-4 | **The planted ungated edition loads the core by a computed import** so the core's own typecheck (before the build) need not resolve the package entry; the checker reports that as a second finding (`dynamic-import`) beside the one the red-proof asserts (`ungated-registry`) | CI failed on the first push until this changed |
-| D-5 | **The edition has a `bin/teaching-node.ts`** that calls `start()`: not an export, and inside the boundary test's source scan | An operator needs a way to run the scaffold |
+- **D-1 (resolved by the scope amendment): the audit line carries `fileType`.** The first cut left
+  it in the `Reach` record and the `ContainmentRefusal` message only, because `dispatch.ts` was
+  protected. The amendment added it: for example `containment-refused {"tool":"fifo.read","kind":"fs",
+  "sink":"…/root/fifo","fileType":"fifo","principal":"test-principal"}`. A refusal without a type
+  writes the line as before.
+- **D-2: `containment/harness.ts` changed, and `containment/within.ts` is new.** The reach harness
+  called `resolveReal` and kept its own `/`-separator copy of `within`. Once `resolveReal` returns
+  Windows native form, four harness tests failed on `windows-latest` (CI run 36268030776). The
+  harness now imports the cage's one comparison from `within.ts`, an internal module the core's
+  `index.ts` does not re-export, so the public API is unchanged. `harness.ts` is not on §2's
+  protected list, but it is not a named working surface either, hence this line.
+- **D-3 (superseded by the scope amendment):** the first cut asserted A1 as a known limit. That test
+  now asserts the fix.
 
-## Adversarial pass (fresh subagent, WO §5; its own scratch worktree, since removed)
+## §A1 after the amendment: what the flipped test shows
 
-The subagent attacked `d70abed` with its own probe files and planted editions (not committed), every
-attempt using the operation that matters: real reads through a real teaching node, real planted
-editions through `checkEdition()` **and then started**, real edits for the drift probes. **The notes
-containment held for every name-based escape.** **The first boundary checker was the weak part:**
-nine planted editions came back clean, and five of those did real damage when started. Every one is
-now a planted regression case in `supply-boundary.test.ts`, each with its red-proof.
+`frozen.test.ts`, *CSR-WO-1006 adversarial A1 (scope amendment)*, on a started node. It first seals a
+request state with the node, then replaces `options.registry` with a forged `{list, get}`, mutates
+`serverInfo.name` and `.version` on the caller's object, and rewrites the caller's key buffer to
+`0x41…`. It then asks again:
 
-| # | Finding | Severity | Status |
+```
+CAPTURED A1: after replacing options.registry, rewriting the key buffer to 0x41…, and mutating then replacing serverInfo: tools/list identical (478 bytes), /health identical, c.pinned call → 200 "pinned handler", state sealed before → 200 "acting on a", state forged with the rewritten key → 400 integrity check failed
+```
+
+A state sealed with the rewritten key (the forgery that code holding the buffer would attempt) is
+refused, and a state the node sealed before the rewrite still opens. That is only possible if the
+node signs with its own copy of the key.
+
+| # | Mutant (the request path as before the amendment, one route at a time) | Test | Result |
 |---|---|---|---|
-| A1 | A verifier passed to `startTransport` by shorthand (`{ verifier: { verify } }`): the checker was clean, and the started node served an **unauthenticated** call (`200`) | high | **Fixed:** `startTransport` and `loadPinnedRegistry` take only allowlisted option keys; `verify` is refused in every member form. Red-proof |
-| A2 | A self-approved registry through a namespace import (`core.PinGate` → `new core.PinnedRegistry`): clean, and the node served an unpinned tool | high | **Fixed:** the core only through six named imports; no namespace or default import. Red-proofs (namespace, and `PinGate` by name) |
-| A3 | Code loading and network reach without an import (`process.getBuiltinModule("node:fs")`, a global `fetch`, `eval`, `new Function`): clean, and a pinned tool read `/etc/hostname` and a loopback URL outside its cage | high | **Fixed:** refused globals and `process` members. Red-proof. The limit stated: static checking is best effort; the OS cage is the boundary |
-| A4 | Any directory named `test` or `dist` was skipped at any depth: a control in `src/test/evil.ts` was clean | high | **Fixed:** only the top-level ones are skipped. Red-proof |
-| A5 | An encoded path (`./%2e%2e/…`) and a symlinked file reached the core's source: clean, and loaded a core-internal function | medium | **Fixed:** `%` refused; paths resolved as URLs and real paths; symbolic links in the tree refused. Red-proofs |
-| A6 | **A core defect:** an admitted tool's definition, validator and handler stay mutable after admission (`transport/registry.ts`: `prepareTool` returns an unfrozen object, stored as is). The started node served an edited description and a swapped handler that bypassed the schema | high | **In the edition: closed by the checker** (the admitted registry goes to `startTransport` untouched; red-proof). **In the core: not fixed, `packages/core/src` is protected.** Verified by reading the code. *Decision-needed:* a follow-up to deep-freeze each registered tool in the `PinnedRegistry` constructor |
-| A7 | An `arbitrary_exec` definition plus `execToolsForbidden: false`: clean, and the node ran a shell command | medium | **Fixed:** the tool-definitions kind refuses `arbitrary_exec` (N7); `execToolsForbidden`, `strict` and `cageFor` are not edition options. Red-proof |
-| A8 | The runtime walk ran in the checker's own process, so an edition could patch its built-ins and blind later checks; a stateful getter, a Proxy, a Symbol-keyed member and a conditional export all passed | medium | **Fixed:** a child process per edition, built-ins captured first, descriptors read without running getters; Proxies, accessors, computed member names and conditional exports refused. Red-proofs, including "a poisoning edition cannot blind the next check" |
-| A9 | A core function re-exported under an edition's name (`export { loadPinnedRegistry as start }`) was clean | low | **Fixed:** no re-export from the core, and any exported value identical to a core export is refused. Red-proof |
-| A10 | **A core defect:** a FIFO in the notes root blocks the cage's `open()` on a worker thread that the handler timeout abandons but never frees, and the in-flight slot is never released: four such reads exhausted the thread pool, and enough of them left the node answering `503 at capacity` until restart | medium | **Not fixed: in the core's cage and dispatch** (protected). Stated in the edition's README as a known limit, with the operator rule that the notes root is writable only by the operator. *Decision-needed:* a follow-up to open with `O_NONBLOCK` and refuse a file that is not a regular one |
-| A11 | A hard link in the notes root to a file outside is followed (the cage's stated limit), and the edition ships no OS cage | medium | **Stated and asserted:** the README's known limits, and a `notes.test.ts` row asserting today's behaviour so a change is seen |
-| A12 | On Windows the planted-symlink row was measured but not asserted, so it passed whatever happened | medium | **Asserted:** on win32 the known outcome (followed, the in-process cage resolves no links there) is asserted, as measured in CI |
-| A13 | `start()` built its own tool list, so an edit there (an extra tool, a different root) left the drift test green, and the node tests then hung | medium | **Fixed:** one `toolsFor(root)` for both the exports and the scaffold, and the drift test now starts the real scaffold against the committed manifest (`/health` pinned counts). Red-proof |
-| A14 | A start that failed in `before()` left the tests hanging instead of failing | low | **Fixed:** guarded teardown |
-| A15 | A note over the result cap with a multibyte character at the edge, or with invalid UTF-8, was an opaque handler error | low | **Fixed:** both are tool errors (`isError`). Tested; red-proof |
-| A16 | The evidence test's header said every clause runs there; "proven able to fail by deleting the control" does not, and two clauses rest on equivalents | low | **Fixed:** the header and FEEDBACK say which clause is evidenced by the recorded deletion matrices, and state the two equivalents (the pre-edit manifest; the counting node) |
-| A17 | Test cleanup left the temporary directories behind | info | **Fixed** |
-| A18 | Every hand-built registry, in six syntactic forms, was refused at start by the transport's brand, though the static rule missed all six | info (held) | The brand is the boundary; the static rule now also refuses the aliasing forms (red-proof) |
+| M17 | the request path reads `options.registry` again | frozen | RED |
+| M18 | the request path reads `options.requestStateKey` again | frozen | RED |
+| M19 | the state key captured by reference, not copied | frozen | RED |
+| M20 | `serverInfo` captured by reference, not a frozen copy | frozen | RED |
+| M21 | the request path reads `options.serverInfo` again | frozen | RED |
+| M22 | the audit line drops `fileType` | regular-files | RED |
 
-**WO §5 items:** 1 reads outside the root: **pass** for every name, both symlink kinds on POSIX, the
-cap and JSON inflation; the hard link and the FIFO are A11 and A10. 2 defeating the boundary test:
-**failed at `d70abed`**, every bypass fixed with its red-proof. 3 a tool the gate did not admit: a
-fake registry was refused by the core's brand in every form; a self-approved registry (A2) and a
-mutated one (A6) got through and are closed in the checker. 4 the committed manifest and the
-definitions disagreeing: **pass** for every hashed field; the scaffold path was A13, fixed.
+## Adversarial pass (fresh subagents, WO §5; each in its own worktree, since removed)
 
-## Decision-needed
+Two passes. The first finished §5.1 and found A1. Partway into §5.2 a safety classifier stopped its
+response, and it had not written the §5.3 file. A second fresh subagent then ran §5.2 (212 POSIX
+cases, each a real `cage.open` or a `tools/call` on a started node, timed with a hang watchdog) and
+wrote the §5.3 Windows file. That file is committed as
+`packages/core/test/containment/adversary-windows.test.ts` and runs in CI: on win32 each case
+asserts the safe outcome, and on POSIX the one test asserts it is not on win32 and returns. I
+spot-checked every claim below against the code or by running it before adopting it.
 
-- **Windows containment (§1.3):** accept the measured-and-recorded link case as the core cage's stated
-  Windows limit, or require the teaching edition to refuse to start on Windows until an OS cage
-  exists (P4).
-- **D-1:** fix `check-sbom.mjs` to follow workspace links, so editions declare the core as a
-  dependency.
-- **A6 (core, high):** deep-freeze each registered tool and its definition in the `PinnedRegistry`
-  constructor, so an admitted tool is served exactly as hashed whoever holds the registry.
-- **A10 (core, medium):** the cage opens with `O_NONBLOCK` and refuses a file that is not a regular one
-  before any read, and a timed-out handler's slot is released.
+| ID | Route | What mattered | Outcome | Severity | Disposition |
+|---|---|---|---|---|---|
+| A1 | Replace `options.registry` (or `serverInfo`) on the object passed to `startTransport`, after start | `tools/list` served a forged description; a call without the required argument ran a forged handler (200) | **HOLE** | high (N2; supply-side, a handler never holds the options) | **Fixed under the scope amendment:** the checked registry, a copy of the key and a frozen `serverInfo` are captured at start. Red-proofs M17-M21 |
+| A2 | The same, with another genuine `PinnedRegistry` | That registry was served without start-up's pin-refused audit or the strict check | HOLE (A1's root cause) | high | Fixed with A1 |
+| A3, A4 | Pollute `Object.prototype.toJSON`; patch `Map.prototype.get` | `tools/list` bytes changed; a forged handler ran | whole-process built-in patching | — | Out of reach of any per-value freeze; stated in the choices |
+| A5 | A handler's `this` is its frozen `RegisteredTool` (dispatch calls `tool.handler(...)` as a method); it calls `this.newCage()` itself | The open was refused, no escape; but that cage is not dispatch's, so no audit line, and the call returned 200 | audit bypass, no escape | low | Not fixed: `dispatch.ts` is protected; the fix is to call the handler unbound. Handler code is already trusted |
+| A6 | `pinning.isRefused`, `pinning.refused`, the prototype, `setPrototypeOf(registry)`, `reachTargets()` output, the function objects | TypeError, or fresh objects; nothing served changed | HELD | — | — |
+| A7 | `t.config.limits.maxInFlight = 0` after start | The next call got 503: the running config is not frozen | runtime config tamper | low | Outside this WO (transport); reported |
+| A9 | A link in the root into a directory whose real path exceeds `PATH_MAX` | `resolveReal` judged an ancestor, so a `w` open truncated the outside file before the post-open check refused it | **HOLE** | high (N4, write modes) | **Fixed:** a resolution failing for any reason but absence matches no root. Red-proof M15; regression in `windows-links.test.ts` (all four modes refused, outside file byte-identical) |
+| P1-P5, P7, P8 | FIFO in every mode, with and without a peer; socket; `/dev/tty`, `/dev/zero`, `/dev/stdin`, `/dev/fd/0`, `/proc/self/fd/0`, `/proc/self/root/...`; a FIFO via a directory link; `//`, `/./` and `..` spellings; a directory; trailing slashes | Refused naming the type (or as a link or out-of-root path), in 0.1-0.7 ms, no bytes; a peer's data still unread; nothing outside touched | HELD | — | — |
+| P6 | FIFO, socket, directory or link-to-FIFO swapped in between the lstat and the open, every mode, with peers | Refused, no bytes, no wait (at most 2 ms) | HELD | — | — |
+| P6-REC | The same swap to a directory in a write mode (`EISDIR`), or to a FIFO, socket or directory under `O_EXCL` (`EEXIST`) | No wait, no bytes, nothing touched, but a plain fs error with no refusal recorded | HOLE (recording only) | low | **Fixed:** recorded, naming the type. Red-proof M16; five swap rows in `regular-files.test.ts` |
+| P10 | A started node, 2 slots, 2000 ms handler timeout: 40 calls in waves across FIFO, socket, `/dev/tty` and a directory, 5 swap calls, and a burst of 30 concurrent FIFO calls | All 500, none 503; slowest 14 ms; 0 handler-timeout lines; `inFlight()` 0 after; a normal read 200 | HELD | — | — |
+| P11 | `O_NONBLOCK` on the regular-file handle the cage returns | The flag stays set on the descriptor; an 8 MiB read and a 4 MiB write were byte-exact | HELD (no effect) | info | Stated: a handler that hands the descriptor to other code passes the flag on |
+| P12 | A FIFO swapped in while a real reader is blocked on it | Refused; the reader was woken with EOF (0 bytes), because the `O_NONBLOCK` open happens before the `fstat` closes it | HELD | info | Stated: "never opened" holds for a FIFO the lstat sees, not one swapped in after it |
+| W1-W7 | Windows (§5.3), real opens on `windows-latest`: a junction to outside as the leaf and on the way (modes r, w, r+, and wx creating), a UNC link, a file link, a junction to inside as the leaf, a root declared as a junction (below it, `..` out of it, a junction to outside under it), and case variants of root, leaf, link and junction | Links to outside, and a junction leaf even to inside, refused (0.1-0.6 ms); the inside file opened through a junction to inside, the junctioned root and every case variant; nothing created outside (`outside` still holds only `secret.txt`) | HELD | — | — |
+| W8 | DOS device names under the root (`NUL`, `nul.txt`, `CON`, `COM1`, `AUX`, `PRN`, `LPT1`, `CONIN$`, `CONOUT$`), mode r | `ENOENT`, never opened | HELD | — | — |
+| W8b | `root/NUL` in mode `w` | **Opened**, and the case went red (CI run 36269527082). The raw-open probe then measured what it was: on this runner a `w` open of `NUL` in a directory creates a regular file named `NUL` (`{"file":true,"char":false,"size":0,"listed":["NUL"]}`), not the device | not a device hole on this runner | low | **Hardened anyway:** older Windows maps these names to the device in any directory, so on win32 a reserved device name in any component (any extension, trailing dots and spaces) is refused as a `character-device` before any open (`CON` in r+ likewise). Now HELD. The red-proof is the red run |
+| W9 | Alternate data streams: an inside file's named stream and `::$DATA`; `::$DATA` and a named stream on a file link to outside; a stream on a junction; a directory's `::$INDEX_ALLOCATION`; a stream on the root | Inside streams opened inside data only; every link and junction form refused, or `ENOENT`; the directory refused as a directory | HELD | — | — |
+| W10 | Trailing dot or space on an inside file, a file link, a junction on the way, a junction leaf | `ENOENT` for all: Win32's trailing-dot stripping does not apply to what Node passes | HELD | — | The first cut of the case counted an `ENOENT` on an inside file as a hole. It reads nothing, so the case was widened to accept an error (the second red, CI run 36269725642) |
+| W11 | `.. ` and `...` components; `.. ` under a missing directory in mode w; the root's parent | `ENOENT`, or refused; nothing created outside | HELD | — | — |
+| W6 | 8.3 short names: an inside file's; the base directory's, to a file inside and outside the root; a root declared by its 8.3 spelling | The inside file opened; the outside file refused; the 8.3-declared root matched its long spelling | HELD | — | A short name could not be set on the file link, so its case (W6b) was not measured |
+
 
 ## Gates
 
-| Gate | Result |
-|---|---|
-| `npm run check` | exit 0 on Node v24.21.0: core and teaching **586** tests (34 files, 24 in the boundary test), spike 0102 69, spike 0101 8, `test:subset` 4 |
-| CI | both runners, on the pull request; the Windows measurement above is from this branch's CI |
-| Protected surfaces | The four steering documents, `LICENSE`, `NOTICE`, `scripts/**`, `.github/**`, `spikes/**`, `docs/canonical-form.md` and `packages/core/src/**` diff **empty** against `fcb415f`. Root `package.json` unchanged (the `packages/*` workspace glob already covers the edition). `packages/core/test` grew only for the boundary test |
-| Leak gate | `--tree` and `--history` exited 0 before every push, each checked by exit code |
-| Clean-build check | `npm run check` also run with every `dist/` removed first, as CI starts: the typecheck and lint pass before the build |
-| Credentials | Pushed over the repository's write deploy key. A short-lived token was minted only to open this pull request, kept in a mode-0600 scratch file, and deleted straight after |
-
-## What did not work, and why
-
-- **The first push failed CI twice over:** the planted ungated fixture imported the core statically, so
-  the core's typecheck could not resolve the package entry before the build (it passed locally only
-  because `dist/` existed; I now typecheck with `dist/` removed); and the SBOM check could not follow
-  the workspace dependency (D-1).
-- **The first boundary checker was too trusting** (adversarial A1–A9): it read only the obvious
-  syntactic forms, walked exports in its own process, and skipped nested `test/` directories. Nine
-  planted editions passed it, and five of those did real damage when started. It was rewritten as a
-  strict allowlist with the export rules in a child process; every bypass is now a planted case.
-- **The first mutant matrix had three greens:** the kind rule was never exercised alone (the planted
-  verifier is also caught as a control), and configuration validation had no test; both are covered
-  now. The third is the named layer above.
+- `npm run check` exits 0 from a clean state (every `dist/` removed first, as CI runs it): 599
+  core and teaching tests, spike 0102 69, spike 0101 8, `test:subset` 4.
+- `node scripts/leak-gate.mjs --tree` exit 0; `--history` exit 0, run unpiped before every push
+  with the exit code checked directly.
+- CI: green on both runners (`ubuntu-latest`, `windows-latest`) with leak-gate, sbom and audit, at
+  `b8b4f8a` (run 36269912585) and at `5a17cc4` (the first PR head); the amendment commit's run is
+  in the pull request.
+- Protected surfaces diff to empty against `9761796`, except `transport/server.ts` and
+  `transport/dispatch.ts`, changed under the scope amendment and only as it allows.
+  `pinning/registry.ts` and `containment/cage.ts` are the working surface, plus D-2.
+- No token was needed until the PR. The minted token lived in a mode-0600 scratch file, was never
+  written to git config or a remote URL, and was deleted after the PR was opened.
 
 ## What was not built
 
-- **The other three teaching tools, the approval path, the audit store:** P2.
-- **Any core change, including a new export:** none was needed.
-- **Widening the `fs:` grammar to drive paths:** recorded for P4 and the upstream ledger (entry 13).
-- **A host edition, a service unit, a deploy to any machine.**
+- Any other change to `transport/**`: the scope amendment covered only the three captured options
+  and the audit field. The running transport's `config` (A7) and a handler's `this` (A5) are
+  unchanged and still reported.
+- The Windows check-then-open race (P4, the edition OS cage), hard links (unchanged, stated), and
+  anything in the gate, the canonical form, auth or the teaching edition's source.

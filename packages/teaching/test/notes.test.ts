@@ -4,7 +4,7 @@
 // read. The Windows behaviour is measured here and printed (WINDOWS-MEASURE lines).
 
 import assert from "node:assert/strict";
-import { linkSync, symlinkSync, writeFileSync } from "node:fs";
+import { linkSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { after, before, describe, it } from "node:test";
 
 import { cleanup, definitionsFor, mcp, type Node, notesRoot, pin, restoreEnv, startNode, TestIssuer } from "./node.ts";
@@ -74,20 +74,25 @@ void describe("notes.read through a teaching node", () => {
     }
     const r = await read("planted.md");
     console.log(`WINDOWS-MEASURE platform=${process.platform} planted symlink read: ${String(r.status)} ${r.text.slice(0, 120)}`);
-    // Windows: the core's in-process cage compares paths lexically and does not resolve links there;
-    // the edition's OS cage is the boundary (architecture §5 *Containment matching*). The outcome is
-    // measured and printed above, and asserted on POSIX, where the in-process cage makes the claim.
-    if (process.platform !== "win32") {
-      assert.ok(!r.text.includes("SECRET"), "the outside file's text never reaches the client");
-      assert.equal(r.status, 500);
-      assert.match(r.text, /reached outside its containment domain/);
-      assert.ok(node?.lines.some((l) => l.startsWith('containment-refused {"tool":"notes.read"')) === true);
-    } else {
-      // The known Windows limit, asserted so a change in it is seen: the core's in-process cage
-      // resolves no links there (architecture §5 *Containment matching*); an OS cage is the boundary.
-      assert.equal(r.status, 200, "known limit: a link in the root is followed on Windows by the in-process cage");
-      assert.ok(r.text.includes("SECRET"));
-    }
+    // Every platform (CSR-WO-1006 §1.3 flipped the -1004 Windows known limit): the cage resolves
+    // links on Windows too, with realpathSync.native, and refuses a link at the leaf.
+    assert.ok(!r.text.includes("SECRET"), "the outside file's text never reaches the client");
+    assert.equal(r.status, 500);
+    assert.match(r.text, /reached outside its containment domain/);
+    assert.ok(node?.lines.some((l) => l.startsWith('containment-refused {"tool":"notes.read","kind":"fs","sink":"') && l.includes("planted.md")) === true);
+  });
+
+  void it("CSR-WO-1006 §1.3: a junction planted in the root that points outside is refused by the cage", async () => {
+    mkdirSync(`${root}/../outside-dir`, { recursive: true });
+    writeFileSync(`${root}/../outside-dir/secret.md`, "SECRET OUTSIDE THE ROOT\n");
+    // A junction on Windows; a directory symlink elsewhere. A note name has no slash, so the planted
+    // name itself is the link.
+    symlinkSync(`${root}/../outside-dir`, `${root}/junction.md`, "junction");
+    const r = await read("junction.md");
+    console.log(`WINDOWS-MEASURE platform=${process.platform} planted junction read: ${String(r.status)} ${r.text.slice(0, 120)}`);
+    assert.ok(!r.text.includes("SECRET"));
+    assert.equal(r.status, 500);
+    assert.match(r.text, /reached outside its containment domain/);
   });
 
   void it("a note larger than a result may be, and a note that is not UTF-8, are tool errors", async () => {

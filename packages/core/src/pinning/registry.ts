@@ -50,6 +50,32 @@ export function execToolsForbiddenFromEnv(env: NodeJS.ProcessEnv = process.env):
   return env["EXEC_TOOLS_FORBIDDEN"] !== "false";
 }
 
+/** Freezes plain data all the way down: objects and arrays, not functions. The admitted schema is
+ *  the gate's deep-frozen snapshot already, so for it this walk only confirms. */
+function deepFreeze<T>(value: T): T {
+  if (typeof value !== "object" || value === null) return value;
+  for (const key of Reflect.ownKeys(value)) deepFreeze((value as Record<PropertyKey, unknown>)[key]);
+  return Object.freeze(value);
+}
+
+/**
+ * One admitted tool, immutable (CSR-WO-1006 §1.1, N2): the object, its definition, the schema and
+ * its parameter headers are frozen at construction, and list() and get() hand out these same
+ * objects. Frozen in place, not copied per call: the object the dispatcher runs is the object
+ * tools/list serves, and a caller that holds one can change nothing through it. The handler,
+ * validator and cage factory are held by frozen references; the function objects themselves are
+ * the edition's and the core's, not frozen here, and nothing served is read from them.
+ */
+function frozenTool(tool: RegisteredTool): RegisteredTool {
+  return Object.freeze({
+    definition: deepFreeze({ ...tool.definition }),
+    handler: tool.handler,
+    validate: tool.validate,
+    paramHeaders: deepFreeze([...tool.paramHeaders]),
+    ...(tool.newCage === undefined ? {} : { newCage: tool.newCage }),
+  });
+}
+
 export class PinnedRegistry implements ToolRegistry {
   readonly #tools: ReadonlyMap<string, RegisteredTool>;
   readonly #domains: ReadonlyMap<string, readonly string[] | null>;
@@ -80,7 +106,7 @@ export class PinnedRegistry implements ToolRegistry {
       }
       // Served exactly as hashed: the gate's frozen snapshot of name, description and schema.
       const prepared = prepareTool({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, handler: tool.handler }, options.compile, options.limits);
-      tools.set(tool.name, { ...prepared, newCage: cageFor(domain, cagePolicy(capabilityClass)) });
+      tools.set(tool.name, frozenTool({ ...prepared, newCage: cageFor(domain, cagePolicy(capabilityClass)) }));
       domains.set(tool.name, tool.capability.containment_domain);
       classes.set(tool.name, capabilityClass);
     }
@@ -116,8 +142,9 @@ export class PinnedRegistry implements ToolRegistry {
     return typeof value === "object" && value !== null && #tools in value && Object.getPrototypeOf(value) === PinnedRegistry.prototype;
   }
 
+  /** The registry's own frozen tools, in name order, in a frozen array of their own. */
   list(): readonly RegisteredTool[] {
-    return [...this.#tools.values()].sort((a, b) => (a.definition.name < b.definition.name ? -1 : a.definition.name > b.definition.name ? 1 : 0));
+    return Object.freeze([...this.#tools.values()].sort((a, b) => (a.definition.name < b.definition.name ? -1 : a.definition.name > b.definition.name ? 1 : 0)));
   }
 
   get(name: string): RegisteredTool | undefined {

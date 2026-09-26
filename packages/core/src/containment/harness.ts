@@ -26,6 +26,7 @@ import { randomBytes } from "node:crypto";
 import { constants } from "node:fs";
 
 import { type Cage, type CageEffects, type CagePolicy, cagePolicy, ContainmentRefusal, type Reach, READ_ONLY_MODES, RecordingCage, resolveReal } from "./cage.ts";
+import { within } from "./within.ts";
 import { type Domain, parseDomain } from "./domain.ts";
 import type { CallContext, Tool } from "../transport/registry.ts";
 
@@ -212,8 +213,6 @@ function installShim(): { log: Observed[]; uninstall: () => void } {
     },
   };
 }
-
-const within = (path: string, root: string): boolean => path === root || path.startsWith(`${root}/`);
 
 /** Is an observed reach inside the domain? Names, never addresses. A child process never is: it
  *  is no kind of declared sink, so it falls through to false. */
