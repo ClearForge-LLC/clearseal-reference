@@ -141,9 +141,9 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   the approve/diff operator path, strict default, the cross-repo enumeration detector against the
   pinned public standard; `manifest_version` and the unenforced `build` block present from the
   first manifest (`architecture.md` §5, *Manifest schema*).
-- `CSR-WO-1002` — containment: `containment_domain` as a sink set or null, `arbitrary_exec` refused
+- `CSR-WO-1002` — (WO written 2026-09-26) containment: `containment_domain` as a sink set or null, `arbitrary_exec` refused
   a domain at construction, the reach harness that records every declared sink a tool touches.
-- `CSR-WO-1003` — auth: `401` with resource metadata, JWKS verification, audience equality, issuer
+- `CSR-WO-1003` — (WO written 2026-09-26) auth: `401` with resource metadata, JWKS verification, audience equality, issuer
   check, the principal handed downstream and carried on every audit row; an in-process test issuer;
   key-set caching, one refetch on an unknown key id, fail-closed on fetch failure, and a stated
   clock-skew constant, each with its negative test (`architecture.md` §5, *Key-set fetching*).
