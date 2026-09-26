@@ -46,6 +46,7 @@ void it("measures links, junctions, drive letters and case on this platform", ()
   plant("junction", OUTSIDE, "junction");
   plant("unc-link.txt", "\\\\localhost\\C$\\Windows\\win.ini", "file");
   plant("dangling.txt", `${OUTSIDE}/missing.txt`, "file");
+  plant("inside-link.txt", `${ROOT}/inside.txt`, "file");
   for (const p of [ROOT, `${ROOT}/inside.txt`, `${ROOT}/file-link.txt`, `${ROOT}/dir-link`, `${ROOT}/dir-link/secret.txt`, `${ROOT}/junction`, `${ROOT}/junction/secret.txt`, `${ROOT}/unc-link.txt`, `${ROOT}/dangling.txt`, `${ROOT}/missing.txt`]) {
     measure(`lstat ${p}`, tryIt(() => ({ link: lstatSync(p).isSymbolicLink(), dir: lstatSync(p).isDirectory(), file: lstatSync(p).isFile() })));
     measure(`realpath.native ${p}`, tryIt(() => realpathSync.native(p)));
@@ -84,6 +85,7 @@ void it("a planted symlink, directory symlink, junction or UNC link is refused, 
     ["a file through a junction, to outside", `${ROOT}/junction/secret.txt`, (o) => o === "refused"],
     ["a symlink to a UNC path", `${ROOT}/unc-link.txt`, (o) => o === "refused"],
     ["a dangling symlink", `${ROOT}/dangling.txt`, (o) => o === "refused"],
+    ["a symlink at the leaf to a file inside the root (a link is refused, wherever it points)", `${ROOT}/inside-link.txt`, (o) => o === "refused"],
     ["the root spelled upper-case", `${ROOT.toUpperCase()}/INSIDE.TXT`, (o) => (win ? o === 'opened "inside\\n"' : o === "refused")],
     ["the root's last component in another case", `${ROOT.replace(/root$/, "ROOT")}/inside.txt`, (o) => (win ? o === 'opened "inside\\n"' : o === "refused")],
     ["a drive-letter spelling", `${/^[a-zA-Z]:/.exec(process.cwd())?.[0] ?? "C:"}${ROOT}/inside.txt`, (o) => o === "refused"],
