@@ -32,6 +32,18 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
   `x-mcp-header` handling, HMAC-sealed MRTR `requestState`, and a refuse-all verifier seam.
   `packages/core/src/transport/SPEC-MAP.md` maps it to the specification.
 
+- **CSR-WO-1001:** the pin gate. A node serves a tool only when its hash matches the approved
+  manifest.
+  - The manifest format and schema carry `build` slots, present but not enforced.
+  - `PinGate` admits only matching definitions; drifted, unpinned, removed, duplicated and invalid
+    definitions are refused by name.
+  - The registry can be built only from the gate's admission, and the transport serves only that
+    registry.
+  - `PIN_STRICT`, on by default, stops the node on any refusal. A missing manifest stops it
+    whatever the setting.
+  - The operator path is `npm run pin -- diff | approve --yes | verify`.
+  - The cross-repo detector compares the standard's §3 list with `canonicalFieldSet()`.
+  - `PlaceholderRegistry` is removed.
 - **CSR-WO-1000:** the canonical form, specified, ratified, then implemented from the
   specification.
   - `docs/canonical-form.md` has ten rules, ratified 2026-09-26: RFC 8785 as the JSON layer,

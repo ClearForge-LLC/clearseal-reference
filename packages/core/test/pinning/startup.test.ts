@@ -18,6 +18,18 @@ import { definitions } from "../fixtures/tools.ts";
 import { FIXTURE_MANIFEST, modern, raw, TestBearerVerifier } from "../transport/helpers.ts";
 
 const options = (strict: boolean) => ({ compile: compileSchema, limits: DEFAULT_LIMITS, strict });
+
+/** Starts a transport that must refuse to start. If it starts anyway, it is closed at once and the
+ *  refusal is missing, so the test fails instead of leaving a server open. */
+async function startExpectingRefusal(opts: Parameters<typeof startTransport>[0]): Promise<unknown> {
+  try {
+    const t = await startTransport(opts);
+    await t.close();
+    return undefined;
+  } catch (err) {
+    return err;
+  }
+}
 const manifestText = readFileSync(FIXTURE_MANIFEST, "utf8");
 const echo = definitions.find((d) => d.name === "echo") as PinnableTool;
 const drifted = [...definitions.filter((d) => d.name !== "echo"), { ...echo, description: "Returns its text, and more." }];
@@ -38,7 +50,8 @@ void describe("WO §3.7 the registry cannot be built from anything but the gate'
   void it("the transport serves only a PinnedRegistry", async () => {
     const handMade: ToolRegistry = { list: () => [], get: () => undefined };
     // @ts-expect-error -- startTransport's registry option is a PinnedRegistry; a hand-made ToolRegistry must not type-check.
-    await assert.rejects(startTransport({ registry: handMade, serverInfo: { name: "x", version: "0" } }), /only a PinnedRegistry/);
+    const err = await startExpectingRefusal({ registry: handMade, serverInfo: { name: "x", version: "0" } });
+    assert.match(String(err), /only a PinnedRegistry/);
   });
 });
 
@@ -53,10 +66,7 @@ void describe("WO §1.4, §3.3 strict vs non-strict", () => {
   void it("strict (the default): a drifted tool stops the node before it binds, with the refusal logged once", async () => {
     const audits: string[] = [];
     const registry = new PinnedRegistry(PinGate.load(manifestText).admit(drifted), options(true));
-    const err = await startTransport({ registry, serverInfo: { name: "x", version: "0" }, audit: (event, fields) => audits.push(`${event} ${JSON.stringify(fields)}`) }).then(
-      () => undefined,
-      (e: unknown) => e,
-    );
+    const err = await startExpectingRefusal({ registry, serverInfo: { name: "x", version: "0" }, audit: (event, fields) => audits.push(`${event} ${JSON.stringify(fields)}`) });
     console.log(`STRICT threw ${String(err)}\nSTRICT audit ${JSON.stringify(audits)}`);
     assert.ok(err instanceof PinRefusedError);
     assert.deepEqual(audits, ['pin-refused {"tool":"echo","reason":"drifted"}']);
@@ -94,6 +104,7 @@ void describe("WO §1.4, §3.3 strict vs non-strict", () => {
 
   void it("strict: a removed tool (an entry with no definition) also stops the node", async () => {
     const registry = new PinnedRegistry(PinGate.load(manifestText).admit(definitions.filter((d) => d.name !== "echo")), options(true));
-    await assert.rejects(startTransport({ registry, serverInfo: { name: "x", version: "0" }, audit: () => undefined }), (e: unknown) => e instanceof PinRefusedError && /echo \(removed\)/.test(e.message));
+    const err = await startExpectingRefusal({ registry, serverInfo: { name: "x", version: "0" }, audit: () => undefined });
+    assert.ok(err instanceof PinRefusedError && /echo \(removed\)/.test(err.message), String(err));
   });
 });
