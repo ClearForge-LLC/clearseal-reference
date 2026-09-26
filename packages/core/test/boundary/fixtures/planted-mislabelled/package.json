@@ -1,0 +1,7 @@
+{
+  "name": "@clearseal-fixture/planted-mislabelled",
+  "private": true,
+  "type": "module",
+  "exports": { ".": { "default": "./src/index.ts" } },
+  "clearseal": { "exports": { "definitions": "configuration-schema", "notifier": "approval-notifier" } }
+}

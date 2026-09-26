@@ -1,0 +1,31 @@
+{
+  "name": "@clearseal/teaching",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The ClearSeal teaching edition: a notes store as the carrier. Thin by rule: tool definitions, a manifest, a configuration schema and a deploy scaffold, nothing else.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "@clearseal/core": "0.0.0"
+  },
+  "clearseal": {
+    "exports": {
+      "definitions": "tool-definitions",
+      "manifestPath": "manifest-path",
+      "configSchema": "configuration-schema",
+      "start": "deploy-scaffold"
+    }
+  }
+}
