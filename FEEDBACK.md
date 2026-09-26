@@ -1,295 +1,254 @@
-# FEEDBACK: CSR-WO-1001 (the pin gate: manifest, verify-before-register, strict default, operator path, cross-repo detector)
+# FEEDBACK: CSR-WO-1002 (containment: the domain, the Cage, N7 at construction, per-call cages, the reach harness)
 
-Branch `wo/CSR-WO-1001`, cut from `main` at `444d12c`; the base carries `-1000`'s `canonical.ts` and
-`fields.ts`. Parked as one unmerged pull request. Built on Node v24.21.0.
+Branch `wo/CSR-WO-1002`, cut from `main` at `dbceb68`, one commit. Parked as one unmerged pull
+request. Built on Node v24.21.0.
 
-## Refusal table (WO §3.2)
+## Construction refusals (WO §3.2)
 
-Pasted from the tests: `gate.test.ts`, `manifest.test.ts` and `startup.test.ts`.
+Pasted from `packages/core/test/containment/construction.test.ts`. Each refusal names the tool
+and the entry. The domain is parsed from the gate's frozen snapshot, never from the live
+definition.
 
-| Case | Result |
-|---|---|
-| Edited description | `[{"name":"echo","reason":"drifted"}]`. Under **non-strict**, the tool is absent from `tools/list`, and a call gets `400`, `-32602`, `The tool "echo" is refused by the pin gate`. Under **strict**, the node does not start |
-| Unknown tool definition | `[{"name":"echo2","reason":"unpinned"}]` |
-| Manifest entry with no definition | `[{"name":"echo","reason":"removed"}]`. `diff` prints `removed    beta …`. **Strict:** `PinRefusedError: … echo (removed) …`, and the node does not start |
-| Hand-edited `tool_hash` | `ManifestError: manifest_hash does not recompute: an entry was edited`; the load is refused |
-| Unknown top-level field | `ManifestError: unknown top-level field(s): note` |
-| `canonical_form_version: 2` / `manifest_version: 2` | `ManifestError: a canonical_form_version (manifest_version) this implementation does not implement` |
-| Tools out of order / a name twice | `ManifestError: tools are not sorted by name in UTF-16 code units (A9)` / `… appears twice` |
-| Two definitions, one name (WO §5.1) | `[{"name":"echo","reason":"duplicate"},{"name":"echo","reason":"duplicate"}]`: both are refused, never first-wins |
-| Look-alike name: trailing NUL, homoglyph, case, trailing LF (WO §5.3) | `[{"name":"еcho","reason":"invalid","rule":"A5"}]`; never admitted as `echo` |
-| A capability tag carrying `description`, `input_schema` or `name` (adversarial F1) | `[{"name":"echo","reason":"invalid","rule":"A6"}]` |
-| A `tool_hash` differing only in its last digit | `[{"name":"echo","reason":"drifted"}]` |
-| A missing or unparseable manifest, strict **or** non-strict (WO §5.5) | `ManifestError: the manifest cannot be read (ENOENT): a node without a manifest does not start` |
-| A registry that is not a genuine `PinnedRegistry` (hand-made, from the prototype, or a subclass) | `startTransport` throws `the transport serves only a PinnedRegistry …`, or the constructor refuses the subclass |
+| Case | Domain | Refusal |
+|---|---|---|
+| unknown scheme | `["file:/tmp/x"]` | tool "t": "file:/tmp/x": an unknown scheme (fs:, host: and svc: are the three) |
+| relative path | `["fs:data/notes"]` | tool "t": "fs:data/notes": an fs: root must be an absolute path |
+| path not normalized (..) | `["fs:/tmp/a/../b"]` | tool "t": "fs:/tmp/a/../b": an fs: root must be normalized (no empty, "." or ".." segment, no trailing slash) |
+| path with a trailing slash | `["fs:/tmp/a/"]` | tool "t": "fs:/tmp/a/": an fs: root must be normalized (no empty, "." or ".." segment, no trailing slash) |
+| the whole file system | `["fs:/"]` | tool "t": "fs:/": the whole file system is not a containment domain |
+| host with a path | `["host:example.invalid/api"]` | tool "t": "host:example.invalid/api": a host is a lower-case name of letters, digits and hyphens, with no scheme, path, port syntax error or trailing dot |
+| host with a scheme | `["host:https://example.invalid"]` | tool "t": "host:https://example.invalid": a port is 1 to 65535, written without a leading zero |
+| host in upper case | `["host:Example.invalid"]` | tool "t": "host:Example.invalid": a host is a lower-case name of letters, digits and hyphens, with no scheme, path, port syntax error or trailing dot |
+| host as an address | `["host:127.0.0.1"]` | tool "t": "host:127.0.0.1": a host is a name, never an address literal |
+| port with a leading zero | `["host:example.invalid:0443"]` | tool "t": "host:example.invalid:0443": a port is 1 to 65535, written without a leading zero |
+| service outside the name pattern | `["svc:Mail Queue"]` | tool "t": "svc:Mail Queue": a service name must match [a-z0-9][a-z0-9._-]{0,63} |
+| arbitrary_exec with a domain | `["fs:/tmp/x"]` (arbitrary_exec) | tool "t": arbitrary_exec is refused a containment domain (N7) |
+| arbitrary_exec at all (default flag) | `null` (arbitrary_exec) | tool "t": arbitrary_exec is refused while EXEC_TOOLS_FORBIDDEN is on (N7) |
+| unsorted list (parser) | `["fs:/tmp/b","fs:/tmp/a"]` | "fs:/tmp/a" is out of order: the domain is not canonical (A7) |
+| duplicated list (parser) | `["fs:/tmp/a","fs:/tmp/a"]` | "fs:/tmp/a" appears twice: the domain is not canonical (A7) |
 
-### Strict against non-strict (WO §3.3)
+**More refusals, from the adversarial pass:** NUL or a backslash in a root; a port over 65535;
+hex host forms (`host:0x7f000001`, `host:a.0x1`); a numeric-leading last label (`host:1a`).
 
-The same drifted fixture under both settings.
+**A well-formed domain of all three schemes registers.** With the flag off, `arbitrary_exec` with
+a null domain registers; with any domain it is still refused.
 
-**Strict, the default.** `startTransport` throws before it binds:
-
-```
-STRICT threw PinRefusedError: the pin gate refused 1 tool(s): echo (drifted); PIN_STRICT is on, so the node does not start
-STRICT audit ["pin-refused {\"tool\":\"echo\",\"reason\":\"drifted\"}"]
-```
-
-**Non-strict.** The node starts:
-
-```
-NON-STRICT audit ["pin-refused {\"tool\":\"echo\",\"reason\":\"drifted\"}","pin-non-strict {\"admitted\":12,\"refused\":1}"]
-NON-STRICT tools/list ["approve_target","ask","ask_big","ask_other","big","costly_schema","hold","needs_sampling","no_args","region_query","slow","throws_refusal"]
-NON-STRICT call echo 400 {"jsonrpc":"2.0","id":2,"error":{"code":-32602,"message":"The tool \"echo\" is refused by the pin gate"}}
-NON-STRICT health {"status":"ok","version":"0","protocolVersions":["2026-07-28","2025-11-25"],"pinned":{"admitted":12,"refused":1}}
-```
-
-- `/health` gives counts only; the names are in the log.
-- A name the gate never saw still gets `Unknown tool` and is not echoed.
-
-## CLI transcript (WO §3.4)
-
-From `cli.test.ts`, which calls `runPin` directly. The temporary directory is stripped from the
-paths.
+## The harness transcript (WO §3.3)
 
 ```
-$ npm run pin -- approve --definitions definitions.mjs --manifest manifest.json   # without --yes
-no manifest at manifest.json: every tool is new
-new        alpha  (unpinned) 800b65afbed0
-new        beta  (unpinned) 4a9a89eef337
-(stderr) approve writes the manifest only with --yes, after the diff above has been read
-exit 2
-$ npm run pin -- approve --yes --definitions definitions.mjs --manifest manifest.json
-...
-approved: manifest.json written with 2 tool(s)
-exit 0
-$ npm run pin -- diff --definitions definitions.mjs --manifest manifest.json   # clean tree
-unchanged  alpha  800b65afbed0
-unchanged  beta  4a9a89eef337
-exit 0
-$ npm run pin -- verify --definitions definitions.mjs --manifest manifest.json
-verify: 2 admitted, 0 refused
-exit 0
-$ npm run pin -- diff --definitions definitions.mjs --manifest manifest.json   # after an edit, an addition, a removal
-drifted    alpha  800b65afbed0 → 09af865c66b9
-removed    beta  4a9a89eef337
-new        gamma  (unpinned) 7172125be659
-exit 1
-$ npm run pin -- verify --definitions definitions.mjs --manifest manifest.json
-refused    alpha  drifted
-refused    gamma  unpinned
-refused    beta  removed
-verify: 0 admitted, 3 refused
-exit 1
+PASS read_note: reaches fs:/tmp/clearseal-reach/notes/today.txt (cage), fs:/tmp/clearseal-reach/notes/today.txt (shim)
+PASS fetch_status: reaches net:status.example.invalid:443 (cage)
+PASS pure_sum: reaches none
+FAIL leaky: undeclared fs:/tmp/clearseal-reach/outside/secret.txt (shim)
 ```
 
-- **Duplicate definitions:** `diff` prints `duplicate  alpha  (two definitions, one name: both refused)` and exits 1. `approve --yes` exits 1 and writes nothing.
-- **The fixture manifest** (`packages/core/test/fixtures/manifest.json`, 13 tools) was generated by
-  `npm run pin -- approve --yes --definitions packages/core/test/fixtures/tools.ts --manifest packages/core/test/fixtures/manifest.json`,
-  and `verify` on it gives `13 admitted, 0 refused`.
+- `leaky` declares `null` and reads a file with `fs` directly. The shim catches it, and it fails
+  naming the tool and the sink.
+- `fetch_status`'s allowed connect is stubbed in tests: nothing leaves the process.
+- **The Windows runner** runs the same harness with the shim only, since the shim is the observer
+  on both platforms. CI reports the same verdicts.
 
-## The detector (WO §3.5)
-
-```
-DETECTOR standard 66b640d ClearSeal-Standard-v0.8.md:108-108 lists 10 fields (states 10); core hashes 10; known divergence: none; unexpected: []
-```
-
-**The source.** `packages/core/test/fixtures/clearseal-section3.json` holds line 108 of
-`ClearSeal-Standard-v0.8.md` (§3 *Controls*) from `ClearForge-LLC/ClearSeal-public` at `66b640d`,
-copied verbatim. The full commit is recorded as a commit URL. The adversarial pass re-fetched that
-line read-only and found it byte-identical.
-
-**No known divergence (measured).** The WO expected a known divergence, but at `66b640d` the
-standard lists the same ten fields the core hashes, and says "Ten fields". `KNOWN_DIVERGENCE` is
-therefore empty, so the test asserts plain equality.
-- The mechanism is still in place: a dated entry, with both sides named.
-- The "nine" in `fields.ts`'s header describes the standard before its v0.8 amendment.
-- **For the architect to acknowledge:** the WO's premise did not hold.
-
-**Red both ways.** A field added to the copy gives `only in the standard: ["rate_limit_tier"]`. A
-field removed gives `only in the core: ["elevated"]`. A field named twice is refused as well.
-
-**The refresh cadence** is documented in the fixture's `source.refresh` and here, and is not
-automated. When `architecture.md`'s pinned public commit moves:
-1. re-copy the line verbatim;
-2. update `commit_url`, `lines` and `copied`;
-3. run `npm run check`.
-
-**Decision-needed (WO §6): the standard's §3 wording can be read two ways.** The sentence says
-"`recoverability_basis` (null unless `owned_state`)". A plain reading of the backticked names
-counts `owned_state` as an **eleventh field**; the first run of the detector did exactly that and
-went red. The detector now drops parenthetical asides before reading names, and it cross-checks
-against the standard's own count word ("Ten fields").
-- That count check is the backstop: a new field hidden in parentheses would make the list one
-  short of the stated count.
-- The standard should write the aside so it cannot be misread, for example by not backticking a
-  value inside the field list.
-- The architect has noted this for review.
-
-## Invariance and constructor proofs (WO §3.6, §3.7)
-
-**Invariance.**
+## The dispatch refusal and its audit line (WO §3.4)
 
 ```
-INVARIANCE manifest_hash before=3a9bcac39407 after=3a9bcac39407 (generated_at and build changed)
+DISPATCH response 500 {"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"The tool reached outside its containment domain (file system)"}}
+DISPATCH audit containment-refused {"tool":"null_reacher","kind":"fs","sink":"/tmp/clearseal-reach/outside/secret.txt"} | containment-refused {"tool":"swallower","kind":"fs","sink":"/tmp/clearseal-reach/outside/secret.txt"}
 ```
 
-The loaded manifest's hash also equals `-1000`'s `manifestHash()` over the same tools.
-
-**The constructor.**
-- **Type level:** three `@ts-expect-error` lines in `startup.test.ts`. If any of them compiled, the
-  type check would fail:
-  - a raw definition list given to `new PinnedRegistry`;
-  - an object shaped like an Admission (`Admission` has a private brand, so its type is nominal);
-  - a hand-made `ToolRegistry` given to `startTransport`.
-- **Run time:**
-  - `TypeError` for a raw list or a look-alike;
-  - `new Admission(<any symbol>, …)` throws, because the issuing token is module-private;
-  - a subclass is refused;
-  - `Object.create(PinnedRegistry.prototype)` is refused by `startTransport`;
-  - the prototype and every instance are frozen, so `get()` cannot be patched and `pinning` cannot
-    be reassigned.
+- **The path** is in the audit line only, never in the response. On the legacy era the same body
+  is served at `200`.
+- **`swallower`** catches the refusal and returns normally; the call still fails (N4).
+- **Every refusal is audited as it happens,** through the cage's callback, so a reach made after
+  the handler returned is audited too.
 
 ## What was built
 
-- **`packages/core/src/pinning/manifest.ts`** and **`packages/core/schemas/manifest.schema.json`:**
-  - validated by the core's own validator, with remote references off;
-  - `build` slots are nullable and unenforced, and each slot's `$comment` names the control that
-    will enforce it. No work order holds manifest signing yet, and the schema says so rather than
-    inventing one;
-  - the RFC 3339 check on `generated_at` is in code, because z-schema's ReDoS guard refuses the full
-    pattern;
-  - `schemas/` is added to the package's published `files`.
-- **`gate.ts`:** `PinGate.load` / `admit` returns an `Admission` with five refusal reasons:
-  `unpinned`, `drifted`, `invalid` (with the rule), `duplicate` and `removed`.
-  - The comparison is constant-time (`timingSafeEqual`).
-  - Each admitted tool is a **deep-frozen snapshot of the canonical object the gate hashed**, and
-    it is all the registry serves.
-- **`registry.ts`:** `PinnedRegistry` accepts only an issued `Admission`.
-  - `loadPinnedRegistry` reads the manifest file.
-  - `PIN_STRICT` is read from the environment unless given: strict unless exactly `false`. It is
-    named in `.env.example`.
-- **The transport consumes the registry, and only there:**
-  - `startTransport` accepts only a genuine `PinnedRegistry`, logs each refusal once at the audit
-    seam, and throws `PinRefusedError` before binding when strict;
-  - `/health` gains `pinned: {admitted, refused}`;
-  - `dispatch` names a gate-refused tool in its `-32602` message;
-  - `PlaceholderRegistry` is deleted, and its static checks survive unchanged as `prepareTool`, no
-    longer exported from the package index.
-- **`cli.ts`:** `npm run pin -- diff | approve --yes | verify`.
-- **Tests:**
-  - the transport tests serve `test/fixtures/tools.ts` through the gate, against the CLI-generated
-    `test/fixtures/manifest.json`;
-  - tests with ad-hoc tools go through `test/fixtures/pin.ts`, which approves in memory with the
-    CLI's own `buildManifest`, then `load`, `admit`, registry;
-  - the conformance fixture server does the same.
+- **`containment/domain.ts`:** `fs:<absolute path>`, `host:<name>[:port]` and `svc:<name>`.
+  - A malformed or non-canonical entry is refused, never fixed.
+  - **Names, never addresses:** an IP literal, a hex form, or a last label that does not begin
+    with a letter is refused.
+  - `fs:/` is refused: the whole file system is not a bound.
+- **`containment/cage.ts`:** the `Cage` interface and `RecordingCage`. It is in-process, and says
+  so; it enforces and records.
+  - **fs:** an absolute path, POSIX-normalized, with no backslash or drive prefix. A symlink leaf is
+    refused. The real path must lie under a root's real path. On Linux, the opened descriptor's
+    real path (`/proc/self/fd/N`) is verified after the open, and the file is closed and refused
+    if it is outside.
+  - **net:** by name, lower-cased; a declared port must match; the port is an integer from 1 to
+    65535.
+  - **svc:** exact name.
+  - **Construction:** instances and the prototype are frozen. `recordingCageFactory` resolves a
+    domain's roots once per registry.
+- **The registry** is the construction hook (-1001's `Admission → PinnedRegistry`).
+  - N7: `arbitrary_exec` is refused a domain, and refused outright while `EXEC_TOOLS_FORBIDDEN` is
+    on. That is the default, unless the variable is exactly `false`, and it is named in
+    `.env.example`.
+  - It parses each domain from the frozen snapshot, and gives each tool a per-call cage factory.
+  - `reachTargets(corpora)` builds harness targets from the frozen domains, and throws for a
+    registered tool with no corpus.
+- **Dispatch:**
+  - a fresh cage per call, passed as `ctx.cage`;
+  - `reached` is captured before the handler runs;
+  - an undeclared reach fails the call with `-32603`, naming only the kind of sink;
+  - every refusal reaches the audit seam with the tool and the full sink.
+- **`containment/harness.ts`:** the reusable reach harness, for editions too.
+  - It runs each tool's corpus under a `RecordingCage` (or an edition's `Cage`) plus a module shim
+    over fs (and fs/promises), net, `net.Socket`, dgram, dns, http, https, tls, fetch, WebSocket,
+    child_process (including `ChildProcess.prototype.spawn`) and Worker. Child processes and
+    workers are refused while the shim is installed.
+  - fs sinks are judged by their real path.
+  - The shim drains (`setImmediate` plus 25 ms) before it is uninstalled.
+  - A tool that never completed a run fails.
+  - A second concurrent run is refused.
+  - The principal is random, so a tool cannot detect the harness.
+- **Fixtures** (`test/fixtures/containment-tools.ts`): `read_note` (`fs:`), `fetch_status`
+  (`host:`), `pure_sum` (`null`), pinned in `containment-manifest.json` by the CLI; and `leaky`,
+  the misbehaving one, kept out of the manifest.
 
 ## Deviations
 
 | # | Deviation | Ruling |
 |---|---|---|
-| D-1 | `spikes/0101-approval/server.ts`, 6 lines added and 3 removed. The `PlaceholderRegistry` import went, three imports came in (`PinGate`, `buildManifest`/`serializeManifest`, `PinnedRegistry`), and the two registration lines were replaced by an in-memory approve plus `admit`. The spike's tools get a read-only capability tag inline | **Ruled by the architect:** "the protected surface on spikes/** exists to stop scope creep, not to preserve a registration path around the gate … it builds its manifest in memory at start (approve semantics, never written to disk) and registers through PinGate.admit like everything else." Nothing else under `spikes/**` changed |
-| D-2 | A third `.leak-gate-allow` line: `packages/core/test/fixtures/*.json long-hex digests of committed public test inputs, not secrets`. The fixture manifest carries `tool_hash` and `manifest_hash` digests | Not listed as protected for this WO. It has the same justification you ruled for the vectors, but it is **yours to confirm** |
-| D-3 | The served description is the **A4-normalized** text, and the served schema is in **JCS member order**. Both are exactly what was hashed (adversarial F2). One transport test (`x-mcp-header`) compared an order that depends on the schema's key order; it is now order-insensitive | Recorded. Serving the hashed bytes is the fix |
-| D-4 | `title` and `annotations` are not part of a pinnable definition, so nothing the manifest does not hash is served | Recorded. If tools need them, they either join the hashed set (a version bump of the canonical form) or stay off |
+| D-1 | **A WO defect:** the WO named `pinning/gate.ts` protected, while §1.4 requires parsing the domain and class from the frozen admitted definition, which only `gate.ts` holds. `AdmittedTool` gains `readonly capability`: the seven tag fields, taken from the same deep-frozen snapshot that was hashed. 8 lines added and 2 removed; nothing else in `gate.ts` moved, the hash input is unchanged, and `spec-check` passes | **Ruled by the architect** (flag-and-stop, WO §7): "the minimal gate.ts change is allowed and is the only gate.ts change allowed" |
+| D-2 | **A non-canonical list** (unsorted or duplicated) is refused by `parseDomain`, as WO §3.2 asks. But through the gate a definition's list is first canonicalized by A7 (ratified: sets are sorted and deduplicated), so the registry never sees an unsorted list. The refusal holds at the parser, and is a precondition on the snapshot | Recorded; A7 is the canonical form's rule |
+| D-3 | **WO §3.5's wording.** "Remove the domain check in RecordingCage → harness passes the misbehaving fixture" does not hold as written: `leaky` reaches through `fs` directly, so the **shim** catches it, not the cage. Removing the cage's check turns the cage, dispatch and harness-via-cage tests red instead. Removing the shim's judgment (`declared`) turns the `leaky` verdict red | Recorded; both red-proofs are below |
 
 ## Red-proofs (N5)
 
-33 mutants, each removing or weakening one check, were run against the pinning and transport
+40 mutants, each removing or weakening one check, were run against the containment and transport
 tests, each run limited to 300 s. The script refuses to start on a tree with uncommitted changes.
+37 go red. The three green ones are defence in depth, each equivalent while another layer stands,
+and all three are named below.
 
 | Mutant | Goes red in |
 |---|---|
-| manifest | unknown top-level field check removed |
-| manifest | version checks removed |
-| manifest | manifest_hash recompute removed |
-| manifest | order check removed |
-| manifest | duplicate-entry check removed |
-| manifest | RFC 3339 check removed |
-| gate | unpinned admitted |
-| gate | drift not compared |
-| gate | duplicates first-wins |
-| gate | removed entries not reported |
-| gate | invalid silently skipped |
-| gate | Admission token not checked |
-| registry | issued-admission check removed |
-| registry | missing manifest not a ManifestError |
-| server | any registry accepted |
-| server | instanceof instead of the private brand |
-| server | strict does not stop the node |
-| server | /health without pinned counts; transport RED 1 |
-| dispatch | refused tool not named |
-| cli | approve without --yes writes |
-| cli | diff always exit 0 |
-| cli | verify ignores refusals |
-| F1 | capability extra keys allowed |
-| F1 | green alone: **equivalent** while the extra-key check stands; with both F1 layers removed, the F1 test goes red (run by hand) |
-| F2 | registry serves the live definition, not the snapshot |
-| F3 | subclassing allowed |
-| F3 | prototype not frozen |
-| F4 | instance not frozen |
-| F5 | strict default ignores the environment |
-| F6 | diff ignores duplicates |
-| F7 | approve writes duplicates |
-| F7 | hash compared on its first 8 bytes only |
-| detector | parentheticals read as fields |
+| domain | unknown scheme accepted |
+| domain | relative path accepted |
+| domain | normalization not checked |
+| domain | whole file system accepted |
+| domain | host labels not checked |
+| domain | address literal accepted |
+| domain | NUL or backslash accepted |
+| domain | port over 65535 accepted |
+| domain | port leading zero accepted |
+| domain | service name not checked |
+| domain | unsorted list accepted |
+| domain | duplicate list accepted |
+| cage | fs domain check removed |
+| cage | symlink leaf allowed (A2) |
+| cage | .. not normalized |
+| cage | backslash accepted (A13) |
+| cage | no post-open check (A3) |
+| cage | port range unchecked (A15) |
+| cage | port ignored |
+| cage | service not checked |
+| cage | refused reach not thrown |
+| cage | instance not frozen (A8) |
+| harness | shim reaches never judged |
+| harness | real path not resolved (A4) |
+| harness | no drain (A6) |
+| harness | uncompleted tool passes (A6) |
+| harness | overlapping runs allowed (A7) |
+| harness | raw socket not observed (A5) |
+| harness | spawn counted as declared |
+| harness | verdict ignores undeclared |
+| N7 | exec given a domain |
+| N7 | exec not forbidden by default |
+| registry | domain not parsed (empty cage for all) |
+| registry | exec flag default off |
+| dispatch | refused reach does not fail the call |
+| dispatch | no cage from the tool |
+| dispatch | refusals not audited (A9) |
+| dispatch | reached read after the handler (A8) |
+| registry | targets not required for every tool (A12) |
+| dispatch | sink path in the response |
 
 ## Adversarial pass (fresh subagent, WO §5; its own scratch worktree, since removed)
 
 | # | Finding | Severity | Status |
 |---|---|---|---|
-| F1 | **A key inside `capability` replaced a hashed field.** `canonicalInput` spread the tag after the real fields, so `capability.description` became the hashed description while the registry served `tool.description`. `verify` passed it (`13 admitted, 0 refused`). N2 was not met | **high** | **Fixed:** the seven tag fields are picked by name, any other key is refused (`invalid`, A6), and the registry serves the snapshot (F2). Tested, and red-proofed twice: with the extra-key check removed, and with the original spread restored |
-| F2 | Nothing was snapshotted. A getter, or mutation after `admit` or after start, changed what was served | medium | **Fixed:** one read, a canonical object, a deep-frozen snapshot, hashed and served. Tested (getter, mutation after admit, a frozen schema) and red-proofed |
-| F3 | The "structural" claim held only against the type checker: a subclass, `Object.create(prototype)`, or a patched prototype served an unpinned tool | medium/low | **Fixed:** subclassing is refused, the prototype and instances are frozen, `startTransport` checks a private brand plus the exact prototype, and `prepareTool` is no longer exported. Tested and red-proofed |
-| F4 | `registry.pinning` could be reassigned, hiding refusals from a strict start | low | **Fixed:** instances are frozen |
-| F5 | `pinStrictFromEnv` was not wired; `strict` was a required boolean | medium/low | **Fixed:** `strict` is optional and defaults to the environment. Tested, including `PIN_STRICT=false` with no manifest |
-| F6 | `diff` collapsed duplicate definitions and exited 0 | low | **Fixed:** `duplicate` status, exit 1 |
-| F7 | Two checks could be removed with every test still green: approve's duplicate check, and a comparison of only the first 8 bytes | low | **Fixed:** a test for each, and both now in the mutant table |
-| F8 | Three regressions hung the suite rather than failing it: a strict test left an unexpectedly started server open | low | **Fixed** before the report arrived: those tests close any transport that starts, and the mutant runs are time-limited |
-| F9 | Non-strict naming a refused tool confirms that it exists. `PinRefusedError`'s message is a plain string | info | By design (WO §1.4). The audit seam is JSON |
-| F10 | The loader is permissive where it is harmless: `2026-02-31T…` passes, there is no size cap (200k entries in about 3.3 s), `1.0` counts as version 1, approve writes non-atomically | info | Recorded. `generated_at` is informational and unhashed. A size cap is a proposed follow-up |
-| F11 | The detector found no divergence, although the WO expected one; parenthetical stripping could hide a field written inside parentheses | info | Recorded above. The count word is the backstop |
-| F12 | The conformance fixture server and the spike approve their own tools in memory, so pinning cannot fail there | info | Test-only and ruled (D-1). Stated here |
+| A1 | A private IPv4 address in a test tripped the leak gate's private-ip rule (`--tree` and `--history`) | **blocker** | **Fixed:** `host:127.0.0.1` (loopback is exempt, and still refused as an address). The branch was squashed to one commit before any push, so history is clean |
+| A2 | A dangling symlink leaf passed the check, and a write through it created a file outside the root | **high** | **Fixed:** a symlink leaf is refused. Tested: nothing is created outside |
+| A3 | TOCTOU: the check resolved the real path, but the open used the unresolved one; a same-tick swap won 2 of 2000 races | **high** | **Fixed on Linux:** the opened descriptor's real path is verified, and the file is closed and refused if it is outside. Tested with an effect that opens a different file. **On other platforms the RecordingCage has no descriptor check;** the edition's OS cage is the boundary there, as the docstring says |
+| A4 | A direct `fs` read through an in-root symlink passed the harness (lexical comparison) | medium | **Fixed:** the harness judges real paths. Tested |
+| A5 | Many routes escaped the shim | medium | **Mostly fixed:** `net.Socket#connect`, dgram, dns (both APIs), WebSocket, `ChildProcess#spawn` and Worker (refused), plus the missing fs functions. **Residue, documented in `harness.ts`:** a function reference captured before the run, `process.binding`, `process.dlopen` and native addons. `realpath` is not observed, since the cage itself uses it. Tested for net, raw socket, dns and Worker |
+| A6 | The harness passed vacuously: a handler that throws before reaching, a reach after return, and a principal the tool could detect | medium | **Fixed:** a tool that never completes a run fails; the shim drains before uninstalling; the principal is random. Tested |
+| A7 | Concurrent harness runs corrupted the shim and left it installed | medium | **Fixed:** a reentrancy guard. Tested, including that the shim is restored |
+| A8 | A handler could hide a swallowed refusal by replacing `ctx.cage.reached` or patching the prototype | low–medium | **Fixed:** the cage and its prototype are frozen, and dispatch captures `reached` before the handler. Tested |
+| A9 | A refusal after the handler returned was never audited | low | **Fixed:** the cage reports each refusal through a callback, and dispatch audits it. Tested |
+| A10 | Scale: every call's cage re-resolved all N roots (about 185 ms at 10,000 roots), and an allowed check did N realpath calls | medium (perf) | **Partly fixed:** roots are resolved once per registry, and the path once per check; the check itself is a linear scan over roots. Measured: parsing 10,000 entries takes about 10 ms. A prefix index is a proposed follow-up if a real tool ever declares thousands of roots |
+| A11 | Gaps: several mutants survived | medium | **Fixed:** tests for a shared cage (#25), a declared fs tool reaching outside (#26), the harness ignoring cage refusals (#37), the net shim (#35/#40), spawn not blocked (#33), the shim not uninstalled (#38), NUL/backslash (#12) and the upper port bound (#17). See the matrix |
+| A12 | The harness took a hand-kept tool list and the **live** domain | low–medium | **Fixed:** `PinnedRegistry.reachTargets(corpora)` builds targets from the frozen domains, and throws for a registered tool with no corpus |
+| A13 | Windows: a backslash path passed POSIX normalization and could open outside the root | medium on Windows (inferred) | **Fixed:** a path with a backslash or a drive prefix is refused. Tested |
+| A14 | Hex address forms were accepted as host names | low | **Fixed:** a hex label is refused, and the last label must begin with a letter. Tested |
+| A15 | A nonsense port was allowed on a portless entry | low | **Fixed:** 1 to 65535, integers only. Tested |
+| A16 | Semantics, stated for the architect | info | See below |
+
+### Architect review finding R-1 (fixed in a fix-up commit)
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| R-1 | **A write-mode open through a leaf swapped between check and open mutated a file outside the root.** The post-open descriptor check (A3) refused the handle, but in `w` or `a` mode the open had already created or truncated the file. My A3 test used a read, where nothing is mutated, so it passed. The architect reproduced the defect: a swap of `root/f.txt` for a link to `outside/victim.txt`, then an open with `w`, left the victim truncated to `""` | **high** | **Fixed:** on POSIX the open now carries numeric flags from the mode string OR'd with `O_NOFOLLOW`, so the kernel refuses a symlink leaf atomically, inside the open. An unknown mode is refused. The `lstat` pre-check and the `/proc/self/fd` post-check stay as further layers. **Red-proof:** a swap-then-open in `w` and in `a` leaves the outside victim byte-identical and the call refused; with `O_NOFOLLOW` removed, the test fails with "mode w: the victim is byte-identical" |
+
+**The limit, stated in `open()`'s docstring.** `O_NOFOLLOW` covers the final path component only. An intermediate directory swapped for a symlink between the check and the open is **not** closed in-process: the open follows it, and in a write mode a file outside the root can be created or truncated before the post-open check refuses the handle. Closing that needs an open resolved beneath a directory (`openat2` with `RESOLVE_BENEATH`), which Node does not expose. That is the edition OS cage's job. On Windows none of the POSIX layers apply.
+
+### Rules and semantics stated (WO §5 item 3, adversarial A16)
+
+- **Names, never addresses.** The cage matches the declared host string, lower-cased. A connect by
+  an IP literal to a host declared by name is refused, even when the name resolves to that
+  address. An edition may only widen this on the declaration side, by declaring the name it
+  connects to; the core never resolves names to compare addresses.
+- **A root that is itself a symlink** is followed once, at registration, and that real path is the
+  bound.
+- **`[]` and `null` are distinct,** as A7 ratified: `[]` claims containment to nothing, `null`
+  claims no containment. Both refuse every reach. With `arbitrary_exec`, `[]` gets the "refused a
+  domain" refusal.
+- **An `fs:` root grants every mode:** read, write, append. Per-mode domains would be a canonical-
+  form change.
+- **An `fs:` path may contain a newline.** It is not refused, because it is a legal file name
+  character; a later WO may narrow the character set.
+- **A construction refusal stops the node** even when `PIN_STRICT=false`. Non-strict relaxes pin
+  drift, never a containment rule.
 
 **Held (measured by the subagent):**
-- **§5.2:** code-point order for an astral name is unreachable. The schema's name pattern and A5
-  refuse non-ASCII names first; the order check itself uses UTF-16 order.
-- **§5.4:** constant time. Over 10,000 admits, a matching hash, one differing at the first byte, and
-  one differing at the last byte all take about 15.5–15.9 µs, with no ordering between them.
-  `timingSafeEqual` runs at a flat 89–98 ns. Every hash is computed from public definitions, so
-  timing does not leak a secret.
-- **§5.6:** the gate uses its loaded copy.
-- **The loader** refuses: a BOM, duplicate keys, `__proto__`, upper-case hashes, extra keys in an
-  entry, a numeric build slot, a missing or extra build slot, trailing garbage, depth over 64.
-- **Hash invariance** held.
-- **Protected surfaces** diff empty apart from D-1.
-- **Leak gate** `--tree` and `--history` exit 0.
+- `parseDomain` fuzzing: 200k soundness runs and 100k completeness runs, 0 violations.
+- A domain widened on the live definition after admit has no effect.
+- The N7 matrix is correct.
+- 200 interleaved concurrent calls did not leak cages.
+- The legacy era serves the same body at 200, with no path.
+- A symlink inside a root to outside is refused.
+- `..`, relative paths, prefix siblings and `file://` are refused.
+- Protected surfaces diff empty apart from D-1.
+
+**Decision-needed (WO §6):** whether the fleet's 26-tool reference node uses a sink the three
+schemes cannot express. I did not measure it here: the reference node's tool catalogue is outside
+this repository. Candidates to check are a per-mode file sink (read-only vs write), a device sink
+(a phone's clipboard or sensors, which that node exposes), and a sink named by URL path rather than
+host. Each would be a new scheme, which is a canonical-form version change.
 
 ## Gates
 
 | Gate | Result |
 |---|---|
-| `npm run check` | exit 0: core **332** tests (21 files), spike 0102 69, spike 0101 8, `test:subset` 4 |
+| `npm run check` | exit 0: core **358** tests (24 files), spike 0102 69, spike 0101 8, `test:subset` 4 |
 | CI | both runners, on the pull request |
-| Protected surfaces | The four steering documents, `LICENSE`, `NOTICE`, `scripts/**`, `.github/**`, `docs/canonical-form.md`, `canonical.ts`, `fields.ts`, the oracle and the vectors diff **empty**. `spikes/**` has only D-1's lines. The transport changed only where it consumes the registry: `server.ts` (the start check, `/health`), `dispatch.ts` (naming a refused tool), `registry.ts` (`PlaceholderRegistry` became `prepareTool`), `index.ts` |
-| Leak gate | `--tree` and `--history` exited 0 before every push, each checked by exit code |
+| Protected surfaces | The four steering documents, `LICENSE`, `NOTICE`, `scripts/**`, `.github/**`, `spikes/**`, `docs/canonical-form.md`, `canonical.ts`, `fields.ts`, `manifest.ts`, the oracle and the vectors diff **empty**. `gate.ts` has only D-1. The registry and dispatch changed only where they construct and pass the cage. `transport/registry.ts` has the `cage` field on `CallContext` and `newCage` on `RegisteredTool` |
+| Leak gate | `--tree` and `--history` exited 0 before the push, each checked by exit code |
 | Credentials | Pushes went over the repository's write deploy key. A short-lived token was minted only to open this pull request, kept in a mode-0600 scratch file, and deleted straight after |
 
 ## What did not work, and why
 
-- **The first manifest schema did not compile.** z-schema's ReDoS guard refused the RFC 3339
-  pattern, so the full check moved into code.
-- **The first detector run read eleven fields:** the parenthetical case above.
-- **My first red-proof run hung for about 40 minutes** on the drift mutant. The strict test left an
-  unexpectedly started server open. I stopped that process by its PID and restored the one mutated
-  file from the commit. I fixed the tests to close any started transport, limited each mutant run
-  to 300 s, and re-ran the matrix against the commit.
-- **My first `Admission` design exposed its factory** through a `Symbol.for` key, which anyone
-  could call. I replaced it before any commit with a module-private token.
+- **The first red-proof matrix found four green mutants.** All four were redundant code (a double
+  containment check, a redundant spawn line, a redundant null-domain clause). They are removed.
+  The remaining green one is equivalent on Linux only (see the table).
+- **My squash commit first left out the working-tree changes,** because `reset --soft` does not
+  stage them, and `--history` refused it on the old address. I amended with everything staged and
+  re-ran both gates: exit 0.
 
 ## What was deliberately not built
 
-- **Signing the manifest, key management, and the release-integrity check.** The slots are there
-  and unenforced.
-- **The entitlement map (P6), any shipped tool (`-1004`), containment, reach and auth.**
-- **Automated refresh of the standard's copy.** The cadence is documented instead.
-- **A manifest size cap** (F10), proposed.
+- **An OS sandbox:** editions, P3/P4, behind `Cage`.
+- **Approval, the ceiling, and audit** beyond the log line.
+- **Any shipped tool** (`-1004`).
+- **Re-normalizing a domain.**
+- **A prefix index for very large domains** (A10), proposed.

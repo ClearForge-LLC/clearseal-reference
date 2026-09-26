@@ -14,7 +14,11 @@
 import { timingSafeEqual } from "node:crypto";
 
 import { CanonicalRefusal, canonicalJson, canonicalToolObject, toolHash } from "./canonical.ts";
-import { canonicalInput, type ManifestEntry, parseManifest, type PinnableTool } from "./manifest.ts";
+import { type CapabilityTag, canonicalInput, type ManifestEntry, parseManifest, type PinnableTool } from "./manifest.ts";
+
+/** The tag fields of a frozen snapshot; the snapshot is deep-frozen, so this view is too. */
+const tagOf = (s: Record<string, unknown>): Readonly<CapabilityTag> =>
+  Object.freeze({ capability_class: s["capability_class"], untrusted_input_facing: s["untrusted_input_facing"], scope: s["scope"], privacy_sensitive: s["privacy_sensitive"], recoverability_basis: s["recoverability_basis"], elevated: s["elevated"], containment_domain: s["containment_domain"] } as CapabilityTag);
 
 export type RefusalReason = "unpinned" | "drifted" | "invalid" | "duplicate" | "removed";
 
@@ -32,6 +36,8 @@ export interface AdmittedTool {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: Readonly<Record<string, unknown>>;
+  /** The seven tag fields, from the same frozen snapshot that was hashed (CSR-WO-1002 D-1). */
+  readonly capability: Readonly<CapabilityTag>;
   readonly toolHash: string;
   readonly handler: PinnableTool["handler"];
 }
@@ -127,7 +133,7 @@ export class PinGate {
       const pinned = this.#entries.get(d.name);
       if (pinned === undefined) refused.push({ name: d.name, reason: "unpinned" });
       else if (!sameHash(hash, pinned)) refused.push({ name: d.name, reason: "drifted" });
-      else admitted.push(Object.freeze({ name: snapshot["name"] as string, description: snapshot["description"] as string, inputSchema: snapshot["input_schema"] as Record<string, unknown>, toolHash: hash, handler: d.handler }));
+      else admitted.push(Object.freeze({ name: snapshot["name"] as string, description: snapshot["description"] as string, inputSchema: snapshot["input_schema"] as Record<string, unknown>, capability: tagOf(snapshot), toolHash: hash, handler: d.handler }));
     }
     for (const name of this.#entries.keys()) {
       if (!seen.has(name)) refused.push({ name, reason: "removed" });
