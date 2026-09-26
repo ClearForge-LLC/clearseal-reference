@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { DEFAULT_LIMITS } from "../../src/transport/config.ts";
-import { PlaceholderRegistry } from "../../src/transport/registry.ts";
+import { pinForTest } from "../fixtures/pin.ts";
 import { ValidationPool } from "../../src/transport/schema-pool.ts";
 import { startTransport } from "../../src/transport/server.ts";
 import { legacyHeaders, modern, raw, start } from "./helpers.ts";
@@ -15,8 +15,7 @@ void describe("WO §1.1 the validation pool closes with the server", () => {
   void it("after close(), the process's active handles return to the baseline within two seconds", async () => {
     const baseline = resources();
     const pool = new ValidationPool({ workers: 2, timeoutMs: DEFAULT_LIMITS.validationTimeoutMs });
-    const registry = new PlaceholderRegistry(pool.compile, DEFAULT_LIMITS);
-    registry.register({ name: "echo", inputSchema: { type: "object", properties: { t: { type: "string" } } }, handler: (a) => Promise.resolve({ content: [{ type: "text", text: String(a["t"]) }] }) });
+    const registry = pinForTest([{ name: "echo", inputSchema: { type: "object", properties: { t: { type: "string" } } }, handler: (a) => Promise.resolve({ content: [{ type: "text", text: String(a["t"]) }] }) }], pool.compile, DEFAULT_LIMITS);
     const t = await startTransport({ registry, serverInfo: { name: "x", version: "0" }, validationPool: pool, verifier: { verify: () => Promise.resolve({ ok: true, principal: { id: "p" } }) } });
     const r = await raw(t, {
       headers: { accept: "application/json", "content-type": "application/json", "mcp-protocol-version": "2026-07-28", "mcp-method": "tools/call", "mcp-name": "echo", connection: "close" },
@@ -41,7 +40,7 @@ void describe("WO §1.1 the validation pool closes with the server", () => {
   void it("a transport refused at configuration closes the pool it was handed (1005a adversarial F2)", async () => {
     const baseline = resources();
     const pool = new ValidationPool({ workers: 1, timeoutMs: 1000 });
-    const registry = new PlaceholderRegistry(pool.compile, DEFAULT_LIMITS);
+    const registry = pinForTest([], pool.compile, DEFAULT_LIMITS);
     await assert.rejects(startTransport({ registry, serverInfo: { name: "x", version: "0" }, validationPool: pool, config: { limits: { maxInFlight: 0 } } }), /maxInFlight/);
     assert.deepEqual(resources(), baseline, "no worker port left behind");
   });

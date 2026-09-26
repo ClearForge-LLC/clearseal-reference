@@ -1,0 +1,13 @@
+{
+  "source": {
+    "repository": "ClearForge-LLC/ClearSeal-public",
+    "commit_url": "https://github.com/ClearForge-LLC/ClearSeal-public/commit/66b640dcde147b96bc1a733b859203108325853b",
+    "commit_short": "66b640d",
+    "path": "ClearSeal-Standard-v0.8.md",
+    "section": "3. Controls",
+    "lines": "108-108",
+    "copied": "2026-09-26",
+    "refresh": "Maintenance cadence (documented in CSR-WO-1001 FEEDBACK, not automated): when architecture.md's pinned public commit moves, re-copy this line verbatim from the new commit, update commit_url, lines and copied, and re-run the test."
+  },
+  "text": "  - **THE PINNED TOOL OBJECT (canonical, hashed into the manifest).** `name`, `description`, `input_schema`, `capability_class`, `untrusted_input_facing`, `scope`, `privacy_sensitive`, `recoverability_basis` (null unless `owned_state`), `elevated`, and `containment_domain`. **Ten fields. This enumeration and the executable form (`canonicalFieldSet()`) MUST list the same set; if they diverge, the executable form is authoritative and this list is the bug.** `elevated` is pinned because the human-confirmation gate reads it: an allowlist held outside the manifest is authority the pinning system does not know exists (\u00a78 #11). A gate must never decide on a property the manifest does not track \u2014 otherwise flipping that property escapes the gate without tripping pin drift."
+}

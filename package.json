@@ -17,6 +17,7 @@
     "lint": "eslint --max-warnings 0 . && node scripts/check-directives.mjs",
     "build": "npm run build --workspaces",
     "test": "node scripts/test.mjs && node scripts/test.mjs \"spikes/0102-envelope/test/*.test.ts\" && node scripts/test.mjs \"spikes/0101-approval/test/*.test.ts\"",
+    "pin": "node packages/core/src/pinning/cli.ts",
     "test:subset": "node scripts/test.mjs \"packages/core/test/pinning/subset.test.ts\"",
     "check": "node scripts/check-node.mjs && npm run typecheck && npm run lint && npm run build && npm run test && npm run test:subset",
     "leak-gate": "node scripts/leak-gate.mjs --self-test && node scripts/leak-gate.mjs --tree && node scripts/leak-gate.mjs --history"

@@ -6,7 +6,8 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 
 import { DEFAULT_LIMITS } from "../../src/transport/config.ts";
-import { PlaceholderRegistry, RegistrationError, type Tool } from "../../src/transport/registry.ts";
+import { RegistrationError, type Tool } from "../../src/transport/registry.ts";
+import { pinForTest } from "../fixtures/pin.ts";
 import { compileSchema } from "../../src/transport/schema.ts";
 import { modern, modernBody, modernHeaders, raw, type Reply, start, type Started } from "./helpers.ts";
 
@@ -15,9 +16,8 @@ function tool(inputSchema: Record<string, unknown>): Tool {
   return { name: "t", inputSchema: { type: "object", ...inputSchema }, handler: ok };
 }
 function refused(schema: Record<string, unknown>): string {
-  const registry = new PlaceholderRegistry(compileSchema, DEFAULT_LIMITS);
   try {
-    registry.register(tool(schema));
+    pinForTest([tool(schema)], compileSchema, DEFAULT_LIMITS);
   } catch (err) {
     assert.ok(err instanceof RegistrationError, String(err));
     return err.message;
@@ -48,9 +48,9 @@ void describe("SH-27…SH-29 registration refuses every broken x-mcp-header anno
   }
 
   void it("accepted: nested properties chain, integer, boolean, nullable primitive; an x-mcp-header key inside `default` data is not an annotation", () => {
-    const registry = new PlaceholderRegistry(compileSchema, DEFAULT_LIMITS);
-    registry.register(
-      tool({
+    const registry = pinForTest(
+      [
+        tool({
         properties: {
           a: { type: "object", properties: { b: { type: "string", "x-mcp-header": "Deep" } } },
           n: { type: "integer", "x-mcp-header": "N" },
@@ -58,11 +58,16 @@ void describe("SH-27…SH-29 registration refuses every broken x-mcp-header anno
           d: { type: "object", default: { "x-mcp-header": "not-an-annotation" } },
         },
       }),
+      ],
+      compileSchema,
+      DEFAULT_LIMITS,
     );
-    assert.deepEqual(registry.get("t")?.paramHeaders.map((p) => [p.header, p.path.join("/"), p.type]), [
+    // Order-insensitive: the registry serves the pin gate's canonical snapshot (CSR-WO-1001), whose
+    // members are in JCS order, not the order they were written in.
+    assert.deepEqual(registry.get("t")?.paramHeaders.map((p) => [p.header, p.path.join("/"), p.type]).sort(), [
       ["mcp-param-deep", "a/b", "string"],
-      ["mcp-param-n", "n", "integer"],
       ["mcp-param-f", "f", "boolean"],
+      ["mcp-param-n", "n", "integer"],
     ]);
   });
 });

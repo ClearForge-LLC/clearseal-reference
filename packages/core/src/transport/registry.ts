@@ -1,5 +1,6 @@
-// The tool registry seam. The transport talks to a ToolRegistry; this WO ships a placeholder that
-// -1001 replaces with verify-before-register. Registration is where every static check on a tool
+// The tool registry seam. The transport talks to a ToolRegistry; the one implementation is the
+// pinned registry (pinning/registry.ts, CSR-WO-1001), built only from the pin gate's admission.
+// prepareTool below is where every static check on a tool
 // definition happens, so a tool that would break a rule at call time is refused before it is ever
 // listed: its name (TL-5), an `inputSchema` that is an object schema in the 2020-12 dialect (TL-4,
 // BI-14, BI-15), no `$ref` outside the schema's own document (BI-16, BI-17), bounded depth and
@@ -51,10 +52,22 @@ export interface RegisteredTool {
   paramHeaders: readonly ParamHeader[];
 }
 
+/** What the pin gate decided, as the transport needs it: counts for /health, the refusals for the
+ *  start-up log, and whether a refusal stops the node (CSR-WO-1001 §1.4). */
+export interface PinningStatus {
+  strict: boolean;
+  admitted: number;
+  refused: readonly { name: string; reason: string; rule?: string }[];
+  /** True when the name is a tool the gate refused, so a call to it can say so. */
+  isRefused(name: string): boolean;
+}
+
 export interface ToolRegistry {
   /** The tools currently available, in a deterministic order (TL-3). */
   list(): readonly RegisteredTool[];
   get(name: string): RegisteredTool | undefined;
+  /** Present on a pinned registry. */
+  readonly pinning?: PinningStatus;
 }
 
 /** Compiles a 2020-12 schema into a validator. Must never fetch or read anything. */
@@ -91,47 +104,28 @@ function effectiveSchema(schema: Record<string, unknown>): Record<string, unknow
   return { ...schema, unevaluatedProperties: false };
 }
 
-/** Placeholder until -1001: an in-memory registry with the static checks above. */
-export class PlaceholderRegistry implements ToolRegistry {
-  readonly #tools = new Map<string, RegisteredTool>();
-  readonly #compile: SchemaCompiler;
-  readonly #limits: Pick<Limits, "maxSchemaDepth" | "maxSchemaNodes">;
-
-  constructor(compile: SchemaCompiler, limits: Pick<Limits, "maxSchemaDepth" | "maxSchemaNodes">) {
-    this.#compile = compile;
-    this.#limits = limits;
+/** Every static check on one tool definition, then its compiled validator and parameter headers.
+ *  Throws RegistrationError. Duplicate names are the pin gate's refusal, before this runs. */
+export function prepareTool(tool: Tool, compile: SchemaCompiler, limits: Pick<Limits, "maxSchemaDepth" | "maxSchemaNodes">): RegisteredTool {
+  if (!TOOL_NAME.test(tool.name)) throw new RegistrationError("tool name must be 1–128 characters of A–Z a–z 0–9 _ . -");
+  const schema = tool.inputSchema;
+  if (!isPlainObject(schema)) throw new RegistrationError("inputSchema must be a JSON Schema object");
+  if (schema["type"] !== "object") throw new RegistrationError('inputSchema must have type "object"');
+  if (Object.hasOwn(schema, "$schema") && !DIALECTS.has(schema["$schema"] as string)) throw new RegistrationError("inputSchema declares a dialect other than 2020-12, which this server does not support");
+  inspectSchema(schema, limits);
+  let headers: ParamHeader[];
+  try {
+    headers = paramHeaders(schema);
+  } catch (err) {
+    if (err instanceof AnnotationError) throw new RegistrationError(`tool "${tool.name}": ${err.message}`);
+    throw err;
   }
-
-  register(tool: Tool): void {
-    if (!TOOL_NAME.test(tool.name)) throw new RegistrationError("tool name must be 1–128 characters of A–Z a–z 0–9 _ . -");
-    if (this.#tools.has(tool.name)) throw new RegistrationError(`a tool named "${tool.name}" is already registered`);
-    const schema = tool.inputSchema;
-    if (!isPlainObject(schema)) throw new RegistrationError("inputSchema must be a JSON Schema object");
-    if (schema["type"] !== "object") throw new RegistrationError('inputSchema must have type "object"');
-    if (Object.hasOwn(schema, "$schema") && !DIALECTS.has(schema["$schema"] as string)) throw new RegistrationError("inputSchema declares a dialect other than 2020-12, which this server does not support");
-    inspectSchema(schema, this.#limits);
-    let headers: ParamHeader[];
-    try {
-      headers = paramHeaders(schema);
-    } catch (err) {
-      if (err instanceof AnnotationError) throw new RegistrationError(`tool "${tool.name}": ${err.message}`);
-      throw err;
-    }
-    let validate: (v: unknown) => boolean | Promise<boolean>;
-    try {
-      validate = this.#compile(effectiveSchema(schema));
-    } catch (err) {
-      throw new RegistrationError(`tool "${tool.name}": inputSchema does not compile as 2020-12: ${err instanceof Error ? err.message : String(err)}`);
-    }
-    const { handler, ...definition } = tool;
-    this.#tools.set(tool.name, { definition, handler, validate, paramHeaders: headers });
+  let validate: (v: unknown) => boolean | Promise<boolean>;
+  try {
+    validate = compile(effectiveSchema(schema));
+  } catch (err) {
+    throw new RegistrationError(`tool "${tool.name}": inputSchema does not compile as 2020-12: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  list(): readonly RegisteredTool[] {
-    return [...this.#tools.values()].sort((a, b) => (a.definition.name < b.definition.name ? -1 : a.definition.name > b.definition.name ? 1 : 0));
-  }
-
-  get(name: string): RegisteredTool | undefined {
-    return this.#tools.get(name);
-  }
+  const { handler, ...definition } = tool;
+  return { definition, handler, validate, paramHeaders: headers };
 }

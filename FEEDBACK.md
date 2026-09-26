@@ -1,213 +1,295 @@
-# FEEDBACK: CSR-WO-1000, stage B (the canonical form, implemented from the ratified specification)
+# FEEDBACK: CSR-WO-1001 (the pin gate: manifest, verify-before-register, strict default, operator path, cross-repo detector)
 
-Branch `wo/CSR-WO-1000`. Stage A (`b098d08`, `76f709b`) was ratified on 2026-09-26: D-1 and D-2
-adopted, C-1 to C-4 accepted, C-5 ruled the other way (plain hex, one allow entry). Built on Node
-v24.21.0 with Python 3.12.3. This is PR #32, marked ready for review.
+Branch `wo/CSR-WO-1001`, cut from `main` at `444d12c`; the base carries `-1000`'s `canonical.ts` and
+`fields.ts`. Parked as one unmerged pull request. Built on Node v24.21.0.
 
-## Review round (architect, 2026-09-26): five change requests, all applied on this branch
+## Refusal table (WO §3.2)
 
-The architect's second read of `canonical_oracle.py` against the specification (F9) found no
-divergence. These are the rulings and requests, and what was done:
+Pasted from the tests: `gate.test.ts`, `manifest.test.ts` and `startup.test.ts`.
 
-| Request | Done |
+| Case | Result |
 |---|---|
-| **F1: the depth limit goes into version 1** | A1 now says: an input nested deeper than 512 objects and arrays, counted together, is refused. Oracle vectors A1-7 (512, accepted) and A1-8 (513, refused) were added. The code comments cite the rule rather than an implementation limit. An off-by-one mutant (limit 513) now fails vector A1-8 as well as the boundary test |
-| **F6: the leading-U+FEFF rule applies to the description as given and after normalization** | The sentence is in A3 and A4. Vector A4-9 (a tool whose description is LF, U+FEFF, `abc`) is refused by both |
-| **F7: a literal is first rounded to the nearest double, then serialized** | The sentence is in A2. Vectors A2-16 (`9007199254740991.4` → 2^53−1, accepted) and A2-17 (`-1e-400` → negative zero, refused) |
-| **A6-4 relabelled** | It is now **A5-9**, refused under A5, the rule that refuses it. The id A6-4 is retired and A6-5 keeps its id, so no existing id changes meaning |
-| **Plain hex in `docs/canonical-form.md`** | A second `.leak-gate-allow` line: `docs/canonical-form.md long-hex digests of committed public test inputs, not secrets`. The document's tables are rendered from the oracle-written vectors file by a throwaway, uncommitted script. A check confirmed every one of the 69 vectors appears in the document with identical hex and digest. The allow lines suppress 59 findings in the vectors file and 97 in the document |
+| Edited description | `[{"name":"echo","reason":"drifted"}]`. Under **non-strict**, the tool is absent from `tools/list`, and a call gets `400`, `-32602`, `The tool "echo" is refused by the pin gate`. Under **strict**, the node does not start |
+| Unknown tool definition | `[{"name":"echo2","reason":"unpinned"}]` |
+| Manifest entry with no definition | `[{"name":"echo","reason":"removed"}]`. `diff` prints `removed    beta …`. **Strict:** `PinRefusedError: … echo (removed) …`, and the node does not start |
+| Hand-edited `tool_hash` | `ManifestError: manifest_hash does not recompute: an entry was edited`; the load is refused |
+| Unknown top-level field | `ManifestError: unknown top-level field(s): note` |
+| `canonical_form_version: 2` / `manifest_version: 2` | `ManifestError: a canonical_form_version (manifest_version) this implementation does not implement` |
+| Tools out of order / a name twice | `ManifestError: tools are not sorted by name in UTF-16 code units (A9)` / `… appears twice` |
+| Two definitions, one name (WO §5.1) | `[{"name":"echo","reason":"duplicate"},{"name":"echo","reason":"duplicate"}]`: both are refused, never first-wins |
+| Look-alike name: trailing NUL, homoglyph, case, trailing LF (WO §5.3) | `[{"name":"еcho","reason":"invalid","rule":"A5"}]`; never admitted as `echo` |
+| A capability tag carrying `description`, `input_schema` or `name` (adversarial F1) | `[{"name":"echo","reason":"invalid","rule":"A6"}]` |
+| A `tool_hash` differing only in its last digit | `[{"name":"echo","reason":"drifted"}]` |
+| A missing or unparseable manifest, strict **or** non-strict (WO §5.5) | `ManifestError: the manifest cannot be read (ENOENT): a node without a manifest does not start` |
+| A registry that is not a genuine `PinnedRegistry` (hand-made, from the prototype, or a subclass) | `startTransport` throws `the transport serves only a PinnedRegistry …`, or the constructor refuses the subclass |
 
-**After the round:**
-- **Vectors:** 69. The oracle diff on the commit exits 0: `wrote packages/core/test/vectors/canonical-v1.json: 69 vectors`.
-- **`npm run check`:** exits 0. Core has **296** tests; the spikes have 69 and 8; `test:subset` has 4.
-- **Property suite:** re-run, with 0 mismatches in every property; 8,400 inputs this run.
-- **Red-proof matrix:** re-run against the commit. The script now refuses to start on a dirty tree. Every mutant goes red except the equivalent accessor mutant, as before.
-- **Leak gate:** `--tree` and `--history` exited 0 before the push.
+### Strict against non-strict (WO §3.3)
 
-**F1's and F6's "decision-needed" in the table below are resolved** by the rulings above.
+The same drifted fixture under both settings.
+
+**Strict, the default.** `startTransport` throws before it binds:
+
+```
+STRICT threw PinRefusedError: the pin gate refused 1 tool(s): echo (drifted); PIN_STRICT is on, so the node does not start
+STRICT audit ["pin-refused {\"tool\":\"echo\",\"reason\":\"drifted\"}"]
+```
+
+**Non-strict.** The node starts:
+
+```
+NON-STRICT audit ["pin-refused {\"tool\":\"echo\",\"reason\":\"drifted\"}","pin-non-strict {\"admitted\":12,\"refused\":1}"]
+NON-STRICT tools/list ["approve_target","ask","ask_big","ask_other","big","costly_schema","hold","needs_sampling","no_args","region_query","slow","throws_refusal"]
+NON-STRICT call echo 400 {"jsonrpc":"2.0","id":2,"error":{"code":-32602,"message":"The tool \"echo\" is refused by the pin gate"}}
+NON-STRICT health {"status":"ok","version":"0","protocolVersions":["2026-07-28","2025-11-25"],"pinned":{"admitted":12,"refused":1}}
+```
+
+- `/health` gives counts only; the names are in the log.
+- A name the gate never saw still gets `Unknown tool` and is not echoed.
+
+## CLI transcript (WO §3.4)
+
+From `cli.test.ts`, which calls `runPin` directly. The temporary directory is stripped from the
+paths.
+
+```
+$ npm run pin -- approve --definitions definitions.mjs --manifest manifest.json   # without --yes
+no manifest at manifest.json: every tool is new
+new        alpha  (unpinned) 800b65afbed0
+new        beta  (unpinned) 4a9a89eef337
+(stderr) approve writes the manifest only with --yes, after the diff above has been read
+exit 2
+$ npm run pin -- approve --yes --definitions definitions.mjs --manifest manifest.json
+...
+approved: manifest.json written with 2 tool(s)
+exit 0
+$ npm run pin -- diff --definitions definitions.mjs --manifest manifest.json   # clean tree
+unchanged  alpha  800b65afbed0
+unchanged  beta  4a9a89eef337
+exit 0
+$ npm run pin -- verify --definitions definitions.mjs --manifest manifest.json
+verify: 2 admitted, 0 refused
+exit 0
+$ npm run pin -- diff --definitions definitions.mjs --manifest manifest.json   # after an edit, an addition, a removal
+drifted    alpha  800b65afbed0 → 09af865c66b9
+removed    beta  4a9a89eef337
+new        gamma  (unpinned) 7172125be659
+exit 1
+$ npm run pin -- verify --definitions definitions.mjs --manifest manifest.json
+refused    alpha  drifted
+refused    gamma  unpinned
+refused    beta  removed
+verify: 0 admitted, 3 refused
+exit 1
+```
+
+- **Duplicate definitions:** `diff` prints `duplicate  alpha  (two definitions, one name: both refused)` and exits 1. `approve --yes` exits 1 and writes nothing.
+- **The fixture manifest** (`packages/core/test/fixtures/manifest.json`, 13 tools) was generated by
+  `npm run pin -- approve --yes --definitions packages/core/test/fixtures/tools.ts --manifest packages/core/test/fixtures/manifest.json`,
+  and `verify` on it gives `13 admitted, 0 refused`.
+
+## The detector (WO §3.5)
+
+```
+DETECTOR standard 66b640d ClearSeal-Standard-v0.8.md:108-108 lists 10 fields (states 10); core hashes 10; known divergence: none; unexpected: []
+```
+
+**The source.** `packages/core/test/fixtures/clearseal-section3.json` holds line 108 of
+`ClearSeal-Standard-v0.8.md` (§3 *Controls*) from `ClearForge-LLC/ClearSeal-public` at `66b640d`,
+copied verbatim. The full commit is recorded as a commit URL. The adversarial pass re-fetched that
+line read-only and found it byte-identical.
+
+**No known divergence (measured).** The WO expected a known divergence, but at `66b640d` the
+standard lists the same ten fields the core hashes, and says "Ten fields". `KNOWN_DIVERGENCE` is
+therefore empty, so the test asserts plain equality.
+- The mechanism is still in place: a dated entry, with both sides named.
+- The "nine" in `fields.ts`'s header describes the standard before its v0.8 amendment.
+- **For the architect to acknowledge:** the WO's premise did not hold.
+
+**Red both ways.** A field added to the copy gives `only in the standard: ["rate_limit_tier"]`. A
+field removed gives `only in the core: ["elevated"]`. A field named twice is refused as well.
+
+**The refresh cadence** is documented in the fixture's `source.refresh` and here, and is not
+automated. When `architecture.md`'s pinned public commit moves:
+1. re-copy the line verbatim;
+2. update `commit_url`, `lines` and `copied`;
+3. run `npm run check`.
+
+**Decision-needed (WO §6): the standard's §3 wording can be read two ways.** The sentence says
+"`recoverability_basis` (null unless `owned_state`)". A plain reading of the backticked names
+counts `owned_state` as an **eleventh field**; the first run of the detector did exactly that and
+went red. The detector now drops parenthetical asides before reading names, and it cross-checks
+against the standard's own count word ("Ten fields").
+- That count check is the backstop: a new field hidden in parentheses would make the list one
+  short of the stated count.
+- The standard should write the aside so it cannot be misread, for example by not backticking a
+  value inside the field list.
+- The architect has noted this for review.
+
+## Invariance and constructor proofs (WO §3.6, §3.7)
+
+**Invariance.**
+
+```
+INVARIANCE manifest_hash before=3a9bcac39407 after=3a9bcac39407 (generated_at and build changed)
+```
+
+The loaded manifest's hash also equals `-1000`'s `manifestHash()` over the same tools.
+
+**The constructor.**
+- **Type level:** three `@ts-expect-error` lines in `startup.test.ts`. If any of them compiled, the
+  type check would fail:
+  - a raw definition list given to `new PinnedRegistry`;
+  - an object shaped like an Admission (`Admission` has a private brand, so its type is nominal);
+  - a hand-made `ToolRegistry` given to `startTransport`.
+- **Run time:**
+  - `TypeError` for a raw list or a look-alike;
+  - `new Admission(<any symbol>, …)` throws, because the issuing token is module-private;
+  - a subclass is refused;
+  - `Object.create(PinnedRegistry.prototype)` is refused by `startTransport`;
+  - the prototype and every instance are frozen, so `get()` cannot be patched and `pinning` cannot
+    be reassigned.
+
+## What was built
+
+- **`packages/core/src/pinning/manifest.ts`** and **`packages/core/schemas/manifest.schema.json`:**
+  - validated by the core's own validator, with remote references off;
+  - `build` slots are nullable and unenforced, and each slot's `$comment` names the control that
+    will enforce it. No work order holds manifest signing yet, and the schema says so rather than
+    inventing one;
+  - the RFC 3339 check on `generated_at` is in code, because z-schema's ReDoS guard refuses the full
+    pattern;
+  - `schemas/` is added to the package's published `files`.
+- **`gate.ts`:** `PinGate.load` / `admit` returns an `Admission` with five refusal reasons:
+  `unpinned`, `drifted`, `invalid` (with the rule), `duplicate` and `removed`.
+  - The comparison is constant-time (`timingSafeEqual`).
+  - Each admitted tool is a **deep-frozen snapshot of the canonical object the gate hashed**, and
+    it is all the registry serves.
+- **`registry.ts`:** `PinnedRegistry` accepts only an issued `Admission`.
+  - `loadPinnedRegistry` reads the manifest file.
+  - `PIN_STRICT` is read from the environment unless given: strict unless exactly `false`. It is
+    named in `.env.example`.
+- **The transport consumes the registry, and only there:**
+  - `startTransport` accepts only a genuine `PinnedRegistry`, logs each refusal once at the audit
+    seam, and throws `PinRefusedError` before binding when strict;
+  - `/health` gains `pinned: {admitted, refused}`;
+  - `dispatch` names a gate-refused tool in its `-32602` message;
+  - `PlaceholderRegistry` is deleted, and its static checks survive unchanged as `prepareTool`, no
+    longer exported from the package index.
+- **`cli.ts`:** `npm run pin -- diff | approve --yes | verify`.
+- **Tests:**
+  - the transport tests serve `test/fixtures/tools.ts` through the gate, against the CLI-generated
+    `test/fixtures/manifest.json`;
+  - tests with ad-hoc tools go through `test/fixtures/pin.ts`, which approves in memory with the
+    CLI's own `buildManifest`, then `load`, `admit`, registry;
+  - the conformance fixture server does the same.
+
+## Deviations
+
+| # | Deviation | Ruling |
+|---|---|---|
+| D-1 | `spikes/0101-approval/server.ts`, 6 lines added and 3 removed. The `PlaceholderRegistry` import went, three imports came in (`PinGate`, `buildManifest`/`serializeManifest`, `PinnedRegistry`), and the two registration lines were replaced by an in-memory approve plus `admit`. The spike's tools get a read-only capability tag inline | **Ruled by the architect:** "the protected surface on spikes/** exists to stop scope creep, not to preserve a registration path around the gate … it builds its manifest in memory at start (approve semantics, never written to disk) and registers through PinGate.admit like everything else." Nothing else under `spikes/**` changed |
+| D-2 | A third `.leak-gate-allow` line: `packages/core/test/fixtures/*.json long-hex digests of committed public test inputs, not secrets`. The fixture manifest carries `tool_hash` and `manifest_hash` digests | Not listed as protected for this WO. It has the same justification you ruled for the vectors, but it is **yours to confirm** |
+| D-3 | The served description is the **A4-normalized** text, and the served schema is in **JCS member order**. Both are exactly what was hashed (adversarial F2). One transport test (`x-mcp-header`) compared an order that depends on the schema's key order; it is now order-insensitive | Recorded. Serving the hashed bytes is the fix |
+| D-4 | `title` and `annotations` are not part of a pinnable definition, so nothing the manifest does not hash is served | Recorded. If tools need them, they either join the hashed set (a version bump of the canonical form) or stay off |
+
+## Red-proofs (N5)
+
+33 mutants, each removing or weakening one check, were run against the pinning and transport
+tests, each run limited to 300 s. The script refuses to start on a tree with uncommitted changes.
+
+| Mutant | Goes red in |
+|---|---|
+| manifest | unknown top-level field check removed |
+| manifest | version checks removed |
+| manifest | manifest_hash recompute removed |
+| manifest | order check removed |
+| manifest | duplicate-entry check removed |
+| manifest | RFC 3339 check removed |
+| gate | unpinned admitted |
+| gate | drift not compared |
+| gate | duplicates first-wins |
+| gate | removed entries not reported |
+| gate | invalid silently skipped |
+| gate | Admission token not checked |
+| registry | issued-admission check removed |
+| registry | missing manifest not a ManifestError |
+| server | any registry accepted |
+| server | instanceof instead of the private brand |
+| server | strict does not stop the node |
+| server | /health without pinned counts; transport RED 1 |
+| dispatch | refused tool not named |
+| cli | approve without --yes writes |
+| cli | diff always exit 0 |
+| cli | verify ignores refusals |
+| F1 | capability extra keys allowed |
+| F1 | green alone: **equivalent** while the extra-key check stands; with both F1 layers removed, the F1 test goes red (run by hand) |
+| F2 | registry serves the live definition, not the snapshot |
+| F3 | subclassing allowed |
+| F3 | prototype not frozen |
+| F4 | instance not frozen |
+| F5 | strict default ignores the environment |
+| F6 | diff ignores duplicates |
+| F7 | approve writes duplicates |
+| F7 | hash compared on its first 8 bytes only |
+| detector | parentheticals read as fields |
+
+## Adversarial pass (fresh subagent, WO §5; its own scratch worktree, since removed)
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| F1 | **A key inside `capability` replaced a hashed field.** `canonicalInput` spread the tag after the real fields, so `capability.description` became the hashed description while the registry served `tool.description`. `verify` passed it (`13 admitted, 0 refused`). N2 was not met | **high** | **Fixed:** the seven tag fields are picked by name, any other key is refused (`invalid`, A6), and the registry serves the snapshot (F2). Tested, and red-proofed twice: with the extra-key check removed, and with the original spread restored |
+| F2 | Nothing was snapshotted. A getter, or mutation after `admit` or after start, changed what was served | medium | **Fixed:** one read, a canonical object, a deep-frozen snapshot, hashed and served. Tested (getter, mutation after admit, a frozen schema) and red-proofed |
+| F3 | The "structural" claim held only against the type checker: a subclass, `Object.create(prototype)`, or a patched prototype served an unpinned tool | medium/low | **Fixed:** subclassing is refused, the prototype and instances are frozen, `startTransport` checks a private brand plus the exact prototype, and `prepareTool` is no longer exported. Tested and red-proofed |
+| F4 | `registry.pinning` could be reassigned, hiding refusals from a strict start | low | **Fixed:** instances are frozen |
+| F5 | `pinStrictFromEnv` was not wired; `strict` was a required boolean | medium/low | **Fixed:** `strict` is optional and defaults to the environment. Tested, including `PIN_STRICT=false` with no manifest |
+| F6 | `diff` collapsed duplicate definitions and exited 0 | low | **Fixed:** `duplicate` status, exit 1 |
+| F7 | Two checks could be removed with every test still green: approve's duplicate check, and a comparison of only the first 8 bytes | low | **Fixed:** a test for each, and both now in the mutant table |
+| F8 | Three regressions hung the suite rather than failing it: a strict test left an unexpectedly started server open | low | **Fixed** before the report arrived: those tests close any transport that starts, and the mutant runs are time-limited |
+| F9 | Non-strict naming a refused tool confirms that it exists. `PinRefusedError`'s message is a plain string | info | By design (WO §1.4). The audit seam is JSON |
+| F10 | The loader is permissive where it is harmless: `2026-02-31T…` passes, there is no size cap (200k entries in about 3.3 s), `1.0` counts as version 1, approve writes non-atomically | info | Recorded. `generated_at` is informational and unhashed. A size cap is a proposed follow-up |
+| F11 | The detector found no divergence, although the WO expected one; parenthetical stripping could hide a field written inside parentheses | info | Recorded above. The count word is the backstop |
+| F12 | The conformance fixture server and the spike approve their own tools in memory, so pinning cannot fail there | info | Test-only and ruled (D-1). Stated here |
+
+**Held (measured by the subagent):**
+- **§5.2:** code-point order for an astral name is unreachable. The schema's name pattern and A5
+  refuse non-ASCII names first; the order check itself uses UTF-16 order.
+- **§5.4:** constant time. Over 10,000 admits, a matching hash, one differing at the first byte, and
+  one differing at the last byte all take about 15.5–15.9 µs, with no ordering between them.
+  `timingSafeEqual` runs at a flat 89–98 ns. Every hash is computed from public definitions, so
+  timing does not leak a secret.
+- **§5.6:** the gate uses its loaded copy.
+- **The loader** refuses: a BOM, duplicate keys, `__proto__`, upper-case hashes, extra keys in an
+  entry, a numeric build slot, a missing or extra build slot, trailing garbage, depth over 64.
+- **Hash invariance** held.
+- **Protected surfaces** diff empty apart from D-1.
+- **Leak gate** `--tree` and `--history` exit 0.
 
 ## Gates
 
 | Gate | Result |
 |---|---|
-| `npm run check` | exit 0: core **291** tests (16 files), spike 0102 69, spike 0101 8, `test:subset` 4 |
-| CI | both runners; the oracle-diff step runs on Linux |
-| Protected surfaces | The steering documents (`README.md`, `northstar.md`, `architecture.md`, `roadmap.md`), `docs/upstream.md`, `LICENSE`, `NOTICE`, `scripts/**`, `spikes/**` and `packages/core/src/transport/**` diff **empty**. `.github/workflows/ci.yml` gains the one named step. `.leak-gate-allow` gains the one ruled line |
-| Leak gate | `--tree` and `--history` exited 0 before every push, each checked by exit code. The allow entry suppresses 55 long-hex findings, all in `packages/core/test/vectors/canonical-v1.json` |
-| Credentials | Pushes went over the repository's write deploy key. A short-lived token was minted only for the pull-request calls, kept in a mode-0600 scratch file, and deleted straight after |
-
-## Commits, in order
-
-1. **The ratified text first, in its own commit.** The document is marked ratified. The vectors
-   file goes to plain hex, and `.leak-gate-allow` gets
-   `packages/core/test/vectors/*.json long-hex digests of committed public test inputs, not secrets`.
-2. **The build (WO §1.4–§1.8).**
-3. **The adversarial pass's fixes.**
-
-## What was built
-
-- **`packages/core/src/pinning/canonical.ts`** is the one canonicalizer, written rule by rule from
-  the ratified text.
-  - **It owns the JCS layer and has no dependency.** The only platform facilities it uses are the
-    two definitions JCS itself defers to: `String(number)`, which is ECMAScript's
-    `Number::toString`, and UTF-16 string comparison.
-  - **JSON text** is parsed by the transport's existing strict parser, imported and not copied (N1).
-- **`packages/core/src/capability/fields.ts`** is the one place `PINNED_FIELDS` and
-  `GATE_READ_FIELDS` are written.
-  - The canonicalizer imports the first; `test:subset` imports the second.
-  - `GATE_READ_FIELDS` is typed as a subset of the pinned fields, so an unpinned gate field also
-    fails the type check.
-- **`packages/core/test/oracle/`** has two parts:
-  - `canonical_oracle.py`, the independent Python implementation, standard library only;
-  - `generate.py`, the **only** writer of `canonical-v1.json`.
-- **CI** gets one step:
-  `python3 packages/core/test/oracle/generate.py && git diff --exit-code -- packages/core/test/vectors/canonical-v1.json`.
-- **`test:subset`** is wired into `npm run check`. It asserts three things:
-  - every gate-read field is in the hashed set, which is read from the canonicalizer's output, not
-    restated;
-  - that set is exactly the ten pinned fields;
-  - changing each gate-read field changes `tool_hash`.
-  It is shown able to go red on a synthetic unpinned field.
-
-## Oracle-diff output
-
-**On the committed tree:**
-
-```
-$ python3 packages/core/test/oracle/generate.py && git diff --exit-code -- packages/core/test/vectors/canonical-v1.json
-wrote packages/core/test/vectors/canonical-v1.json: 64 vectors
-$ echo $?
-0
-```
-
-**Reproducing stage A.** The first run of the generator reproduced all 63 stage-A vectors, which a
-separate throwaway script had computed in stage A. Every expected result, hex string and digest was
-identical. The only line that changed was the A1-5 note's wording (the C-4 correction).
-
-**A flipped digit** in A1-1's `canonical_hex`:
-
-```
-  ✖ A1-1 (A1, json): canonical
-  ✖ the oracle, run now, agrees with the file on every vector
- packages/core/test/vectors/canonical-v1.json | 2 +-
-ci_step_rc=1
-```
-
-The adversarial pass separately committed a one-digit mutant in a scratch clone and saw the step
-exit 1.
-
-## Property-test counts
-
-fast-check drives 300 runs per property, and every generated input goes through **both**
-implementations: the oracle by subprocess, one batch per property. The equality is on bytes, or on
-both refusing. These are the counts from one local run; CI's runs are of the same size, with 0
-mismatches:
-
-```
-A1 key order: 600 inputs (600 canonical, 0 refused), 0 mismatches
-A2 numbers: 1794 inputs (856 canonical, 938 refused), 0 mismatches
-A3 normalization forms: 1200 inputs (1184 canonical, 16 refused), 0 mismatches
-A3 surrogates and BOMs: 1200 inputs (300 canonical, 900 refused), 0 mismatches
-A4 descriptions: 300 inputs (300 canonical, 0 refused), 0 mismatches
-A5 names: 300 inputs (102 canonical, 198 refused), 0 mismatches
-A6-A9 tools: 600 inputs (600 canonical, 0 refused), 0 mismatches
-A8 absent/null/empty: 1500 inputs (1200 canonical, 300 refused), 0 mismatches
-A9-A10 manifests: 900 inputs (600 canonical, 300 refused), 0 mismatches
-```
-
-That is **8,394 inputs per run**. The adversarial pass also ran its own sweep of about 240,000
-requests (doubles by bit pattern, decimal forms, near-bound integers) and about 250 hand-made edge
-cases. There were 0 disagreements outside F1.
-
-## The dev dependency
-
-- **`fast-check` 4.10.2**, pinned exactly in `@clearseal/core`'s `devDependencies`, plus its one
-  dependency, **`pure-rand` 8.4.2**. Both are MIT.
-- **The lockfile adds 2 packages**, 1.8 MB on disk. There is no runtime change.
-- **No JCS dependency.**
-
-## Red-proofs (N5)
-
-Each mutant was applied to the committed `canonical.ts` and restored from it:
-
-| Mutant | Goes red in |
-|---|---|
-| A1 member names unsorted | vectors 13, properties 4, boundaries 2 |
-| A1 duplicate keys accepted (`JSON.parse`) | vectors 1 (A1-5) |
-| A1 names in code-point order (the fleet Python's) | vectors 1 (A1-2), properties 1 |
-| A2 negative zero accepted | vectors 2, properties 1 |
-| A2 magnitude bound removed | vectors 2, properties 2 |
-| A3 leading U+FEFF accepted | vectors 1, properties 2 |
-| A3 NFC applied | vectors 1, properties 3 |
-| A4 **M5**: per-line strip by `trimEnd()` (Unicode whitespace) | vectors 3, properties 4 |
-| A4 description not normalized | vectors 1, properties 3 |
-| A5 name pattern case-insensitive | vectors 1 |
-| A6 extra field dropped, not refused | vectors 1 |
-| A6 booleans coerced | vectors 1 |
-| A7 set not deduplicated | vectors 1, properties 3 |
-| A8 absent top-level field read as `null` (the prior D-1 replaced) | vectors 1, properties 1 |
-| A9 manifest hash without the version (the prior D-2 replaced) | vectors 2, properties 1 |
-| A9 duplicate names accepted | vectors 1 |
-| A10 version not checked | vectors 1, properties 1 |
-| `elevated` always hashed `false` (adversarial F4) | vectors 1 (A6-5), properties 3, `test:subset` 1 |
-| Nesting limit lowered to 64 (adversarial F1) | boundaries 1 |
-| **`test:subset`: `elevated` leaves the hashed object** | **`test:subset` 4**, vectors 7, properties 3 |
-
-One mutant is **equivalent** rather than a gap: "accessors not refused", which drops
-`"value" in d`. The canonicalizer reads each member from its property descriptor and never calls a
-getter. An accessor's descriptor has no `value`, so the field arrives as undefined and is still
-refused, under A8. The explicit check makes the refusal's reason honest; it adds no protection.
-
-## Adversarial pass (fresh subagent, WO §5)
-
-**WO §5 held:**
-- **§5.1:** duplicate keys are refused by both at every level, in every escape spelling, and after
-  100,000 keys.
-- **§5.2:** keys differing by a trailing U+FE0F, and the UTF-16 sort cases (U+D7FF, U+E000, U+FB01,
-  U+FFFF, U+10000, U+1F600, U+10FFFF), agree as keys and as set members.
-- **§5.3:** a 1 MiB description takes at most 159 ms in TypeScript and 482 ms in the oracle,
-  including process spawn. It scales linearly to 16 MiB with no quadratic path, and `"\n\n\n"` is
-  empty in both.
-- **§5.4:** a flipped byte fails CI's step.
-
-| # | Finding | Severity | Status |
-|---|---|---|---|
-| F1 | **Nesting depth.** The oracle crashed with `RecursionError` from depth 498, below the 512 text bound, and a crash took down its whole batch. The TypeScript value path (`input_schema` passed as an object) had no bound and threw a bare `RangeError` somewhere between 2,000 and 20,000 deep. No test went past depth 4 | medium | **Fixed.** One nesting limit, 512 objects and arrays, in both implementations and on both paths; beyond it, both refuse. The oracle's recursion limit is raised so that the limit, not the interpreter, decides. Tests pin 512 accepted and 513 refused, for text and for a tool's schema, in both implementations. **Decision-needed:** version 1 sets no depth, so this is an implementation limit. It is kept out of the vectors file on purpose, since vectors are the spec's. Proposed for version 2: *"an input nested deeper than 512 objects and arrays is refused."* |
-| F2 | `canonicalManifestBytes(null)` threw a `TypeError` rather than refusing | low | **Fixed:** a manifest that is not a plain object is refused (A9) |
-| F3 | The TypeScript value API accepted some non-JSON shapes silently: a non-enumerable or symbol-keyed extra field, array extra properties, getters (read twice), and a cycle (`RangeError`) | low | **Fixed:** only enumerable, string-keyed data members, read once from their descriptors. Anything else is refused, never skipped, and a cycle meets the nesting limit. A `Proxy` can still describe itself consistently falsely. `-1001` should canonicalize manifests from text through `parseCanonicalJson`, which builds only plain values |
-| F4 | No canonical vector had `elevated: true`, so a mutant hashing `elevated` as always `false` passed every vector | low–medium | **Fixed:** vector **A6-5**, every boolean true plus a containment domain, added to both the file and the document. Adding a vector changes no expected result |
-| F5 | `test:subset` checked keys only, not that each value reaches the hash | info | **Fixed:** it now checks that changing each gate-read field changes `tool_hash` |
-| F6 | **Spec ambiguity, shared by both implementations.** A tool whose description is `"\n"` followed by U+FEFF and `abc` is refused: after A4 removes the LF, the string begins with U+FEFF, and serialization checks A3 again. The `description` kind accepts the same input. A3's Scope line says only "before A4 normalizes it" | low | **Recorded, decision-needed.** Proposed one sentence for A3: *the normalized description is checked again, as every string in the canonical object is.* That is what both implementations do |
-| F7 | **Spec silence on literal to double.** `1e-400` underflows to `0` and is accepted, `-1e-400` is refused as negative zero, and `9007199254740991.4` rounds to 2^53−1 and is accepted. Both implementations agree on all of them | info | **Recorded.** Proposed for version 2: *a number's value is the IEEE 754 double nearest its literal; A2 applies to that double* |
-| F8 | The oracle split its input with `splitlines()`, which also splits at U+2028 and U+0085 inside a raw-UTF-8 line. The harness hid this by escaping requests to ASCII | low | **Fixed:** it splits on LF only |
-| F9 | **Is the oracle independent (N3)?** The cores differ. Python implements `Number::toString` itself, sorts on UTF-16-BE bytes, and parses with `json` hooks; the TypeScript uses `String()`, string comparison, and the transport's parser. But the surfaces match: 17 of 26 refusal messages are identical, the check order is the same, and both carry the coordinated depth constant. **The same session wrote both, one after the other.** The oracle was written from the specification, not translated, but it is not the work of a second author. The shared readings the pass found (F1, F6) are exactly what a second author would catch | medium | **Disclosed.** Recommended: the architect or a separate session reviews `canonical_oracle.py` against `docs/canonical-form.md` alone before merge. Refusal messages are never compared (only bytes, or both refusing), so their sameness has no effect on the result |
-| F10 | FEEDBACK was still stage A's | process | **This file** |
-| F11 | About 39% of the key-order property's inputs were refusals, for which "same bytes" is trivial | info | **Fixed:** that property draws accepted values only (600 of 600 canonical) |
-| F12 | `__pycache__` is not in `.gitignore`. Importing the oracle as a module leaves an untracked directory | info | **Not changed.** `generate.py` sets `dont_write_bytecode` and `serve` runs as a script, so only ad hoc imports create it. `.gitignore` is outside this WO's named edits |
+| `npm run check` | exit 0: core **332** tests (21 files), spike 0102 69, spike 0101 8, `test:subset` 4 |
+| CI | both runners, on the pull request |
+| Protected surfaces | The four steering documents, `LICENSE`, `NOTICE`, `scripts/**`, `.github/**`, `docs/canonical-form.md`, `canonical.ts`, `fields.ts`, the oracle and the vectors diff **empty**. `spikes/**` has only D-1's lines. The transport changed only where it consumes the registry: `server.ts` (the start check, `/health`), `dispatch.ts` (naming a refused tool), `registry.ts` (`PlaceholderRegistry` became `prepareTool`), `index.ts` |
+| Leak gate | `--tree` and `--history` exited 0 before every push, each checked by exit code |
+| Credentials | Pushes went over the repository's write deploy key. A short-lived token was minted only to open this pull request, kept in a mode-0600 scratch file, and deleted straight after |
 
 ## What did not work, and why
 
-- **My mutant script restored `canonical.ts` with `git checkout` while my fixes were uncommitted.**
-  It silently undid them. This is **the same slip as in `-1005b`**, repeated. I re-applied the
-  fixes, committed, and re-ran the whole matrix against the commit; the table above is from that
-  run. The lesson has to become a rule, not a memory: **commit before any mutant run.**
-- **The first surrogate-injection property guessed escape offsets and was wrong.** It now escapes
-  the two halves separately and asserts refusal exactly when the decoded string is not
-  well-formed.
-- **The first A8 property failed on its own generator.** An out-of-range number inside the schema
-  makes all four variants refused. The schema generator now stays in A2's range; out-of-range
-  numbers are A2's own property.
-- **This document shows spaced hex, not plain hex.** The ruled allow entry covers
-  `packages/core/test/vectors/*.json` only, and the WO permits that one line, so
-  `docs/canonical-form.md` still cannot carry a 64-digit run. It says so, and names the vectors file
-  as authoritative. Plain hex there would need a second allow line: your call.
+- **The first manifest schema did not compile.** z-schema's ReDoS guard refused the RFC 3339
+  pattern, so the full check moved into code.
+- **The first detector run read eleven fields:** the parenthetical case above.
+- **My first red-proof run hung for about 40 minutes** on the drift mutant. The strict test left an
+  unexpectedly started server open. I stopped that process by its PID and restored the one mutated
+  file from the commit. I fixed the tests to close any started transport, limited each mutant run
+  to 300 s, and re-ran the matrix against the commit.
+- **My first `Admission` design exposed its factory** through a `Symbol.for` key, which anyone
+  could call. I replaced it before any commit with a module-private token.
 
 ## What was deliberately not built
 
-- **The manifest file format, signing, verify-before-register, drift refusal** (`-1001`).
-- **Any tool** (`-1004`).
-- **A gate-decision-derived field list** (the fleet's `gate_decision_fields`). There is no gate code
-  yet to derive it from. `test:subset` guards the declared list, and the first gate WO should add
-  the derived check.
-- **The `docs/upstream.md` entries 1 and 5**, which are the architect's ledger. The proposed entry-5
-  vectors are in stage A's FEEDBACK at `76f709b` (the fleet's code-point sort, `1.0`, `1E2`, `1e-7`).
+- **Signing the manifest, key management, and the release-integrity check.** The slots are there
+  and unenforced.
+- **The entitlement map (P6), any shipped tool (`-1004`), containment, reach and auth.**
+- **Automated refresh of the standard's copy.** The cadence is documented instead.
+- **A manifest size cap** (F10), proposed.

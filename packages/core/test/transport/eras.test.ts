@@ -32,11 +32,11 @@ void describe("served revisions and the legacy era", () => {
     assert.deepEqual(result["_meta"], { "io.modelcontextprotocol/serverInfo": { name: "@clearseal/core", version: "0.0.0" } });
   });
 
-  void it("WO §1.12 /health: bearer-free, the version and the served revisions, nothing else", async () => {
+  void it("WO §1.12 /health: bearer-free, the version, the served revisions, and (CSR-WO-1001 §1.4) the pinned counts, no names", async () => {
     const r = await raw(s.t, { method: "GET", path: "/health" });
     console.log(`HEALTH ${r.text}`);
     assert.equal(r.status, 200);
-    assert.deepEqual(r.json, { status: "ok", version: "0.0.0", protocolVersions: ["2026-07-28", "2025-11-25"] });
+    assert.deepEqual(r.json, { status: "ok", version: "0.0.0", protocolVersions: ["2026-07-28", "2025-11-25"], pinned: { admitted: 13, refused: 0 } });
   });
 
   void it("AU-1 the protected-resource metadata document is bearer-free", async () => {

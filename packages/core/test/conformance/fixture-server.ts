@@ -11,7 +11,8 @@ import { randomBytes } from "node:crypto";
 
 import { DEFAULT_LIMITS } from "../../src/transport/config.ts";
 import type { JsonValue } from "../../src/transport/json.ts";
-import { type CallContext, PlaceholderRegistry, type Tool, type ToolResult } from "../../src/transport/registry.ts";
+import { type CallContext, type Tool, type ToolResult } from "../../src/transport/registry.ts";
+import { pinForTest } from "../fixtures/pin.ts";
 import { ValidationPool } from "../../src/transport/schema-pool.ts";
 import { startTransport } from "../../src/transport/server.ts";
 import type { Verdict, Verifier } from "../../src/transport/verifier.ts";
@@ -297,8 +298,8 @@ function portFrom(): number {
 
 async function main(): Promise<void> {
   const pool = new ValidationPool({ workers: DEFAULT_LIMITS.validationWorkers, timeoutMs: DEFAULT_LIMITS.validationTimeoutMs });
-  const registry = new PlaceholderRegistry(pool.compile, DEFAULT_LIMITS);
-  for (const tool of conformanceTools()) registry.register(tool);
+  // The conformance tools through the pin gate, approved in memory for the fixture server.
+  const registry = pinForTest(conformanceTools(), pool.compile, DEFAULT_LIMITS);
   const t = await startTransport({
     registry,
     serverInfo: { name: "@clearseal/core", version: "0.0.0" },

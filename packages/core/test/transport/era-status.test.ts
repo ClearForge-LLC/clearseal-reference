@@ -13,7 +13,8 @@ import { randomBytes } from "node:crypto";
 import { after, describe, it } from "node:test";
 
 import { DEFAULT_LIMITS, type Limits } from "../../src/transport/config.ts";
-import { PlaceholderRegistry, type Tool, type ToolResult } from "../../src/transport/registry.ts";
+import type { Tool, ToolResult } from "../../src/transport/registry.ts";
+import { pinForTest } from "../fixtures/pin.ts";
 import { ValidationPool } from "../../src/transport/schema-pool.ts";
 import { startTransport, type RunningTransport } from "../../src/transport/server.ts";
 import type { Verifier } from "../../src/transport/verifier.ts";
@@ -72,8 +73,7 @@ async function startServer(key: ServerKey): Promise<Server> {
   };
   const limits = { ...DEFAULT_LIMITS, ...limitsFor[key] };
   const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
-  const registry = new PlaceholderRegistry(pool.compile, limits);
-  for (const tool of [...fixtureTools(), ...extraTools]) registry.register(tool);
+  const registry = pinForTest([...fixtureTools(), ...extraTools], pool.compile, limits);
   const t = await startTransport({
     registry,
     serverInfo: { name: "@clearseal/core", version: "0.0.0" },
