@@ -1,0 +1,930 @@
+{
+  "canonical_form_version": 1,
+  "specification": "docs/canonical-form.md",
+  "status": "CSR-WO-1000 stage A: a draft for ratification. Computed by a throwaway script that is not committed and cross-checked in a second runtime; stage B regenerates this file from the committed Python oracle, and the TypeScript implementation is checked against it, never the reverse.",
+  "format": {
+    "canonical_hex": "the canonical bytes as two-digit lower-case hex, one space between bytes; remove the spaces for the conventional form",
+    "sha256": "SHA-256 of the canonical bytes as lower-case hex in eight groups of eight digits separated by one space; remove the spaces for the conventional form",
+    "why_spaced": "the repository's leak gate refuses any run of forty or more hex digits in a tracked file, so no digest or byte string appears unbroken",
+    "expect": "canonical: the input canonicalizes to canonical_hex; refuse: a conforming implementation refuses the input and produces no bytes",
+    "kinds": {
+      "json": "input_json_text is JSON text; parse it (duplicate keys and negative zero must be detectable at parse time), then canonicalize the value (A1-A3)",
+      "json-special": "input_special names a native number with no JSON form (NaN, Infinity, -Infinity) handed to the canonicalizer as a value",
+      "description": "input is a description string; the canonical bytes are the UTF-8 of the normalized string (A4), not a JSON string",
+      "name": "input is a tool name; the canonical bytes are its UTF-8 when accepted (A5)",
+      "set": "input is a set-valued field's value; the canonical bytes are the JCS of the canonical array or null (A7)",
+      "tool": "input is a tool's ten fields; the canonical bytes are the JCS of the canonical tool object, and sha256 is tool_hash (A6, A9)",
+      "manifest": "input is {canonical_form_version, tools}; the canonical bytes are the JCS of the manifest hash object, and sha256 is manifest_hash (A9, A10)"
+    }
+  },
+  "vectors": [
+    {
+      "id": "A1-1",
+      "rule": "A1",
+      "kind": "json",
+      "input_json_text": " { \"b\" : [3, 1, 2], \"a\" : { \"d\" : 1, \"c\" : 2 } } ",
+      "expect": "canonical",
+      "canonical_hex": "7b 22 61 22 3a 7b 22 63 22 3a 32 2c 22 64 22 3a 31 7d 2c 22 62 22 3a 5b 33 2c 31 2c 32 5d 7d",
+      "sha256": "628b7efc bc80e138 bcf67ff6 e41fb548 a721cb8b 8e89bbbd 7af5f482 8d8fe169",
+      "note": "Insignificant whitespace removed; keys sorted at every level; array order kept."
+    },
+    {
+      "id": "A1-2",
+      "rule": "A1",
+      "kind": "json",
+      "input_json_text": "{\"\\ufb01\":1,\"\\ud83d\\ude00\":2}",
+      "expect": "canonical",
+      "canonical_hex": "7b 22 f0 9f 98 80 22 3a 32 2c 22 ef ac 81 22 3a 31 7d",
+      "sha256": "14dc6c14 e11d686b bd133245 2e5c8dc9 99ac1479 def9c87e 945308b1 b27d469b",
+      "note": "Keys sort by UTF-16 code units: U+1F600 (D83D DE00) sorts before U+FB01. Code-point order, the fleet Python's, puts U+FB01 first."
+    },
+    {
+      "id": "A1-3",
+      "rule": "A1",
+      "kind": "json",
+      "input_json_text": "{\"9\":1,\"10\":2,\"a\":3,\"B\":4}",
+      "expect": "canonical",
+      "canonical_hex": "7b 22 31 30 22 3a 32 2c 22 39 22 3a 31 2c 22 42 22 3a 34 2c 22 61 22 3a 33 7d",
+      "sha256": "1bc7528f 6306b914 44da567d 6cca3d34 b797f560 a7acb3b9 c9cd369b 80058c7a",
+      "note": "Keys are strings, sorted as strings: \"10\" before \"9\", upper case before lower."
+    },
+    {
+      "id": "A1-4",
+      "rule": "A1",
+      "kind": "json",
+      "input_json_text": "[\"\\u0000\\b\\t\\n\\f\\r\\u001f\\\"\\\\\\/\\u007f\\u2028\\u00e9\"]",
+      "expect": "canonical",
+      "canonical_hex": "5b 22 5c 75 30 30 30 30 5c 62 5c 74 5c 6e 5c 66 5c 72 5c 75 30 30 31 66 5c 22 5c 5c 2f 7f e2 80 a8 c3 a9 22 5d",
+      "sha256": "5dc6fe11 a2022513 137f0ef9 bbdfcca6 acb76c83 537f1707 93ac9ded 04082f62",
+      "note": "String escapes: the five short forms, \\u00XX in lower-case hex for other controls, quote and backslash escaped; solidus, U+007F, U+2028 and non-ASCII emitted raw as UTF-8."
+    },
+    {
+      "id": "A1-5",
+      "rule": "A1",
+      "kind": "json",
+      "input_json_text": "{\"a\":1,\"a\":2}",
+      "expect": "refuse",
+      "note": "A duplicate key is refused: JCS assumes I-JSON, which has none."
+    },
+    {
+      "id": "A1-6",
+      "rule": "A1",
+      "kind": "json",
+      "input_json_text": "[true,false,null,{},[]]",
+      "expect": "canonical",
+      "canonical_hex": "5b 74 72 75 65 2c 66 61 6c 73 65 2c 6e 75 6c 6c 2c 7b 7d 2c 5b 5d 5d",
+      "sha256": "9ea8f385 6a89c119 0f602b6f 66c9e6f9 50f0f23d 7d20e63d 0d6ce7e5 6aafc722",
+      "note": "Literals and empty containers are emitted as given."
+    },
+    {
+      "id": "A2-1",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "1.0",
+      "expect": "canonical",
+      "canonical_hex": "31",
+      "sha256": "6b86b273 ff34fce1 9d6b804e ff5a3f57 47ada4ea a22f1d49 c01e52dd b7875b4b",
+      "note": "1.0 is the number one: \"1\"."
+    },
+    {
+      "id": "A2-2",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "1e21",
+      "expect": "refuse",
+      "note": "Refused: magnitude over 2^53-1 (every such double is integral, so this is the prior's integer bound). JCS's positive-exponent form is therefore unreachable."
+    },
+    {
+      "id": "A2-3",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "1e-7",
+      "expect": "canonical",
+      "canonical_hex": "31 65 2d 37",
+      "sha256": "5b33e02f 2c5103a0 5d32f6ba 9cb05829 4452bfbf 393967f6 8bb30c1b dcbbab22",
+      "note": "Below 1e-6 the ECMAScript form uses an exponent: \"1e-7\"."
+    },
+    {
+      "id": "A2-4",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "0.30000000000000004",
+      "expect": "canonical",
+      "canonical_hex": "30 2e 33 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 34",
+      "sha256": "06bad310 60c1212a e832de4c 031f7b31 e3b48aed 57858294 478cb194 50cf34ca",
+      "note": "0.1+0.2: the shortest round-trip digits, never rounded for display."
+    },
+    {
+      "id": "A2-5",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "0.000001",
+      "expect": "canonical",
+      "canonical_hex": "30 2e 30 30 30 30 30 31",
+      "sha256": "159fb29a 827ad04b 260aa6c8 ab6d8637 f8f2b38a f5c4f3cb 49d6a212 05e040f8",
+      "note": "At 1e-6 the ECMAScript form is still positional."
+    },
+    {
+      "id": "A2-6",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "{\"multipleOf\":0.01}",
+      "expect": "canonical",
+      "canonical_hex": "7b 22 6d 75 6c 74 69 70 6c 65 4f 66 22 3a 30 2e 30 31 7d",
+      "sha256": "3fb1e18a 1bf5d4c5 1dddd001 4fb118a1 9784fc2f 84125ca4 a7935c3a 2bd4a773",
+      "note": "A schema number of the kind the rule exists for."
+    },
+    {
+      "id": "A2-7",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "9007199254740991",
+      "expect": "canonical",
+      "canonical_hex": "39 30 30 37 31 39 39 32 35 34 37 34 30 39 39 31",
+      "sha256": "f40b423c 2dd95ff2 b2f027e2 2208f438 cf724286 2e5e7468 60e69730 8c9add26",
+      "note": "2^53-1, the largest accepted magnitude."
+    },
+    {
+      "id": "A2-8",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "9007199254740992",
+      "expect": "refuse",
+      "note": "2^53: refused."
+    },
+    {
+      "id": "A2-9",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "-0",
+      "expect": "refuse",
+      "note": "Negative zero is refused (JCS would print it as \"0\"; two inputs, one hash)."
+    },
+    {
+      "id": "A2-10",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "-0.0",
+      "expect": "refuse",
+      "note": "Negative zero written as a fraction: refused too."
+    },
+    {
+      "id": "A2-11",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "1E2",
+      "expect": "canonical",
+      "canonical_hex": "31 30 30",
+      "sha256": "ad573668 65126e55 649ecb23 ae1d4888 7544976e fea46a48 eb5d85a6 eeb4d306",
+      "note": "Exponent input, integral value: \"100\"."
+    },
+    {
+      "id": "A2-12",
+      "rule": "A2",
+      "kind": "json",
+      "input_json_text": "12.50",
+      "expect": "canonical",
+      "canonical_hex": "31 32 2e 35",
+      "sha256": "b902cc45 50838229 a710bfec 4c38cbc7 eb110823 67a409df 9135e7f0 07a96bda",
+      "note": "Trailing zeros are not significant: \"12.5\"."
+    },
+    {
+      "id": "A2-13",
+      "rule": "A2",
+      "kind": "json-special",
+      "input_special": "NaN",
+      "expect": "refuse",
+      "note": "Not a JSON value; a native value that reaches the canonicalizer is refused."
+    },
+    {
+      "id": "A2-14",
+      "rule": "A2",
+      "kind": "json-special",
+      "input_special": "Infinity",
+      "expect": "refuse",
+      "note": "Not a JSON value; a native value that reaches the canonicalizer is refused."
+    },
+    {
+      "id": "A2-15",
+      "rule": "A2",
+      "kind": "json-special",
+      "input_special": "-Infinity",
+      "expect": "refuse",
+      "note": "Not a JSON value; a native value that reaches the canonicalizer is refused."
+    },
+    {
+      "id": "A3-1",
+      "rule": "A3",
+      "kind": "json",
+      "input_json_text": "\"\\u00e9\"",
+      "expect": "canonical",
+      "canonical_hex": "22 c3 a9 22",
+      "sha256": "f2886017 e9c7abac f804b54d 64787dce 2b611c95 44ba21f3 affdd126 a6e50086",
+      "note": "Composed e-acute (NFC)."
+    },
+    {
+      "id": "A3-2",
+      "rule": "A3",
+      "kind": "json",
+      "input_json_text": "\"e\\u0301\"",
+      "expect": "canonical",
+      "canonical_hex": "22 65 cc 81 22",
+      "sha256": "3d68ce21 f2899a47 5713cdbe 7562ba9b db6b1dfd e8af1f22 1bdff4a0 935b53b2",
+      "note": "Decomposed e-acute (NFD): different bytes and a different hash from A3-1. No normalization."
+    },
+    {
+      "id": "A3-3",
+      "rule": "A3",
+      "kind": "json",
+      "input_json_text": "\"\\ufeffabc\"",
+      "expect": "refuse",
+      "note": "A string that begins with U+FEFF is refused, not stripped."
+    },
+    {
+      "id": "A3-4",
+      "rule": "A3",
+      "kind": "json",
+      "input_json_text": "\"a\\ufeffb\"",
+      "expect": "canonical",
+      "canonical_hex": "22 61 ef bb bf 62 22",
+      "sha256": "8fe96f53 46abe284 8adbcaa2 86551691 4cdeb3c2 1df1bf6b f2c84837 53b10236",
+      "note": "U+FEFF inside a string is preserved (bytes as given)."
+    },
+    {
+      "id": "A3-5",
+      "rule": "A3",
+      "kind": "json",
+      "input_json_text": "\"\\ud800\"",
+      "expect": "refuse",
+      "note": "A lone surrogate is refused."
+    },
+    {
+      "id": "A3-6",
+      "rule": "A3",
+      "kind": "json",
+      "input_json_text": "{\"\\udc00\":1}",
+      "expect": "refuse",
+      "note": "A lone surrogate in a key is refused."
+    },
+    {
+      "id": "A3-7",
+      "rule": "A3",
+      "kind": "json",
+      "input_json_text": "\"\\ud83d\\ude00\"",
+      "expect": "canonical",
+      "canonical_hex": "22 f0 9f 98 80 22",
+      "sha256": "7a0c50b9 2434b015 545fe93a b723db2d 4b2cdd14 a4414056 24a9ce8b e29f1d5a",
+      "note": "A well-formed surrogate pair is one code point, emitted as 4 bytes of UTF-8."
+    },
+    {
+      "id": "A4-1",
+      "rule": "A4",
+      "kind": "description",
+      "input": "Reads a file.\u00a0",
+      "expect": "canonical",
+      "canonical_hex": "52 65 61 64 73 20 61 20 66 69 6c 65 2e c2 a0",
+      "sha256": "a7e1cf1b c9c841a8 8dcd05a0 c6c91573 c4859028 6f07a7fe 0354e8e2 5aaf72f5",
+      "note": "M5: a trailing U+00A0 is preserved."
+    },
+    {
+      "id": "A4-2",
+      "rule": "A4",
+      "kind": "description",
+      "input": "line one\r\nline two\rline three",
+      "expect": "canonical",
+      "canonical_hex": "6c 69 6e 65 20 6f 6e 65 0a 6c 69 6e 65 20 74 77 6f 0a 6c 69 6e 65 20 74 68 72 65 65",
+      "sha256": "26a5cd65 4e540e91 433a2f23 7e270974 3fc4753e 764deb74 ed37299c 2f338ece",
+      "note": "CRLF and a lone CR become LF."
+    },
+    {
+      "id": "A4-3",
+      "rule": "A4",
+      "kind": "description",
+      "input": "a \t\f\u000b\nb",
+      "expect": "canonical",
+      "canonical_hex": "61 0a 62",
+      "sha256": "7e18f737 311b2dc3 b2f269dd 78396b03 51f14fb6 6efa879f 768cb231 81883c78",
+      "note": "Trailing space, tab, form feed and vertical tab are stripped per line."
+    },
+    {
+      "id": "A4-4",
+      "rule": "A4",
+      "kind": "description",
+      "input": "\n\n  \nText\n\n\nMore\n\n",
+      "expect": "canonical",
+      "canonical_hex": "54 65 78 74 0a 0a 0a 4d 6f 72 65",
+      "sha256": "da2f7574 dbdc209e 24736804 fdde6ce7 9e4f1319 83fec80c 3950b75d ad5a0097",
+      "note": "Leading and trailing newlines stripped (after the per-line strip); internal blank lines kept."
+    },
+    {
+      "id": "A4-5",
+      "rule": "A4",
+      "kind": "description",
+      "input": "one\u2028two\u2028",
+      "expect": "canonical",
+      "canonical_hex": "6f 6e 65 e2 80 a8 74 77 6f e2 80 a8",
+      "sha256": "dd0774bc c9bc82e8 4317f06b 2e7de6be e6d70963 3d594194 f091aed0 386da164",
+      "note": "U+2028 is neither a line break nor strippable here: preserved."
+    },
+    {
+      "id": "A4-6",
+      "rule": "A4",
+      "kind": "description",
+      "input": "  indented\u3000",
+      "expect": "canonical",
+      "canonical_hex": "20 20 69 6e 64 65 6e 74 65 64 e3 80 80",
+      "sha256": "4e417b74 afafac20 b34c98a6 80ef60fa eea540c1 a614f923 0f177510 85828935",
+      "note": "Leading spaces and a trailing U+3000 are preserved."
+    },
+    {
+      "id": "A4-7",
+      "rule": "A4",
+      "kind": "description",
+      "input": "\n\n\n",
+      "expect": "canonical",
+      "canonical_hex": "",
+      "sha256": "e3b0c442 98fc1c14 9afbf4c8 996fb924 27ae41e4 649b934c a495991b 7852b855",
+      "note": "Only newlines: the empty string."
+    },
+    {
+      "id": "A4-8",
+      "rule": "A4",
+      "kind": "tool",
+      "input": {
+        "name": "echo",
+        "description": "Echo.  ",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "description": "Text.  "
+            }
+          }
+        },
+        "capability_class": "read_only",
+        "untrusted_input_facing": false,
+        "scope": "echo",
+        "privacy_sensitive": false,
+        "recoverability_basis": null,
+        "elevated": false,
+        "containment_domain": null
+      },
+      "expect": "canonical",
+      "canonical_hex": "7b 22 63 61 70 61 62 69 6c 69 74 79 5f 63 6c 61 73 73 22 3a 22 72 65 61 64 5f 6f 6e 6c 79 22 2c 22 63 6f 6e 74 61 69 6e 6d 65 6e 74 5f 64 6f 6d 61 69 6e 22 3a 6e 75 6c 6c 2c 22 64 65 73 63 72 69 70 74 69 6f 6e 22 3a 22 45 63 68 6f 2e 22 2c 22 65 6c 65 76 61 74 65 64 22 3a 66 61 6c 73 65 2c 22 69 6e 70 75 74 5f 73 63 68 65 6d 61 22 3a 7b 22 70 72 6f 70 65 72 74 69 65 73 22 3a 7b 22 74 65 78 74 22 3a 7b 22 64 65 73 63 72 69 70 74 69 6f 6e 22 3a 22 54 65 78 74 2e 20 20 22 2c 22 74 79 70 65 22 3a 22 73 74 72 69 6e 67 22 7d 7d 2c 22 74 79 70 65 22 3a 22 6f 62 6a 65 63 74 22 7d 2c 22 6e 61 6d 65 22 3a 22 65 63 68 6f 22 2c 22 70 72 69 76 61 63 79 5f 73 65 6e 73 69 74 69 76 65 22 3a 66 61 6c 73 65 2c 22 72 65 63 6f 76 65 72 61 62 69 6c 69 74 79 5f 62 61 73 69 73 22 3a 6e 75 6c 6c 2c 22 73 63 6f 70 65 22 3a 22 65 63 68 6f 22 2c 22 75 6e 74 72 75 73 74 65 64 5f 69 6e 70 75 74 5f 66 61 63 69 6e 67 22 3a 66 61 6c 73 65 7d",
+      "sha256": "96138956 d85f1c43 2a5f40cf f8aca81a 248f1374 f409e7dd 85bff0d7 b0411ad5",
+      "note": "Only the top-level description is normalized: its trailing spaces go; the schema's inner description keeps them."
+    },
+    {
+      "id": "A5-1",
+      "rule": "A5",
+      "kind": "name",
+      "input": "echo",
+      "expect": "canonical",
+      "canonical_hex": "65 63 68 6f",
+      "sha256": "092c79e8 f80e559e 404bcf66 0c48f352 2b67aba9 ff1484b0 367e1a4d def7431d",
+      "note": "Accepted."
+    },
+    {
+      "id": "A5-2",
+      "rule": "A5",
+      "kind": "name",
+      "input": "Echo",
+      "expect": "refuse",
+      "note": "Upper case refused."
+    },
+    {
+      "id": "A5-3",
+      "rule": "A5",
+      "kind": "name",
+      "input": "note.append_v2-x",
+      "expect": "canonical",
+      "canonical_hex": "6e 6f 74 65 2e 61 70 70 65 6e 64 5f 76 32 2d 78",
+      "sha256": "82afb053 98868e08 3da3cf26 e9b92aec e7013033 8a67fa30 3a4e88c7 20871760",
+      "note": "Dot, underscore and hyphen allowed after the first character."
+    },
+    {
+      "id": "A5-4",
+      "rule": "A5",
+      "kind": "name",
+      "input": "_hidden",
+      "expect": "refuse",
+      "note": "Must begin with a lower-case letter or digit."
+    },
+    {
+      "id": "A5-5",
+      "rule": "A5",
+      "kind": "name",
+      "input": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+      "expect": "canonical",
+      "canonical_hex": "7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a",
+      "sha256": "72996563 049cc84d aa2c3f31 fd5c3d10 770e69d6 ebbb8da5 b6d76db3 03dbae43",
+      "note": "64 characters: accepted."
+    },
+    {
+      "id": "A5-6",
+      "rule": "A5",
+      "kind": "name",
+      "input": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+      "expect": "refuse",
+      "note": "65 characters: refused."
+    },
+    {
+      "id": "A5-7",
+      "rule": "A5",
+      "kind": "name",
+      "input": "\u00e9cho",
+      "expect": "refuse",
+      "note": "Non-ASCII refused."
+    },
+    {
+      "id": "A5-8",
+      "rule": "A5",
+      "kind": "name",
+      "input": "echo\n",
+      "expect": "refuse",
+      "note": "A trailing newline is refused: the pattern must match the whole string (an end anchor that also matches before a final newline is the trap)."
+    },
+    {
+      "id": "A6-1",
+      "rule": "A6",
+      "kind": "tool",
+      "input": {
+        "name": "echo",
+        "description": "Returns its text.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "capability_class": "read_only",
+        "untrusted_input_facing": false,
+        "scope": "echo",
+        "privacy_sensitive": false,
+        "recoverability_basis": null,
+        "elevated": false,
+        "containment_domain": null
+      },
+      "expect": "canonical",
+      "canonical_hex": "7b 22 63 61 70 61 62 69 6c 69 74 79 5f 63 6c 61 73 73 22 3a 22 72 65 61 64 5f 6f 6e 6c 79 22 2c 22 63 6f 6e 74 61 69 6e 6d 65 6e 74 5f 64 6f 6d 61 69 6e 22 3a 6e 75 6c 6c 2c 22 64 65 73 63 72 69 70 74 69 6f 6e 22 3a 22 52 65 74 75 72 6e 73 20 69 74 73 20 74 65 78 74 2e 22 2c 22 65 6c 65 76 61 74 65 64 22 3a 66 61 6c 73 65 2c 22 69 6e 70 75 74 5f 73 63 68 65 6d 61 22 3a 7b 22 61 64 64 69 74 69 6f 6e 61 6c 50 72 6f 70 65 72 74 69 65 73 22 3a 66 61 6c 73 65 2c 22 70 72 6f 70 65 72 74 69 65 73 22 3a 7b 22 74 65 78 74 22 3a 7b 22 74 79 70 65 22 3a 22 73 74 72 69 6e 67 22 7d 7d 2c 22 72 65 71 75 69 72 65 64 22 3a 5b 22 74 65 78 74 22 5d 2c 22 74 79 70 65 22 3a 22 6f 62 6a 65 63 74 22 7d 2c 22 6e 61 6d 65 22 3a 22 65 63 68 6f 22 2c 22 70 72 69 76 61 63 79 5f 73 65 6e 73 69 74 69 76 65 22 3a 66 61 6c 73 65 2c 22 72 65 63 6f 76 65 72 61 62 69 6c 69 74 79 5f 62 61 73 69 73 22 3a 6e 75 6c 6c 2c 22 73 63 6f 70 65 22 3a 22 65 63 68 6f 22 2c 22 75 6e 74 72 75 73 74 65 64 5f 69 6e 70 75 74 5f 66 61 63 69 6e 67 22 3a 66 61 6c 73 65 7d",
+      "sha256": "40e12e60 9f20f36f f25812f5 249676a9 b41ba509 c08b4a9c 97888065 1c2ff18c",
+      "note": "The ten-field object, keys in JCS order; sha256 is tool_hash."
+    },
+    {
+      "id": "A6-2",
+      "rule": "A6",
+      "kind": "tool",
+      "input": {
+        "name": "echo",
+        "description": "Returns its text.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "capability_class": "read_only",
+        "untrusted_input_facing": false,
+        "scope": "echo",
+        "privacy_sensitive": false,
+        "recoverability_basis": null,
+        "elevated": false,
+        "containment_domain": null,
+        "title": "Echo"
+      },
+      "expect": "refuse",
+      "note": "A field outside the ten is refused, not dropped."
+    },
+    {
+      "id": "A6-3",
+      "rule": "A6",
+      "kind": "tool",
+      "input": {
+        "name": "echo",
+        "description": "Returns its text.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "capability_class": "read_only",
+        "untrusted_input_facing": false,
+        "scope": "echo",
+        "privacy_sensitive": false,
+        "recoverability_basis": null,
+        "elevated": "false",
+        "containment_domain": null
+      },
+      "expect": "refuse",
+      "note": "A boolean field given a string is refused: no truthiness coercion."
+    },
+    {
+      "id": "A6-4",
+      "rule": "A6",
+      "kind": "tool",
+      "input": {
+        "name": "echo",
+        "description": "Returns its text.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "capability_class": "admin",
+        "untrusted_input_facing": false,
+        "scope": "echo",
+        "privacy_sensitive": false,
+        "recoverability_basis": null,
+        "elevated": false,
+        "containment_domain": null
+      },
+      "expect": "refuse",
+      "note": "capability_class outside the four rungs is refused."
+    },
+    {
+      "id": "A7-1",
+      "rule": "A7",
+      "kind": "set",
+      "input": [
+        "b",
+        "a",
+        "b",
+        "B"
+      ],
+      "expect": "canonical",
+      "canonical_hex": "5b 22 42 22 2c 22 61 22 2c 22 62 22 5d",
+      "sha256": "756ec021 cad39e23 f770a620 70784c36 f95d72f3 a6a73be7 e37f6ea4 4e7b058f",
+      "note": "Deduplicated, sorted by UTF-16 code units, case preserved."
+    },
+    {
+      "id": "A7-2",
+      "rule": "A7",
+      "kind": "set",
+      "input": [],
+      "expect": "canonical",
+      "canonical_hex": "5b 5d",
+      "sha256": "4f53cda1 8c2baa0c 0354bb5f 9a3ecbe5 ed12ab4d 8e11ba87 3c2f1116 1202b945",
+      "note": "The empty set: contained to nothing. Distinct from null."
+    },
+    {
+      "id": "A7-3",
+      "rule": "A7",
+      "kind": "set",
+      "input": null,
+      "expect": "canonical",
+      "canonical_hex": "6e 75 6c 6c",
+      "sha256": "74234e98 afe7498f b5daf1f3 6ac2d78a cc339464 f950703b 8c019892 f982b90b",
+      "note": "null: no containment claimed."
+    },
+    {
+      "id": "A7-4",
+      "rule": "A7",
+      "kind": "set",
+      "input": [
+        "\ufb01",
+        "\ud83d\ude00"
+      ],
+      "expect": "canonical",
+      "canonical_hex": "5b 22 f0 9f 98 80 22 2c 22 ef ac 81 22 5d",
+      "sha256": "ee4f2693 e8617d45 62c6b611 6dbd1ce9 7f032a01 d43e2e68 d164cf75 132f7897",
+      "note": "UTF-16 order, as A1-2."
+    },
+    {
+      "id": "A7-5",
+      "rule": "A7",
+      "kind": "json",
+      "input_json_text": "{\"required\":[\"b\",\"a\"],\"enum\":[2,1]}",
+      "expect": "canonical",
+      "canonical_hex": "7b 22 65 6e 75 6d 22 3a 5b 32 2c 31 5d 2c 22 72 65 71 75 69 72 65 64 22 3a 5b 22 62 22 2c 22 61 22 5d 7d",
+      "sha256": "8fc1ca19 46d9bbc3 8ea1a91e 2ac91ae4 4ee8034d 88a726b0 3a0947c4 9154fdb0",
+      "note": "Arrays inside input_schema are not sets: order kept."
+    },
+    {
+      "id": "A8-1",
+      "rule": "A8",
+      "kind": "json",
+      "input_json_text": "{\"type\":\"object\"}",
+      "expect": "canonical",
+      "canonical_hex": "7b 22 74 79 70 65 22 3a 22 6f 62 6a 65 63 74 22 7d",
+      "sha256": "a2c79926 2a3ce3c1 9ef5cdd9 83bf3d12 b43ab3c4 26227091 b909dcb7 054738c0",
+      "note": "Absent."
+    },
+    {
+      "id": "A8-2",
+      "rule": "A8",
+      "kind": "json",
+      "input_json_text": "{\"type\":\"object\",\"default\":null}",
+      "expect": "canonical",
+      "canonical_hex": "7b 22 64 65 66 61 75 6c 74 22 3a 6e 75 6c 6c 2c 22 74 79 70 65 22 3a 22 6f 62 6a 65 63 74 22 7d",
+      "sha256": "7a9b699b d75d585d 882389aa ae4200a4 b3c9f023 eac0a0cb dd1bb282 d1615b18",
+      "note": "null."
+    },
+    {
+      "id": "A8-3",
+      "rule": "A8",
+      "kind": "json",
+      "input_json_text": "{\"type\":\"object\",\"default\":{}}",
+      "expect": "canonical",
+      "canonical_hex": "7b 22 64 65 66 61 75 6c 74 22 3a 7b 7d 2c 22 74 79 70 65 22 3a 22 6f 62 6a 65 63 74 22 7d",
+      "sha256": "e0313a37 1c2076f7 a0d4d7d0 85a24103 2c84e08e 0ae2075d 7c60eb69 d2ead629",
+      "note": "Empty object."
+    },
+    {
+      "id": "A8-4",
+      "rule": "A8",
+      "kind": "json",
+      "input_json_text": "{\"type\":\"object\",\"default\":[]}",
+      "expect": "canonical",
+      "canonical_hex": "7b 22 64 65 66 61 75 6c 74 22 3a 5b 5d 2c 22 74 79 70 65 22 3a 22 6f 62 6a 65 63 74 22 7d",
+      "sha256": "0fe20ff7 03a1976b 26e96034 dd383a65 0ea08e46 8f975d4e d05e2b40 657ada5b",
+      "note": "Empty array. Four inputs, four hashes."
+    },
+    {
+      "id": "A8-5",
+      "rule": "A8",
+      "kind": "tool",
+      "input": {
+        "name": "echo",
+        "description": "Returns its text.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        "capability_class": "read_only",
+        "untrusted_input_facing": false,
+        "scope": "echo",
+        "privacy_sensitive": false,
+        "recoverability_basis": null,
+        "elevated": false
+      },
+      "expect": "refuse",
+      "note": "A top-level field that is absent is refused: all ten are always present, null where they do not apply."
+    },
+    {
+      "id": "A9-1",
+      "rule": "A9",
+      "kind": "tool",
+      "input": {
+        "name": "note.append",
+        "description": "Appends one line to the operator's notes.\nNever rewrites earlier lines.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "line": {
+              "type": "string",
+              "maxLength": 500
+            }
+          },
+          "required": [
+            "line"
+          ],
+          "additionalProperties": false
+        },
+        "capability_class": "owned_state",
+        "untrusted_input_facing": true,
+        "scope": "notes",
+        "privacy_sensitive": true,
+        "recoverability_basis": "append-only",
+        "elevated": false,
+        "containment_domain": [
+          "notes-file"
+        ]
+      },
+      "expect": "canonical",
+      "canonical_hex": "7b 22 63 61 70 61 62 69 6c 69 74 79 5f 63 6c 61 73 73 22 3a 22 6f 77 6e 65 64 5f 73 74 61 74 65 22 2c 22 63 6f 6e 74 61 69 6e 6d 65 6e 74 5f 64 6f 6d 61 69 6e 22 3a 5b 22 6e 6f 74 65 73 2d 66 69 6c 65 22 5d 2c 22 64 65 73 63 72 69 70 74 69 6f 6e 22 3a 22 41 70 70 65 6e 64 73 20 6f 6e 65 20 6c 69 6e 65 20 74 6f 20 74 68 65 20 6f 70 65 72 61 74 6f 72 27 73 20 6e 6f 74 65 73 2e 5c 6e 4e 65 76 65 72 20 72 65 77 72 69 74 65 73 20 65 61 72 6c 69 65 72 20 6c 69 6e 65 73 2e 22 2c 22 65 6c 65 76 61 74 65 64 22 3a 66 61 6c 73 65 2c 22 69 6e 70 75 74 5f 73 63 68 65 6d 61 22 3a 7b 22 61 64 64 69 74 69 6f 6e 61 6c 50 72 6f 70 65 72 74 69 65 73 22 3a 66 61 6c 73 65 2c 22 70 72 6f 70 65 72 74 69 65 73 22 3a 7b 22 6c 69 6e 65 22 3a 7b 22 6d 61 78 4c 65 6e 67 74 68 22 3a 35 30 30 2c 22 74 79 70 65 22 3a 22 73 74 72 69 6e 67 22 7d 7d 2c 22 72 65 71 75 69 72 65 64 22 3a 5b 22 6c 69 6e 65 22 5d 2c 22 74 79 70 65 22 3a 22 6f 62 6a 65 63 74 22 7d 2c 22 6e 61 6d 65 22 3a 22 6e 6f 74 65 2e 61 70 70 65 6e 64 22 2c 22 70 72 69 76 61 63 79 5f 73 65 6e 73 69 74 69 76 65 22 3a 74 72 75 65 2c 22 72 65 63 6f 76 65 72 61 62 69 6c 69 74 79 5f 62 61 73 69 73 22 3a 22 61 70 70 65 6e 64 2d 6f 6e 6c 79 22 2c 22 73 63 6f 70 65 22 3a 22 6e 6f 74 65 73 22 2c 22 75 6e 74 72 75 73 74 65 64 5f 69 6e 70 75 74 5f 66 61 63 69 6e 67 22 3a 74 72 75 65 7d",
+      "sha256": "8131e955 204dbe89 10ad9ea0 e2fed4e4 35f3f1c6 da0f8e19 7b621649 ca7b8723",
+      "note": "The second tool; sha256 is its tool_hash."
+    },
+    {
+      "id": "A9-2",
+      "rule": "A9",
+      "kind": "manifest",
+      "input": {
+        "canonical_form_version": 1,
+        "tools": [
+          {
+            "name": "note.append",
+            "description": "Appends one line to the operator's notes.\nNever rewrites earlier lines.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "line": {
+                  "type": "string",
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "line"
+              ],
+              "additionalProperties": false
+            },
+            "capability_class": "owned_state",
+            "untrusted_input_facing": true,
+            "scope": "notes",
+            "privacy_sensitive": true,
+            "recoverability_basis": "append-only",
+            "elevated": false,
+            "containment_domain": [
+              "notes-file"
+            ]
+          },
+          {
+            "name": "echo",
+            "description": "Returns its text.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "capability_class": "read_only",
+            "untrusted_input_facing": false,
+            "scope": "echo",
+            "privacy_sensitive": false,
+            "recoverability_basis": null,
+            "elevated": false,
+            "containment_domain": null
+          }
+        ]
+      },
+      "expect": "canonical",
+      "canonical_hex": "7b 22 63 61 6e 6f 6e 69 63 61 6c 5f 66 6f 72 6d 5f 76 65 72 73 69 6f 6e 22 3a 31 2c 22 74 6f 6f 6c 73 22 3a 5b 7b 22 6e 61 6d 65 22 3a 22 65 63 68 6f 22 2c 22 74 6f 6f 6c 5f 68 61 73 68 22 3a 22 34 30 65 31 32 65 36 30 39 66 32 30 66 33 36 66 66 32 35 38 31 32 66 35 32 34 39 36 37 36 61 39 62 34 31 62 61 35 30 39 63 30 38 62 34 61 39 63 39 37 38 38 38 30 36 35 31 63 32 66 66 31 38 63 22 7d 2c 7b 22 6e 61 6d 65 22 3a 22 6e 6f 74 65 2e 61 70 70 65 6e 64 22 2c 22 74 6f 6f 6c 5f 68 61 73 68 22 3a 22 38 31 33 31 65 39 35 35 32 30 34 64 62 65 38 39 31 30 61 64 39 65 61 30 65 32 66 65 64 34 65 34 33 35 66 33 66 31 63 36 64 61 30 66 38 65 31 39 37 62 36 32 31 36 34 39 63 61 37 62 38 37 32 33 22 7d 5d 7d",
+      "sha256": "e3e7c134 8daa166f 5e9c1bb0 1c4f314e 102ee64e 4a83b154 d56a2a8c e53b1ff6",
+      "note": "Two tools given out of order: entries sorted by name; sha256 is manifest_hash."
+    },
+    {
+      "id": "A9-3",
+      "rule": "A9",
+      "kind": "manifest",
+      "input": {
+        "canonical_form_version": 1,
+        "tools": [
+          {
+            "name": "echo",
+            "description": "Returns its text.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "capability_class": "read_only",
+            "untrusted_input_facing": false,
+            "scope": "echo",
+            "privacy_sensitive": false,
+            "recoverability_basis": null,
+            "elevated": false,
+            "containment_domain": null
+          },
+          {
+            "name": "echo",
+            "description": "Appends one line to the operator's notes.\nNever rewrites earlier lines.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "line": {
+                  "type": "string",
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "line"
+              ],
+              "additionalProperties": false
+            },
+            "capability_class": "owned_state",
+            "untrusted_input_facing": true,
+            "scope": "notes",
+            "privacy_sensitive": true,
+            "recoverability_basis": "append-only",
+            "elevated": false,
+            "containment_domain": [
+              "notes-file"
+            ]
+          }
+        ]
+      },
+      "expect": "refuse",
+      "note": "Two tools with one name: refused."
+    },
+    {
+      "id": "A10-1",
+      "rule": "A10",
+      "kind": "manifest",
+      "input": {
+        "canonical_form_version": 2,
+        "tools": [
+          {
+            "name": "echo",
+            "description": "Returns its text.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "capability_class": "read_only",
+            "untrusted_input_facing": false,
+            "scope": "echo",
+            "privacy_sensitive": false,
+            "recoverability_basis": null,
+            "elevated": false,
+            "containment_domain": null
+          }
+        ]
+      },
+      "expect": "refuse",
+      "note": "A version this implementation does not implement is refused."
+    },
+    {
+      "id": "A10-2",
+      "rule": "A10",
+      "kind": "manifest",
+      "input": {
+        "canonical_form_version": 1,
+        "tools": [
+          {
+            "name": "echo",
+            "description": "Returns its text.",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "capability_class": "read_only",
+            "untrusted_input_facing": false,
+            "scope": "echo",
+            "privacy_sensitive": false,
+            "recoverability_basis": null,
+            "elevated": false,
+            "containment_domain": null
+          }
+        ]
+      },
+      "expect": "canonical",
+      "canonical_hex": "7b 22 63 61 6e 6f 6e 69 63 61 6c 5f 66 6f 72 6d 5f 76 65 72 73 69 6f 6e 22 3a 31 2c 22 74 6f 6f 6c 73 22 3a 5b 7b 22 6e 61 6d 65 22 3a 22 65 63 68 6f 22 2c 22 74 6f 6f 6c 5f 68 61 73 68 22 3a 22 34 30 65 31 32 65 36 30 39 66 32 30 66 33 36 66 66 32 35 38 31 32 66 35 32 34 39 36 37 36 61 39 62 34 31 62 61 35 30 39 63 30 38 62 34 61 39 63 39 37 38 38 38 30 36 35 31 63 32 66 66 31 38 63 22 7d 5d 7d",
+      "sha256": "8aae96f1 2c5851c1 78d5a809 b33d807e 3990b72a a33b6963 9bfee97d b588614a",
+      "note": "The version is inside the manifest hash."
+    }
+  ]
+}

@@ -32,6 +32,13 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
   `x-mcp-header` handling, HMAC-sealed MRTR `requestState`, and a refuse-all verifier seam.
   `packages/core/src/transport/SPEC-MAP.md` maps it to the specification.
 
+- **CSR-WO-1000 (stage A, draft):** the canonical form, specified before it is built.
+  `docs/canonical-form.md` states ten rules (RFC 8785 as the JSON layer, numbers, strings without
+  Unicode normalization, description normalization, names, the ten-field hashed set, sets,
+  absent/null/empty, both hashes, versioning), each with a reason and byte-level vectors. The same
+  63 vectors are in `packages/core/test/vectors/canonical-v1.json`. Awaiting ratification; the
+  implementation is stage B.
+
 ### Changed
 
 - **CSR-WO-1005b:** the HTTP status of an error is now era-dependent. On `2025-11-25`, a JSON-RPC
