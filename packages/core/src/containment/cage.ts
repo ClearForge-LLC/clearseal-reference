@@ -9,6 +9,7 @@ import { connect as netConnect, type Socket } from "node:net";
 import { posix, win32 } from "node:path";
 
 import { type Domain, EMPTY_DOMAIN } from "./domain.ts";
+import { within } from "./within.ts";
 
 // Captured at load, before any test shim patches fs: the cage's own checks are not reaches.
 const lstatOwn = lstatSync;
@@ -143,10 +144,6 @@ function typeAt(path: string): FileType {
     return "unknown";
   }
 }
-
-/** Is `path` the root or below it? Both sides come from resolveReal, so on Windows both are in the
- *  native form (drive letter, backslashes) and compare with its separator. */
-const within = (path: string, root: string): boolean => path === root || path.startsWith(`${root}${process.platform === "win32" ? "\\" : "/"}`);
 
 /**
  * The real path of `path` when it exists, else of its deepest existing ancestor with the rest
