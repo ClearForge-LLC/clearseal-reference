@@ -135,6 +135,11 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     through it truncated a file outside the root before the refusal. A directory or FIFO swapped in
     and refused by the open itself (`EISDIR`, or `EEXIST` under `O_EXCL`) is a recorded refusal. On
     Windows a reserved device name in the path is refused as a device.
+  - Under the architect's scope amendment: `startTransport` captures once at start the registry it
+    checked, a private copy of the request-state key and a frozen copy of `serverInfo`, and the
+    request path reads only those. Before, code holding the options object could swap the served
+    registry, or rewrite the key's bytes and forge request state, after start. The
+    `containment-refused` audit line also names the file type when the reach has one.
 - **CSR-WO-1003a:** auth corrections from the `-1003` review and red-team.
   - An issuer outage (the key set unreachable, no valid cache) answers `503` with `Retry-After` and
     no challenge, not `401 invalid_token`, so a correct client keeps its token. The verdict carries

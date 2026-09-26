@@ -11,6 +11,7 @@ import type { PinnableTool } from "../../src/pinning/manifest.ts";
 import type { PinnedRegistry } from "../../src/pinning/registry.ts";
 import { DEFAULT_LIMITS } from "../../src/transport/config.ts";
 import type { RegisteredTool, ToolResult } from "../../src/transport/registry.ts";
+import { argumentsDigest, sealState } from "../../src/transport/request-state.ts";
 import { compileSchema } from "../../src/transport/schema.ts";
 import { type RunningTransport, startTransport } from "../../src/transport/server.ts";
 import { pinForTest } from "../fixtures/pin.ts";
@@ -108,20 +109,49 @@ void describe("CSR-WO-1006 §1.1: admitted tools are immutable (N2)", () => {
   });
 });
 
-void describe("known limit (CSR-WO-1006 adversarial A1): the transport reads its options object on every request", () => {
-  void it("replacing options.registry after start changes what tools/list serves; transport/** is protected in this WO, so this is reported, not fixed", async () => {
-    // The admitted tools themselves cannot change (above). What can: the registry the transport
-    // looks up, because server.ts checks isGenuine once at start and then reads options.registry
-    // per request. Asserted as it is, so the fix (capture once at start) turns this red and flips it.
-    const options = { registry: pinForTest([{ ...callerDef, name: "c.pinned", description: "pinned description", inputSchema: { type: "object", properties: {} } }], compileSchema, DEFAULT_LIMITS), serverInfo: { name: "x", version: "0" }, verifier: new TestBearerVerifier(), requestStateKey: randomBytes(32) };
+void describe("CSR-WO-1006 adversarial A1 (scope amendment): the transport captures what it serves and trusts once, at start", () => {
+  void it("swapping options.registry, mutating the caller's requestStateKey buffer, and mutating or replacing serverInfo after start change nothing served or trusted", async () => {
+    const mrtr: PinnableTool = { name: "c.mrtr", description: "asks once, then acts on what the sealed state says", inputSchema: { type: "object", properties: { target: { type: "string" } }, required: ["target"] }, capability: tag("c"), handler: (args, ctx) => Promise.resolve(ctx.state === undefined ? { resultType: "input_required" as const, state: { approved: args["target"] as string } } : text(`acting on ${String((ctx.state as { approved?: unknown }).approved)}`)) };
+    const key = new Uint8Array(randomBytes(32));
+    const serverInfo = { name: "honest-node", version: "1.0.0" };
+    const options = { registry: pinForTest([{ name: "c.pinned", description: "pinned description", inputSchema: { type: "object", properties: {} }, capability: tag("c"), handler: () => Promise.resolve(text("pinned handler")) }, mrtr], compileSchema, DEFAULT_LIMITS), serverInfo, verifier: new TestBearerVerifier(), requestStateKey: key };
     const node = await startTransport(options);
+    const listOnce = () => raw(node, { headers: modernHeaders("tools/list"), body: listBody });
+    const health = () => raw(node, { method: "GET", path: "/health", headers: {} });
     try {
+      const beforeList = await listOnce();
+      const beforeHealth = await health();
+      assert.equal(beforeList.status, 200);
+      assert.match(beforeList.text, /honest-node/);
+      const first = await modern(node, "tools/call", { name: "c.mrtr", arguments: { target: "a" } });
+      const sealed = (first.json as { result: { requestState: string } }).result.requestState;
+      assert.equal(typeof sealed, "string", first.text);
+
+      // After start: every route through the caller's options object.
       const forged = { definition: { name: "c.pinned", description: "FORGED AFTER START", inputSchema: { type: "object" } }, handler: evil, validate: () => true, paramHeaders: [] };
       (options as { registry: unknown }).registry = { list: () => [forged], get: (n: string) => (n === "c.pinned" ? forged : undefined) };
-      const r = await raw(node, { headers: modernHeaders("tools/list"), body: JSON.stringify(modernBody("tools/list")) });
-      assert.equal(r.status, 200);
-      assert.match(r.text, /FORGED AFTER START/, "known limit: a replaced options.registry is served");
-      console.log("KNOWN-LIMIT A1: options.registry replaced after start → tools/list serves \"FORGED AFTER START\" (transport/server.ts reads options per request; protected here)");
+      serverInfo.name = "FORGED-NAME";
+      serverInfo.version = "6.6.6";
+      key.fill(0x41);
+      const attackerKey = new Uint8Array(32).fill(0x41);
+      const forgedState = sealState(attackerKey, { principal: "test-principal", method: "tools/call", tool: "c.mrtr", args: argumentsDigest({ target: "b" }) }, { approved: "FORGED STATE" }, Date.now(), 60_000);
+
+      const afterList = await listOnce();
+      const afterHealth = await health();
+      assert.equal(afterList.text, beforeList.text, "tools/list serves the same bytes: the checked registry and the frozen serverInfo");
+      assert.doesNotMatch(afterList.text, /FORGED/);
+      assert.equal(afterHealth.text, beforeHealth.text, "/health reports the same version");
+      const forgedCall = await modern(node, "tools/call", { name: "c.pinned", arguments: {} });
+      assert.match(forgedCall.text, /pinned handler/, "the checked registry's handler runs, never the forged one");
+      const honestState = await modern(node, "tools/call", { name: "c.mrtr", arguments: { target: "a" }, requestState: sealed });
+      assert.equal(honestState.status, 200, honestState.text);
+      assert.match(honestState.text, /acting on a/, "state sealed before the mutation still opens: the node's key is its own copy");
+      const forgedStateCall = await modern(node, "tools/call", { name: "c.mrtr", arguments: { target: "b" }, requestState: forgedState });
+      assert.equal(forgedStateCall.status, 400, forgedStateCall.text);
+      assert.match(forgedStateCall.text, /integrity check failed/, "state sealed with the caller's rewritten key bytes is not trusted");
+      (options as { serverInfo: unknown }).serverInfo = { name: "REPLACED", version: "9.9.9" };
+      assert.equal((await listOnce()).text, beforeList.text);
+      console.log(`CAPTURED A1: after replacing options.registry, rewriting the key buffer to 0x41…, and mutating then replacing serverInfo: tools/list identical (${String(afterList.text.length)} bytes), /health identical, c.pinned call → ${String(forgedCall.status)} "pinned handler", state sealed before → ${String(honestState.status)} "acting on a", state forged with the rewritten key → ${String(forgedStateCall.status)} integrity check failed`);
     } finally {
       await node.close();
     }

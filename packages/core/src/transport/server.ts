@@ -219,6 +219,13 @@ export async function startTransport(options: TransportOptions): Promise<Running
     await options.validationPool?.close();
     throw new TypeError("the transport serves only a PinnedRegistry, built from the pin gate's admission");
   }
+  // Captured once, here, and the request path reads only these (CSR-WO-1006, adversarial A1): the
+  // registry value just checked, a private copy of the state key's bytes, and a frozen copy of the
+  // server identity. Replacing or mutating the caller's options object after start changes nothing
+  // served or trusted.
+  const servedRegistry: PinnedRegistry = registry;
+  const requestStateKey: Uint8Array | undefined = options.requestStateKey === undefined ? undefined : Uint8Array.from(options.requestStateKey);
+  const serverInfo: TransportOptions["serverInfo"] = Object.freeze({ ...options.serverInfo });
   const { pinning } = registry;
   for (const r of pinning.refused) audit("pin-refused", { tool: r.name, reason: r.reason, ...(r.rule === undefined ? {} : { rule: r.rule }) });
   if (pinning.refused.length > 0) {
@@ -334,7 +341,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
         return;
       }
       // The pinned counts only: the refused tools' names are in the start-up log, never here.
-      if (isHealth) send(res, 200, { status: "ok", version: options.serverInfo.version, protocolVersions: [...SUPPORTED_VERSIONS], pinned: { admitted: pinning.admitted, refused: pinning.refused.length } });
+      if (isHealth) send(res, 200, { status: "ok", version: serverInfo.version, protocolVersions: [...SUPPORTED_VERSIONS], pinned: { admitted: pinning.admitted, refused: pinning.refused.length } });
       else send(res, 200, { resource: resourceUrl, authorization_servers: [...issuers], bearer_methods_supported: ["header"], scopes_supported: [] });
       return;
     }
@@ -410,11 +417,11 @@ export async function startTransport(options: TransportOptions): Promise<Running
       const ctx: DispatchContext = {
         headers: req.headersDistinct,
         principal,
-        registry: options.registry,
+        registry: servedRegistry,
         limits,
         config,
-        serverInfo: options.serverInfo,
-        requestStateKey: options.requestStateKey,
+        serverInfo,
+        requestStateKey,
         signal: aborter.signal,
         now,
         // Every call-scoped event carries the caller (CSR-WO-1003 §1.7), including a containment

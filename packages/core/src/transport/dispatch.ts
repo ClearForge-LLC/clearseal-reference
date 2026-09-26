@@ -270,7 +270,8 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
   // Every refusal is audited as it happens, including one made after the handler returned; the
   // response never carries the sink.
   const onRefused = (r: Reach): void => {
-    ctx.audit("containment-refused", { tool: name, kind: r.kind, sink: r.sink });
+    // A refusal because the file is not a regular one names what it is (CSR-WO-1006 D-1).
+    ctx.audit("containment-refused", { tool: name, kind: r.kind, sink: r.sink, ...(r.fileType === undefined ? {} : { fileType: r.fileType }) });
   };
   const cage = tool.newCage?.(onRefused) ?? new RecordingCage(undefined, undefined, undefined, onRefused);
   const callCtx: Omit<CallContext, "signal"> & { signal?: AbortSignal } = { principal: ctx.principal, protocolVersion: era, clientCapabilities: caps, cage };

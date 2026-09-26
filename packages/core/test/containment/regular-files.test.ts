@@ -218,6 +218,8 @@ void describe("CSR-WO-1006 §1.2: regular files only, and the open never waits",
       assert.equal(t.inFlight(), 0, "no slot left held");
       const lines = audits.filter((a) => a.startsWith("containment-refused"));
       assert.equal(lines.length, n);
+      // The audit line names what the file is (CSR-WO-1006 D-1, scope amendment).
+      for (const l of lines) assert.match(l, /"kind":"fs","sink":"[^"]+\/fifo","fileType":"fifo"/);
       assert.equal(audits.filter((a) => a.startsWith("handler-timeout")).length, 0);
       const ok = await modern(t, "tools/call", { name: "fifo.read", arguments: { path: REGULAR } });
       assert.equal(ok.status, 200, ok.text);

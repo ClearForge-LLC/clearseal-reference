@@ -10,22 +10,24 @@ merges.**
   tools are frozen. The cage refuses any non-regular file without waiting. On Windows the cage
   resolves links, measured first on `windows-latest`. The `-1004` Windows known-limit test now
   asserts the refusal.
-- **Decision-needed, high: the adversary found a second N2 route that this WO's protected surfaces
-  keep me from closing (A1).** `transport/server.ts` checks `PinnedRegistry.isGenuine` once at
-  start (line 217). It then reads `options.registry`, `options.serverInfo` and
-  `options.requestStateKey` from the caller's options object on every request (lines 413-417). So
-  code that still holds that object can swap in a forged registry after start. `tools/list` then
-  serves the forged description, and a call runs a forged handler with a forged `validate`. The
-  admitted tools themselves cannot change. The registry the transport looks them up in can.
-  `transport/**` is protected here, and §7 says to flag and stop when a protected surface must
-  change, so I did not touch it. The fix is small: capture the checked registry, `serverInfo`
-  and key once at start. It is asserted as a known limit
-  (`frozen.test.ts`, *known limit (CSR-WO-1006 adversarial A1)*), so the fix turns that test red
-  and flips it. Like `-1004`'s A6, it is supply-side: a handler never receives the options object.
-- **Decision-needed, low: the audit line does not name the file type (D-1).** A non-regular file is
-  refused, recorded with `fileType`, and heard by the audit seam. But `dispatch.ts` (protected)
-  writes `containment-refused` with `tool`, `kind` and `sink` only. Naming the type in the audit
-  line is a one-field change there.
+- **Scope amendment (architect's ruling, recorded as such): A1 and D-1 are fixed in `transport/`.**
+  The adversary found a second N2 route (A1). `transport/server.ts` checked `PinnedRegistry.isGenuine`
+  once at start (line 217). It then passed `options.registry`, `options.serverInfo` and
+  `options.requestStateKey`, re-read from the caller's options object, into every request's
+  dispatch. So code still holding that object could swap in a forged registry after start: the
+  forged description was served, and a call ran a forged handler with a forged `validate`. By
+  rewriting the key buffer's bytes, it could also forge MRTR state the node would trust. `transport/**`
+  was protected in this WO, so the first cut flagged it (§7) and asserted it as a known limit.
+  The architect confirmed A1 and amended the scope **for one commit only**: `transport/server.ts` and
+  `dispatch.ts` may change, and only (1) so that `startTransport` captures once at start the
+  registry value it checked, a private copy of `requestStateKey` (copied bytes, not the caller's
+  buffer) and a frozen copy of `serverInfo`, with the request path reading only those; and (2) so
+  that the `containment-refused` audit line also carries `fileType` when the reach names one (D-1).
+  **The reason:** N2 is "nothing inside the process can change what `tools/list` serves after
+  admission", and a frozen tool looked up in a replaceable registry does not meet it. The known-limit
+  test flipped to asserting that nothing changes; see *§A1 after the amendment*. Nothing else in
+  `transport/**` changed. `startTransport` still reads `options.validationPool` at `close()`, which
+  decides which pool is closed but nothing served or trusted, and which the ruling excluded.
 - **Found and fixed in the working surface: A9.** Before this WO, a link inside a root into a
   directory whose real path is longer than `PATH_MAX` made `resolveReal` judge an ancestor
   instead. A `w` open then truncated the outside file before the Linux post-open check refused
@@ -225,16 +227,43 @@ The mutant that goes red removes the pre-open lstat entirely. The Windows-native
 
 ## Deviations
 
-- **D-1: the audit line does not carry `fileType`.** See "Read this first". It is in the `Reach`
-  record and the thrown `ContainmentRefusal` message, but `dispatch.ts` is protected.
+- **D-1 (resolved by the scope amendment): the audit line carries `fileType`.** The first cut left
+  it in the `Reach` record and the `ContainmentRefusal` message only, because `dispatch.ts` was
+  protected. The amendment added it: for example `containment-refused {"tool":"fifo.read","kind":"fs",
+  "sink":"…/root/fifo","fileType":"fifo","principal":"test-principal"}`. A refusal without a type
+  writes the line as before.
 - **D-2: `containment/harness.ts` changed, and `containment/within.ts` is new.** The reach harness
   called `resolveReal` and kept its own `/`-separator copy of `within`. Once `resolveReal` returns
   Windows native form, four harness tests failed on `windows-latest` (CI run 36268030776). The
   harness now imports the cage's one comparison from `within.ts`, an internal module the core's
   `index.ts` does not re-export, so the public API is unchanged. `harness.ts` is not on §2's
   protected list, but it is not a named working surface either, hence this line.
-- **D-3: a known-limit test for A1** asserts today's behaviour, in the `-1004` known-limit pattern,
-  so the transport fix flips it.
+- **D-3 (superseded by the scope amendment):** the first cut asserted A1 as a known limit. That test
+  now asserts the fix.
+
+## §A1 after the amendment: what the flipped test shows
+
+`frozen.test.ts`, *CSR-WO-1006 adversarial A1 (scope amendment)*, on a started node. It first seals a
+request state with the node, then replaces `options.registry` with a forged `{list, get}`, mutates
+`serverInfo.name` and `.version` on the caller's object, and rewrites the caller's key buffer to
+`0x41…`. It then asks again:
+
+```
+CAPTURED A1: after replacing options.registry, rewriting the key buffer to 0x41…, and mutating then replacing serverInfo: tools/list identical (478 bytes), /health identical, c.pinned call → 200 "pinned handler", state sealed before → 200 "acting on a", state forged with the rewritten key → 400 integrity check failed
+```
+
+A state sealed with the rewritten key (the forgery that code holding the buffer would attempt) is
+refused, and a state the node sealed before the rewrite still opens. That is only possible if the
+node signs with its own copy of the key.
+
+| # | Mutant (the request path as before the amendment, one route at a time) | Test | Result |
+|---|---|---|---|
+| M17 | the request path reads `options.registry` again | frozen | RED |
+| M18 | the request path reads `options.requestStateKey` again | frozen | RED |
+| M19 | the state key captured by reference, not copied | frozen | RED |
+| M20 | `serverInfo` captured by reference, not a frozen copy | frozen | RED |
+| M21 | the request path reads `options.serverInfo` again | frozen | RED |
+| M22 | the audit line drops `fileType` | regular-files | RED |
 
 ## Adversarial pass (fresh subagents, WO §5; each in its own worktree, since removed)
 
@@ -248,8 +277,8 @@ spot-checked every claim below against the code or by running it before adopting
 
 | ID | Route | What mattered | Outcome | Severity | Disposition |
 |---|---|---|---|---|---|
-| A1 | Replace `options.registry` (or `serverInfo`) on the object passed to `startTransport`, after start | `tools/list` served a forged description; a call without the required argument ran a forged handler (200) | **HOLE** | high (N2; supply-side, a handler never holds the options) | **Not fixed: `transport/server.ts` is protected.** Confirmed at `server.ts` lines 217 and 413-417. Asserted as a known limit. *Decision-needed* |
-| A2 | The same, with another genuine `PinnedRegistry` | That registry was served without start-up's pin-refused audit or the strict check | HOLE (A1's root cause) | high | as A1 |
+| A1 | Replace `options.registry` (or `serverInfo`) on the object passed to `startTransport`, after start | `tools/list` served a forged description; a call without the required argument ran a forged handler (200) | **HOLE** | high (N2; supply-side, a handler never holds the options) | **Fixed under the scope amendment:** the checked registry, a copy of the key and a frozen `serverInfo` are captured at start. Red-proofs M17-M21 |
+| A2 | The same, with another genuine `PinnedRegistry` | That registry was served without start-up's pin-refused audit or the strict check | HOLE (A1's root cause) | high | Fixed with A1 |
 | A3, A4 | Pollute `Object.prototype.toJSON`; patch `Map.prototype.get` | `tools/list` bytes changed; a forged handler ran | whole-process built-in patching | — | Out of reach of any per-value freeze; stated in the choices |
 | A5 | A handler's `this` is its frozen `RegisteredTool` (dispatch calls `tool.handler(...)` as a method); it calls `this.newCage()` itself | The open was refused, no escape; but that cage is not dispatch's, so no audit line, and the call returned 200 | audit bypass, no escape | low | Not fixed: `dispatch.ts` is protected; the fix is to call the handler unbound. Handler code is already trusted |
 | A6 | `pinning.isRefused`, `pinning.refused`, the prototype, `setPrototypeOf(registry)`, `reachTargets()` output, the function objects | TypeError, or fresh objects; nothing served changed | HELD | — | — |
@@ -277,15 +306,18 @@ spot-checked every claim below against the code or by running it before adopting
 - `node scripts/leak-gate.mjs --tree` exit 0; `--history` exit 0, run unpiped before every push
   with the exit code checked directly.
 - CI: green on both runners (`ubuntu-latest`, `windows-latest`) with leak-gate, sbom and audit, at
-  `b8b4f8a` (run 36269912585) before FEEDBACK; the head's run is in the pull request.
-- Protected surfaces diff to empty against `9761796`. `pinning/registry.ts` and
-  `containment/cage.ts` are the working surface, plus D-2.
+  `b8b4f8a` (run 36269912585) and at `5a17cc4` (the first PR head); the amendment commit's run is
+  in the pull request.
+- Protected surfaces diff to empty against `9761796`, except `transport/server.ts` and
+  `transport/dispatch.ts`, changed under the scope amendment and only as it allows.
+  `pinning/registry.ts` and `containment/cage.ts` are the working surface, plus D-2.
 - No token was needed until the PR. The minted token lived in a mode-0600 scratch file, was never
   written to git config or a remote URL, and was deleted after the PR was opened.
 
 ## What was not built
 
-- The transport fix for A1 (protected; decision-needed).
-- `fileType` in the `containment-refused` audit line (D-1; protected).
+- Any other change to `transport/**`: the scope amendment covered only the three captured options
+  and the audit field. The running transport's `config` (A7) and a handler's `this` (A5) are
+  unchanged and still reported.
 - The Windows check-then-open race (P4, the edition OS cage), hard links (unchanged, stated), and
   anything in the gate, the canonical form, auth or the teaching edition's source.
