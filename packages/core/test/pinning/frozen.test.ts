@@ -85,7 +85,10 @@ void describe("CSR-WO-1006 §1.1: admitted tools are immutable (N2)", () => {
       ["the caller's definition: handler = evil", () => (callerDef.handler = evil)],
       ["the caller's Proxy answers differently after admission", () => (proxyHonest = false)],
     ];
-    const rows = attempts.map(([label, f]) => `${label}: ${attempt(f)}`);
+    const outcomes = attempts.map(([label, f]) => [label, attempt(f)] as const);
+    const rows = outcomes.map(([label, outcome]) => `${label}: ${outcome}`);
+    // Every route through a value the registry handed out is refused where it is tried.
+    for (const [label, outcome] of outcomes) if (!label.startsWith("the caller's")) assert.equal(outcome, "TypeError", label);
     const again = await list();
     assert.equal(again.status, 200);
     assert.equal(again.text, before.text, "tools/list serves the same bytes");

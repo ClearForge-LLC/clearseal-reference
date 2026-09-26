@@ -101,9 +101,14 @@ void describe("CSR-WO-1006 §1.2: regular files only, and the open never waits",
       return;
     }
     for (const mode of ["r", "w", "a", "r+"]) {
-      const r = await tryOpen(new RecordingCage(domainFor(ROOT), undefined, undefined, undefined, WRITER), FIFO, mode);
+      // Counted: a FIFO seen by the lstat is never opened at all, so a writer blocked on it is not
+      // woken by the cage.
+      let opens = 0;
+      const counting: CageEffects = { ...swapBeforeOpen(() => undefined), open: (p, flags) => ((opens += 1), openFile(p, flags)) };
+      const r = await tryOpen(new RecordingCage(domainFor(ROOT), counting, undefined, undefined, WRITER), FIFO, mode);
       assert.equal(r.error, "ContainmentRefusal", mode);
       assert.equal(r.refused?.fileType, "fifo", mode);
+      assert.equal(opens, 0, `mode ${mode}: the FIFO was never opened`);
       assert.ok(r.ms < 500, `mode ${mode}: refused in ${String(r.ms)} ms`);
       evidence.push(row(`fifo, mode ${mode}`, r));
     }
