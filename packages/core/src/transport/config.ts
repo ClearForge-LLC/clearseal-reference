@@ -111,5 +111,14 @@ export function resolveConfig(partial: Partial<Omit<TransportConfig, "limits">> 
   }
   if (!config.endpointPath.startsWith("/") || config.endpointPath.includes("?")) throw new ConfigError("endpointPath must be an absolute path");
   if (!Number.isSafeInteger(config.port) || config.port < 0 || config.port > 65535) throw new ConfigError("port must be 0–65535");
-  return config;
+  // Deeply frozen, over copies of the caller's lists: the running node's config, limits included,
+  // cannot change after start, and the caller's own arrays are left as they were (CSR-WO-1006a,
+  // -1006 A7).
+  return Object.freeze({
+    ...config,
+    allowedHosts: Object.freeze([...config.allowedHosts]),
+    allowedOrigins: Object.freeze([...config.allowedOrigins]),
+    authorizationServers: Object.freeze([...config.authorizationServers]),
+    limits: Object.freeze({ ...config.limits }),
+  });
 }

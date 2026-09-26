@@ -304,7 +304,10 @@ async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, c
       reject(new HandlerTimeout("client disconnected"));
     }, { once: true });
   });
-  const running = Promise.resolve().then(() => tool.handler(args, { ...callCtx, signal }));
+  // Called as a plain function, never as a method: a handler's `this` is undefined, so it cannot
+  // reach its RegisteredTool and build a cage dispatch does not own (CSR-WO-1006a, -1006 A5).
+  const handler = tool.handler;
+  const running = Promise.resolve().then(() => Reflect.apply(handler, undefined, [args, { ...callCtx, signal }]));
   ctx.trackHandler(running);
   // An undeclared reach fails the call even if the handler caught the refusal (N4: refused, never
   // logged-and-allowed). The audit seam gets the full reach; the response names only its kind.
