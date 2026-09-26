@@ -53,3 +53,11 @@ resolved entry gets its resolution appended.
    builder drafted a report; the gate sends it. The rule that prevents it (every goal clause
    reachable by the builder alone) is being added to the work-order skill. *Status:* report
    drafted; skill change in progress.
+10. **Never pipe the gate.** The architect ran `leak-gate --tree | tail -1`, lost the non-zero
+    exit, and pushed a finding (a dotted four-part RFC section number matched the IPv4 rule) — the same
+    slip the builder had caught in itself a day earlier. The build SoP gets the line the builder
+    already follows: *check the gate's exit code directly, before every push, no pipe*. And a
+    second: *admins are not exempt from required checks* — `enforce_admins` on, from the first
+    protection rule. *Evidence:* `architecture.md` §10, 2026-09-26. *Status:* both applied here;
+    SoP line pending in the skills repository.
+
