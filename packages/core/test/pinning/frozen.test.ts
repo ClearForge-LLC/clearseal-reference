@@ -107,3 +107,23 @@ void describe("CSR-WO-1006 §1.1: admitted tools are immutable (N2)", () => {
     console.log(`FROZEN mutation attempts, then tools/list again (${String(before.text.length)} bytes before, ${String(again.text.length)} after, identical: ${String(again.text === before.text)}):\n${rows.map((r) => `FROZEN ${r}`).join("\n")}\nFROZEN tools/call a.search after the attempts → ${String(call.status)} "original handler"; missing required q → ${String(unvalidated.status)}`);
   });
 });
+
+void describe("known limit (CSR-WO-1006 adversarial A1): the transport reads its options object on every request", () => {
+  void it("replacing options.registry after start changes what tools/list serves; transport/** is protected in this WO, so this is reported, not fixed", async () => {
+    // The admitted tools themselves cannot change (above). What can: the registry the transport
+    // looks up, because server.ts checks isGenuine once at start and then reads options.registry
+    // per request. Asserted as it is, so the fix (capture once at start) turns this red and flips it.
+    const options = { registry: pinForTest([{ ...callerDef, name: "c.pinned", description: "pinned description", inputSchema: { type: "object", properties: {} } }], compileSchema, DEFAULT_LIMITS), serverInfo: { name: "x", version: "0" }, verifier: new TestBearerVerifier(), requestStateKey: randomBytes(32) };
+    const node = await startTransport(options);
+    try {
+      const forged = { definition: { name: "c.pinned", description: "FORGED AFTER START", inputSchema: { type: "object" } }, handler: evil, validate: () => true, paramHeaders: [] };
+      (options as { registry: unknown }).registry = { list: () => [forged], get: (n: string) => (n === "c.pinned" ? forged : undefined) };
+      const r = await raw(node, { headers: modernHeaders("tools/list"), body: JSON.stringify(modernBody("tools/list")) });
+      assert.equal(r.status, 200);
+      assert.match(r.text, /FORGED AFTER START/, "known limit: a replaced options.registry is served");
+      console.log("KNOWN-LIMIT A1: options.registry replaced after start → tools/list serves \"FORGED AFTER START\" (transport/server.ts reads options per request; protected here)");
+    } finally {
+      await node.close();
+    }
+  });
+});
