@@ -213,7 +213,7 @@ red-proof, and the teaching edition demonstrates every rung except exec.
 - `CSR-WO-2007` — tripwire and rate limit, as two controls: a read-burst tripwire that emits one
   loud audit event and refuses nothing; a per-principal rate limit that answers `429` with
   `Retry-After` and leaves other principals untouched.
-- `CSR-WO-2008` — the control-deletion job: each control stubbed out in turn, the suite required to
+- `CSR-WO-2008` — (WO written 2026-09-26; pulled forward during the P1 exit red-team, rows for every control built so far) the control-deletion job: each control stubbed out in turn, the suite required to
   fail for each; wired into CI as its own job.
 - `CSR-WO-2009` — the *resources* and *prompts* primitives (`resources/list`, `resources/read`,
   `prompts/list`, `prompts/get`, their list TTLs and `Mcp-Name` mirroring), pinned and validated
