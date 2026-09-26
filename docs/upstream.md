@@ -32,9 +32,14 @@ resolved entry gets its resolution appended.
 
 ## To the fleet's own nodes
 
-5. **Python `normalize_description` uses `rstrip()`** (all Unicode whitespace) where the TypeScript
-   twin strips four ASCII characters. Whichever `-1000` specifies, the Python side is amended to
-   match. *Status:* open, waits on `-1000`.
+5. **The fleet's canonicalizers versus the ratified canonical form.** The description rule was
+   already reconciled (post-M5: both strip `[ \t\f\v]`). What remains, measured in `-1000` stage
+   A with vectors in its FEEDBACK: the fleet's Python sorts keys by code point where RFC 8785 sorts
+   by UTF-16 code units (differs only for astral-character keys — and the fleet's own two
+   canonicalizers disagree with *each other* there); and Python's float repr differs from
+   ECMAScript on `1.0`, `1E2` and `1e-7`. The reference's form is the ratified one; the fleet's
+   nodes adopt it at their next canonical-form version bump. *Status:* open, waits on the fleet's
+   v2 ports (P5).
 6. **Commit identity on rebase.** A machine's global git identity was applied silently during a
    rebase and reached a public branch. Fixed here with a repo-local role identity and a pre-push
    history scan; both guards belong in the build SoP for any public repository a builder session
