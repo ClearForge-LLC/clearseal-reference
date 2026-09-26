@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { closeSync, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { after, it } from "node:test";
 
@@ -58,6 +58,14 @@ void it("measures links, junctions, drive letters and case on this platform", ()
   measure("cwd", cwd);
   const variants = [ROOT.toUpperCase(), ROOT.replace("root", "ROOT"), `${drive.toLowerCase()}${ROOT}`, `${drive.toUpperCase()}${ROOT}`, `${drive.toLowerCase()}${ROOT.replaceAll("/", "\\")}`, `\\\\?\\${drive.toUpperCase()}${ROOT.replaceAll("/", "\\")}`];
   for (const v of variants) measure(`realpath.native variant ${v}`, tryIt(() => realpathSync.native(v)));
+  // What a raw write open of a reserved device name inside the root does on this runner (not through
+  // the cage): whether it reaches a device, or creates an entry.
+  measure("raw open w NUL in the root", tryIt(() => {
+    const fd = openSync(`${ROOT}/NUL`, "w");
+    const st = fstatSync(fd);
+    closeSync(fd);
+    return { file: st.isFile(), char: st.isCharacterDevice(), size: st.size, listed: readdirSync(ROOT).filter((n) => n.toUpperCase().startsWith("NUL")) };
+  }));
   measure("tmpdir", tmpdir());
   measure("realpath.native tmpdir", tryIt(() => realpathSync.native(tmpdir())));
 });

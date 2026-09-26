@@ -136,6 +136,11 @@ function linkAt(path: string): boolean {
   }
 }
 
+/** Win32 reserved device names: in any directory, Win32 may open the device instead of a file,
+ *  whatever the extension or trailing dots and spaces (CSR-WO-1006 adversarial W8b). */
+const WIN32_DEVICE = /^(CON|PRN|AUX|NUL|COM[0-9\u00b9\u00b2\u00b3]|LPT[0-9\u00b9\u00b2\u00b3]|CONIN\$|CONOUT\$)$/i;
+const isWin32DeviceName = (component: string): boolean => WIN32_DEVICE.test((component.replace(/[. ]+$/, "").split(".")[0] ?? "").trimEnd());
+
 /** What sits at this path now, if it is something other than a regular file (a link included). */
 function nonRegularAt(path: string): FileType | undefined {
   try {
@@ -296,6 +301,9 @@ export class RecordingCage implements Cage {
         // Nothing there yet: no link to follow, nothing to wait on.
       }
     }
+    // On Windows a reserved device name anywhere in the path is a device, never a regular file,
+    // whether or not it exists as an entry: refused by name, before any open.
+    if (normalized !== undefined && process.platform === "win32" && normalized.split("/").some(isWin32DeviceName)) leafType = "character-device";
     const flags = flagsFor(mode);
     // A plain comparison, not a Set lookup: no mutable built-in stands between a handler and this.
     const modeAllowed = !this.#readOnly || mode === "r";
