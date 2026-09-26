@@ -37,8 +37,11 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
   - `docs/canonical-form.md` has ten rules, ratified 2026-09-26: RFC 8785 as the JSON layer,
     numbers, strings without Unicode normalization, description normalization, names, the
     ten-field hashed set, sets, absent/null/empty, both hashes, and versioning.
+  - The ten rules were amended before release: A1 limits nesting to 512 levels, A2 states that a
+    literal is rounded to the nearest double, and A3 and A4 check the description both as given
+    and after normalization.
   - `packages/core/src/pinning/canonical.ts` owns its JCS layer, with no dependency.
-  - An independent Python oracle is the only writer of the 64 vectors in
+  - An independent Python oracle is the only writer of the 69 vectors in
     `packages/core/test/vectors/canonical-v1.json`. CI regenerates them and fails on any
     difference.
   - Property tests cross-check both implementations.

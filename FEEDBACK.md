@@ -4,6 +4,28 @@ Branch `wo/CSR-WO-1000`. Stage A (`b098d08`, `76f709b`) was ratified on 2026-09-
 adopted, C-1 to C-4 accepted, C-5 ruled the other way (plain hex, one allow entry). Built on Node
 v24.21.0 with Python 3.12.3. This is PR #32, marked ready for review.
 
+## Review round (architect, 2026-09-26): five change requests, all applied on this branch
+
+The architect's second read of `canonical_oracle.py` against the specification (F9) found no
+divergence. These are the rulings and requests, and what was done:
+
+| Request | Done |
+|---|---|
+| **F1: the depth limit goes into version 1** | A1 now says: an input nested deeper than 512 objects and arrays, counted together, is refused. Oracle vectors A1-7 (512, accepted) and A1-8 (513, refused) were added. The code comments cite the rule rather than an implementation limit. An off-by-one mutant (limit 513) now fails vector A1-8 as well as the boundary test |
+| **F6: the leading-U+FEFF rule applies to the description as given and after normalization** | The sentence is in A3 and A4. Vector A4-9 (a tool whose description is LF, U+FEFF, `abc`) is refused by both |
+| **F7: a literal is first rounded to the nearest double, then serialized** | The sentence is in A2. Vectors A2-16 (`9007199254740991.4` → 2^53−1, accepted) and A2-17 (`-1e-400` → negative zero, refused) |
+| **A6-4 relabelled** | It is now **A5-9**, refused under A5, the rule that refuses it. The id A6-4 is retired and A6-5 keeps its id, so no existing id changes meaning |
+| **Plain hex in `docs/canonical-form.md`** | A second `.leak-gate-allow` line: `docs/canonical-form.md long-hex digests of committed public test inputs, not secrets`. The document's tables are rendered from the oracle-written vectors file by a throwaway, uncommitted script. A check confirmed every one of the 69 vectors appears in the document with identical hex and digest. The allow lines suppress 59 findings in the vectors file and 97 in the document |
+
+**After the round:**
+- **Vectors:** 69. The oracle diff on the commit exits 0: `wrote packages/core/test/vectors/canonical-v1.json: 69 vectors`.
+- **`npm run check`:** exits 0. Core has **296** tests; the spikes have 69 and 8; `test:subset` has 4.
+- **Property suite:** re-run, with 0 mismatches in every property; 8,700 inputs this run.
+- **Red-proof matrix:** re-run against the commit. The script now refuses to start on a dirty tree. Every mutant goes red except the equivalent accessor mutant, as before.
+- **Leak gate:** `--tree` and `--history` exited 0 before the push.
+
+**F1's and F6's "decision-needed" in the table below are resolved** by the rulings above.
+
 ## Gates
 
 | Gate | Result |
