@@ -19,6 +19,12 @@ runs as the `control-deletion` CI job on every push and pull request.
   supply-boundary checker). Never a `*.test.ts` file, a file of its own row's tests, or anything
   under `test/deletion/`. The runner reads what a stub changed from `git status` in the copy after
   applying it, not from the patch's headers, and refuses one that strays.
+- **The copy isolates the source, not the process.** Third-party modules are symlinks into the
+  real tree, and code running in the copy runs as you. A stub is reviewed code: the copy keeps the
+  patch out of the real tree, not what patched code chooses to do at run time.
+- **An assertion counts only if test code threw it.** The first stack frame outside Node must lie
+  under `packages/*/test/`: an `AssertionError` thrown from a package's source is a crash, not the
+  test's check.
 - **RED proves the named assertions flipped, not that the control is gone.** A stub that trips the
   same assertion some other way (a changed message, a control made to crash) would also read RED.
   That the stub deletes exactly the control on its row is what the review of the stub is for: read

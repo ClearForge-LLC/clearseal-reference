@@ -1,0 +1,20 @@
+--- a/packages/core/src/containment/cage.ts
++++ b/packages/core/src/containment/cage.ts
+@@ -370,7 +370,7 @@
+         this.#record({ kind: "net", sink: `${host}:${String(port)}`, allowed: false });
+       }
+       const name = host.toLowerCase();
+-      const allowed = this.#domain.hosts.some((h) => h.host === name && (h.port === undefined || h.port === port));
++      const allowed = name !== "" || this.#domain.hosts.length < 0;
+       this.#record({ kind: "net", sink: `${host}:${String(port)}`, allowed });
+       return this.#effects.connect(name, port);
+     } catch (err) {
+@@ -380,7 +380,7 @@
+ 
+   service(name: string): Promise<unknown> {
+     try {
+-      this.#record({ kind: "svc", sink: name, allowed: this.#domain.services.includes(name) });
++      this.#record({ kind: "svc", sink: name, allowed: name !== "" || this.#domain.services.length < 0 });
+       return this.#effects.service(name);
+     } catch (err) {
+       return Promise.reject(err instanceof Error ? err : new Error(String(err)));

@@ -16,7 +16,8 @@
 //
 // How a failure is told apart. This file is also the test reporter the runner passes to
 // `node --test` (its default export). A named test counts as red only when it failed as a
-// `testCodeFailure` whose cause is an AssertionError (`ERR_ASSERTION`), and is not todo. A thrown
+// `testCodeFailure` whose cause is an AssertionError (`ERR_ASSERTION`) thrown from test code (the
+// first stack frame outside Node lies under packages/*/test/), and is not todo. A thrown
 // error of any other kind, a `testTimeoutFailure`, a `hookFailure`, a skip or todo, and a test that
 // never ran because its file did not load are each a miss, named as such. A stub that breaks the
 // build is refused before any test runs.
@@ -28,7 +29,14 @@
 //
 // What a stub may change. Only the files its row lists under `touches`; every such file must be a
 // package's source (`packages/*/src/**`) or one of the named test-code controls below. Never a
-// `*.test.ts` file, a file of its own row's tests, or anything under test/deletion/.
+// `*.test.ts` file, a file of its own row's tests, or anything under test/deletion/. What a stub
+// changes is read from git (`git apply --numstat`, and `git status` after the apply), never from the
+// patch's headers, so ignored paths, binary hunks and renames are all seen.
+//
+// The copy isolates the source, not the process. Third-party modules are symlinks into the real
+// tree, and code running in the copy (a stub, a test) runs as the user: it could write through
+// those links or anywhere else. Stubs are reviewed code; the copy protects the real tree from the
+// patch, not from what patched code chooses to do.
 //
 // Usage: node scripts/control-deletion.mjs [--self-test] [--row <id>]... [--manifest <path>] [--list] [--show]
 //   --self-test run the runner's own three red-proofs (test/deletion/red-proofs/) and exit
@@ -41,6 +49,7 @@ import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * @typedef {object} Row
@@ -62,6 +71,7 @@ import path from "node:path";
  * @property {boolean} todo
  * @property {string | undefined} failureType
  * @property {boolean} assertion
+ * @property {string | undefined} origin  the file of the first stack frame outside Node itself
  * @property {string | undefined} cause
  */
 
@@ -86,6 +96,9 @@ export default async function* reporter(source) {
     const causeName = get(cause, "name");
     const causeMessage = get(cause, "message");
     const failureType = get(error, "failureType");
+    const stack = get(cause, "stack");
+    const frame = typeof stack === "string" ? /\((file:\/\/[^)\s]+?):\d+:\d+\)|at (file:\/\/\S+?):\d+:\d+/.exec(stack) : null;
+    const frameUrl = frame === null ? undefined : (frame[1] ?? frame[2]);
     /** @type {TestLine} */
     const line = {
       outcome: event.type === "test:pass" ? "pass" : "fail",
@@ -95,6 +108,7 @@ export default async function* reporter(source) {
       todo: get(d, "todo") !== undefined && get(d, "todo") !== false,
       failureType: typeof failureType === "string" ? failureType : undefined,
       assertion: get(cause, "code") === "ERR_ASSERTION" || causeName === "AssertionError",
+      origin: frameUrl === undefined ? undefined : fileURLToPath(frameUrl),
       cause: cause === undefined ? undefined : `${typeof causeName === "string" ? causeName : "Error"}: ${(typeof causeMessage === "string" ? causeMessage : "").split("\n")[0] ?? ""}`.slice(0, 200),
     };
     yield `${JSON.stringify(line)}\n`;
@@ -200,6 +214,30 @@ function changedFiles(dir) {
     const entry = String(parts[i]);
     files.push(entry.slice(3));
     if (entry[0] === "R" || entry[0] === "C") files.push(String(parts[++i]));
+  }
+  return files;
+}
+
+/**
+ * The paths a patch will change, as git itself parses it (the same parser `git apply` uses), so a
+ * path git would otherwise not report (an ignored one, under node_modules/ or dist/, or behind a
+ * .gitignore the patch adds) is still named. Renames give both sides.
+ * @param {string} dir
+ * @param {string} stubPath
+ */
+function patchPaths(dir, stubPath) {
+  const out = execFileSync("git", ["apply", "--numstat", "-z", stubPath], { cwd: dir }).toString();
+  const parts = out.split("\0");
+  /** @type {string[]} */
+  const files = [];
+  for (let i = 0; i < parts.length; i++) {
+    const fields = String(parts[i]).split("\t");
+    if (fields.length < 3) continue;
+    if (fields[2] !== "") files.push(String(fields[2]));
+    else {
+      files.push(String(parts[i + 1]), String(parts[i + 2]));
+      i += 2;
+    }
   }
   return files;
 }
@@ -360,6 +398,18 @@ async function runTests(dir, tests) {
 }
 
 /**
+ * Was an assertion thrown by test code (a package's test/ tree), not by the code under test? An
+ * AssertionError can be made anywhere, named anything; where it was thrown is what tells the test's
+ * own check apart from a crash in the source that happens to look like one.
+ * @param {string} dir
+ * @param {string | undefined} origin
+ */
+function isTestCode(dir, origin) {
+  if (origin === undefined) return false;
+  return /^packages\/[^/]+\/test\//.test(path.relative(dir, origin).split(path.sep).join("/"));
+}
+
+/**
  * The one line for a named test in these files; a string if it is missing or ambiguous.
  * @param {TestLine[]} events
  * @param {string[]} tests
@@ -404,10 +454,14 @@ async function runRow(row, base, manifestDir, show) {
   const dir = tempDir(row.id);
   try {
     fs.cpSync(base, dir, { recursive: true, verbatimSymlinks: true });
+    const check = await run("git", ["apply", "--check", "--whitespace=nowarn", stubPath], { cwd: dir });
+    if (check.status !== 0) return `stub ${row.stub} no longer applies: ${check.stderr.trim().split("\n")[0] ?? ""}`;
+    // What the stub changes: git's own parse of the patch (it names ignored paths too), and what
+    // git status sees after the apply. Whatever the patch's headers claim, these are the truth.
+    const planned = patchPaths(dir, stubPath);
     const applied = await run("git", ["apply", "--whitespace=nowarn", stubPath], { cwd: dir });
     if (applied.status !== 0) return `stub ${row.stub} no longer applies: ${applied.stderr.trim().split("\n")[0] ?? ""}`;
-    // What the stub changed, from the copy itself: whatever its headers claim, this is the truth.
-    const changed = changedFiles(dir);
+    const changed = [...new Set([...planned, ...changedFiles(dir)])];
     const refused = changeProblems(row, changed);
     if (refused.length > 0) return `stub refused: ${refused.join("; ")}`;
     if (changed.some((f) => BUILT_PACKAGES.some((p) => f.startsWith(`${p}/src/`)))) {
@@ -427,6 +481,7 @@ async function runRow(row, base, manifestDir, show) {
       else if (hit.outcome === "pass") bad.push(`"${name}" stayed green${hit.skip ? " (skipped)" : ""}`);
       else if (hit.todo) bad.push(`"${name}" is todo`);
       else if (hit.failureType !== "testCodeFailure" || !hit.assertion) bad.push(`"${name}" failed, but not by assertion (${String(hit.failureType)}${hit.cause === undefined ? "" : `: ${hit.cause}`})`);
+      else if (!isTestCode(dir, hit.origin)) bad.push(`"${name}" failed by an assertion thrown outside test code (${hit.origin === undefined ? "no stack" : path.relative(dir, hit.origin)}), not by the test's own check`);
     }
     return bad.length > 0 ? `stub applied; ${bad.join("; ")}` : undefined;
   } finally {

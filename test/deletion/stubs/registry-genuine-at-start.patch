@@ -1,0 +1,11 @@
+--- a/packages/core/src/pinning/registry.ts
++++ b/packages/core/src/pinning/registry.ts
+@@ -139,7 +139,7 @@
+   /** True only for an instance this class constructed: the private field is the brand, and the
+    *  prototype must be this class's own, frozen one. */
+   static isGenuine(value: unknown): value is PinnedRegistry {
+-    return typeof value === "object" && value !== null && #tools in value && Object.getPrototypeOf(value) === PinnedRegistry.prototype;
++    return typeof value === "object" && value !== null && Object.getPrototypeOf(value) === PinnedRegistry.prototype;
+   }
+ 
+   /** The registry's own frozen tools, in name order, in a frozen array of their own. */

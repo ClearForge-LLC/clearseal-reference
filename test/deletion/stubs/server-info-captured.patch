@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -420,7 +420,7 @@
+         registry: servedRegistry,
+         limits,
+         config,
+-        serverInfo,
++        serverInfo: options.serverInfo,
+         requestStateKey,
+         signal: aborter.signal,
+         now,

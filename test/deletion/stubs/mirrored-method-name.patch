@@ -1,0 +1,20 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -166,8 +166,6 @@
+   const method = singleHeader(headers, "mcp-method", "Mcp-Method");
+   if (method === undefined) {
+     if (modern) throw mismatch("Mcp-Method", "is missing");
+-  } else if (method !== request.method) {
+-    throw mismatch("Mcp-Method");
+   }
+   const field = NAMED[request.method];
+   if (field === undefined) return;
+@@ -177,7 +175,7 @@
+     return;
+   }
+   const bodyValue = request.params?.[field];
+-  if (typeof bodyValue !== "string" || decodeHeaderValue(name, "Mcp-Name") !== bodyValue) throw mismatch("Mcp-Name");
++  if (typeof bodyValue !== "string") throw mismatch("Mcp-Name");
+ }
+ 
+ function serverMeta(ctx: DispatchContext): Record<string, unknown> {

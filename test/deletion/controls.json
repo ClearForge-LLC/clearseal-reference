@@ -16,6 +16,21 @@
       "stub": "stubs/verify-before-register.patch"
     },
     {
+      "id": "registry-genuine-at-start",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "a PinnedRegistry is genuine only if this class constructed it (its private brand); startTransport refuses anything else at run time",
+      "touches": [
+        "packages/core/src/pinning/registry.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/startup.test.ts"
+      ],
+      "mustFail": [
+        "an object made from the prototype, with no admission behind it, is refused by the transport"
+      ],
+      "stub": "stubs/registry-genuine-at-start.patch"
+    },
+    {
       "id": "drift-refused",
       "section8": "Verify-before-register; drift and unpinned refused",
       "control": "the gate refuses a definition whose hash differs from its pinned hash",
@@ -81,7 +96,7 @@
     {
       "id": "options-captured",
       "section8": "Verify-before-register; drift and unpinned refused",
-      "control": "startTransport captures the checked registry, a copy of the state key and a frozen serverInfo once at start (CSR-WO-1006 A1)",
+      "control": "the request path reads the registry startTransport checked, not options.registry re-read (CSR-WO-1006 A1)",
       "touches": [
         "packages/core/src/transport/server.ts"
       ],
@@ -92,6 +107,36 @@
         "swapping options.registry, mutating the caller's requestStateKey buffer, and mutating or replacing serverInfo after start change nothing served or trusted"
       ],
       "stub": "stubs/options-captured.patch"
+    },
+    {
+      "id": "state-key-captured",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the request path signs and opens state with a private copy of requestStateKey, not the caller's buffer (CSR-WO-1006 A1)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/frozen.test.ts"
+      ],
+      "mustFail": [
+        "swapping options.registry, mutating the caller's requestStateKey buffer, and mutating or replacing serverInfo after start change nothing served or trusted"
+      ],
+      "stub": "stubs/state-key-captured.patch"
+    },
+    {
+      "id": "server-info-captured",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the request path serves a frozen copy of serverInfo, not options.serverInfo re-read (CSR-WO-1006 A1)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/frozen.test.ts"
+      ],
+      "mustFail": [
+        "swapping options.registry, mutating the caller's requestStateKey buffer, and mutating or replacing serverInfo after start change nothing served or trusted"
+      ],
+      "stub": "stubs/server-info-captured.patch"
     },
     {
       "id": "supply-boundary-control-exported",
@@ -218,6 +263,22 @@
         "a null-domain tool that reaches is refused: -32603 names the kind, the audit seam gets the path"
       ],
       "stub": "stubs/cage-undeclared-reach.patch"
+    },
+    {
+      "id": "cage-net-svc",
+      "section8": "Reach harness",
+      "control": "the RecordingCage refuses a net reach to an undeclared host or port, and an undeclared service",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "tests": [
+        "packages/core/test/containment/reach.test.ts"
+      ],
+      "mustFail": [
+        "records every reach, allowed or refused, and refuses undeclared ones with the sink named",
+        "WO §5.3: names, not addresses: a declared host reached by an address literal is refused"
+      ],
+      "stub": "stubs/cage-net-svc.patch"
     },
     {
       "id": "read-only-mode",
@@ -387,6 +448,37 @@
         "a handler that never returns is ended by the timeout, its signal is aborted, and the slot is released"
       ],
       "stub": "stubs/handler-timeout.patch"
+    },
+    {
+      "id": "verifier-timeout",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "a verifier that never answers is cut off at verifierTimeoutMs with 503 (the stub stretches it 30-fold: deleting it hangs, which is not an assertion)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "F5 a verifier that never answers → 503 Retry-After within verifierTimeoutMs, and no slot kept"
+      ],
+      "stub": "stubs/verifier-timeout.patch"
+    },
+    {
+      "id": "mirrored-method-name",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "an Mcp-Method or Mcp-Name header that disagrees with the body is refused 400 -32020 (SH-24)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "SH-24 Mcp-Method does not match method → 400 -32020",
+        "SH-24 Mcp-Name does not match params.name (plain) → 400 -32020"
+      ],
+      "stub": "stubs/mirrored-method-name.patch"
     },
     {
       "id": "mirrored-param-headers",
