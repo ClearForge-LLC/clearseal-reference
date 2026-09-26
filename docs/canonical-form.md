@@ -1,8 +1,15 @@
 # The canonical form, version 1
 
-**Status: draft for ratification** (`CSR-WO-1000` stage A). Nothing here is implemented yet. Stage
-B implements it in `packages/core/src/pinning/canonical.ts` from this text, and an independent
-Python oracle is written from this text too. **`canonical_form_version: 1`.**
+**Status: ratified 2026-09-26** (`CSR-WO-1000` stage A). The gate adopted both argued deviations
+(D-1: every top-level field present; D-2: the version inside the manifest hash) and the
+clarifications C-1 to C-4. **`canonical_form_version: 1`.**
+
+**Implementations:**
+- **The core's canonicalizer,** `packages/core/src/pinning/canonical.ts`, is implemented from this
+  text.
+- **An independent Python oracle,** `packages/core/test/oracle/`, is written from this text too. It
+  is the only generator of the vectors file; the TypeScript is checked against the file and never
+  writes it.
 
 **What this is:** the exact bytes a pinned tool is hashed from, and the exact bytes a manifest is
 hashed from. With this document, two implementations written independently in different
@@ -22,12 +29,12 @@ least one vector. The same vectors are data in `packages/core/test/vectors/canon
   - JSON text for the JSON layer, so that duplicate keys and `-0` can be expressed;
   - an escaped string for descriptions and names;
   - a JSON value for sets, tools and manifests.
-- **Canonical bytes** are lower-case hex with **one space between bytes**.
-- **SHA-256** is lower-case hex in **eight groups of eight digits**.
-- Remove the spaces to get the conventional form.
-- **Why the spaces:** this repository's leak gate refuses any run of forty or more hex digits in a
-  tracked file (a long hex string is usually a secret). A digest written in one piece could not be
-  committed here.
+- **Canonical bytes** are lower-case hex. **SHA-256** is lower-case hex.
+- **The vectors file is authoritative,** and carries both as plain hex. This repository's leak gate
+  refuses any run of forty or more hex digits, and exempts `packages/core/test/vectors/*.json` by
+  one allow entry (digests of committed public test inputs, not secrets).
+- **This document is not exempt.** So here the bytes are shown with one space between them, and
+  digests in eight groups of eight digits. Remove the spaces to get the vectors file's form.
 - **refused** means a conforming implementation refuses the input and produces no bytes and no
   hash. A refusal is part of the specification: an implementation that accepts a refused input is
   as wrong as one that produces different bytes.
@@ -542,13 +549,12 @@ pinned fields today. A future set-valued field is added to this rule by name, wi
 - **Inside the schema,** the four forms mean different things to a validator: no default, a
   default of null, a default of an empty object, a default of an empty array. They must hash
   differently (A8-1 to A8-4).
-- **At the top level,** the prior's "absent stays absent" would give one tool two hashes: one with
+- **At the top level,** "absent stays absent" would give one tool two hashes: one with
   `containment_domain: null` and one with the field left out. Both forms say "no containment
   claimed". Requiring every field makes the object's shape fixed, so a hash always describes the
   same ten fields. The standard already words it this way ("`recoverability_basis` (null unless
   `owned_state`)"), and both fleet canonicalizers already emit `null`.
-- **This is an argued deviation from the prior**, for the top level only; the vector is in
-  `FEEDBACK.md` (D-1).
+- **Ratified as D-1:** it replaced the prior's "absent stays absent" at the top level.
 
 **`undefined`.** A member whose value is not a JSON value (JavaScript's `undefined`) is refused,
 not dropped. `JSON.stringify` drops it silently, which would make `{"a": undefined}` hash as `{}`.
@@ -608,8 +614,7 @@ Result: **refused**.
   node's form) would not notice the swap.
 - **Sorting** removes declaration order, which carries no meaning.
 - **Duplicate names** would make the pin ambiguous.
-- **The version member** is the one argued deviation from the prior in this rule (A10, and
-  `FEEDBACK.md` D-2).
+- **The version member** was ratified as D-2 (A10).
 
 **Why the manifest vector shows only hex.** The manifest vector's canonical bytes contain the tool
 hashes as 64-character strings, so they are shown only as hex. In A9-2, the `tool_hash` of `echo`
@@ -845,7 +850,8 @@ Result: **refused**.
   decision the gate can see and refuse.
 - **So the version goes inside the hash.** The pin gate decides how to canonicalize, and whether
   to refuse, from the version. By A6's generating rule, a field a gate decides on must be inside
-  the hash, so the version is inside `manifest_hash` (A10-2) rather than beside it (D-2).
+  the hash, so the version is inside `manifest_hash` (A10-2) rather than beside it. Ratified as
+  D-2.
 - **Old versions.** An implementation may implement more than one version; this one implements
   exactly version 1 (A10-1).
 
