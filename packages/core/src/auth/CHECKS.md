@@ -27,7 +27,7 @@ Sources:
 | H7 | `crit` present is refused: no extension is understood | RFC 7515 *"crit" Header Parameter* | `invalid_token` | `crit` |
 | H8 | `jku`, `x5u`, `jwk` and `x5c` are ignored; only the configured JWKS URL is ever fetched | RFC 8725 *Validate All Cryptographic Operations* (key selection) | — | — |
 | H9 | `kid` is required: 1–128 characters of `[A-Za-z0-9._-]`. Anything else is refused without a fetch | RFC 8725 (key selection); WO §5.4 | `invalid_token` | `kid` |
-| H10 | `typ`, when present, is `JWT`, `at+jwt` or `application/at+jwt`, case-insensitive (RFC 7515 lets the `application/` prefix be omitted); nothing else, no whitespace, no parameters. With `AUTH_REQUIRE_AT_JWT=true`, only the two `at+jwt` spellings, and an absent `typ` is refused (RFC 9068) | RFC 8725 *Use Explicit Typing*; RFC 9068 | `invalid_token` | `typ` |
+| H10 | `typ`, when present, is `JWT`, `application/jwt`, `at+jwt` or `application/at+jwt`, case-insensitive (RFC 7515 lets the `application/` prefix be omitted, so each type is accepted with and without it); nothing else, no whitespace, no parameters. With `AUTH_REQUIRE_AT_JWT=true`, only the two `at+jwt` spellings, and an absent `typ` is refused (RFC 9068) | RFC 8725 *Use Explicit Typing*; RFC 9068 | `invalid_token` | `typ` |
 
 ## Key and signature
 

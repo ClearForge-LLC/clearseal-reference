@@ -107,7 +107,7 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     no challenge, not `401 invalid_token`, so a correct client keeps its token. The verdict carries
     the distinction as a field.
   - `AUTH_MAX_TOKEN_LIFETIME_S` (default 86400) bounds how far out `exp` may lie.
-  - `typ` accepts `JWT`, `at+jwt` and `application/at+jwt`, case-insensitive;
+  - `typ` accepts `JWT`, `application/jwt`, `at+jwt` and `application/at+jwt`, case-insensitive;
     `AUTH_REQUIRE_AT_JWT=true` accepts the `at+jwt` spellings only.
   - The default audit sink escapes line-separator and bidirectional-control characters.
   - `AUTH_JWKS_CA_FILE` trusts a private-CA issuer for the key-set client only.

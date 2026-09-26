@@ -42,8 +42,9 @@ export const DEFAULT_MAX_TOKEN_LIFETIME_S = 86_400;
 export const MAX_TOKEN_LIFETIME_BOUNDS_S = [60, 604_800] as const;
 /** A CA file larger than this is not a CA file. */
 const MAX_CA_FILE_BYTES = 1024 * 1024;
-/** `typ` values, lower-cased: RFC 7515 lets the `application/` prefix be omitted. */
-const TYP_LENIENT: ReadonlySet<string> = new Set(["jwt", "at+jwt", "application/at+jwt"]);
+/** `typ` values, lower-cased: RFC 7515 lets the `application/` prefix be omitted, so each type is
+ *  accepted with it and without it. */
+const TYP_LENIENT: ReadonlySet<string> = new Set(["jwt", "application/jwt", "at+jwt", "application/at+jwt"]);
 const TYP_STRICT: ReadonlySet<string> = new Set(["at+jwt", "application/at+jwt"]);
 const MAX_TOKEN = 8 * 1024;
 const KID = /^[A-Za-z0-9._-]{1,128}$/;
@@ -133,7 +134,7 @@ export class JwtVerifier implements Verifier {
     if (typeof alg !== "string" || alg === "none" || /^HS/i.test(alg) || !this.#algs.has(alg as Alg)) return fail("alg");
     if (Object.hasOwn(header, "crit")) return fail("crit"); // H7
     // H8: jku, x5u, jwk and x5c are never read.
-    // H10: JWT, at+jwt or application/at+jwt, case-insensitive; absent is accepted unless
+    // H10: JWT, at+jwt, or either with the application/ prefix, case-insensitive; absent is accepted unless
     // AUTH_REQUIRE_AT_JWT, which admits only the two at+jwt spellings.
     const typ = header["typ"];
     const typs = this.#requireAtJwt ? TYP_STRICT : TYP_LENIENT;

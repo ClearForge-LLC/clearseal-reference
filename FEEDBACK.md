@@ -113,14 +113,15 @@ accepted, 121 s refused.
 | AT+JWT | accepted | accepted |
 | application/at+jwt | accepted | accepted |
 | Application/AT+JWT | accepted | accepted |
-| application/jwt | typ | typ |
+| application/jwt | accepted | typ |
+| Application/JWT | accepted | typ |
 | JOSE | typ | typ |
 | " at+jwt" | typ | typ |
 | "at+jwt " | typ | typ |
 | "at+jwt; v=1" | typ | typ |
 | the number 1 | typ | typ |
 
-`application/jwt` is not in the WO's list and stays refused; see *decision-needed*.
+`application/jwt` was refused in the first commit, because the WO's list did not include it. The review fix (below) accepts it in the default set.
 `AUTH_REQUIRE_AT_JWT` must be `true`, `false` or empty: `yes`, `1`, `TRUE` and `" true"` refuse start.
 
 ## §3.5 The escaped audit lines
@@ -171,7 +172,8 @@ now also sees the refused call's `rpc-refused` line; its expectation gained that
 ## Red-proofs (§3.6)
 
 29 mutants: 21 for the WO's seven items and 8 for the adversarial fixes, each run on a committed
-tree against `corrections.test.ts`, limited to 300 s. **All 29 go red.** The A9 mutant (the CA file
+tree against `corrections.test.ts`, limited to 300 s. **All 29 go red.** The review fix adds a 30th,
+also red (see the rulings section). The A9 mutant (the CA file
 opened blocking) goes red by hanging to the kill: the FIFO open blocks the whole thread, which is
 the defect. Not run: removing the CA file's regular-file check, because the red test would then read
 `/dev/zero` without bound.
@@ -256,15 +258,25 @@ stderr bytes (the adversary's child-process probe confirmed the bytes); A3 now c
 second channel; §1.5's "replaces the default roots" was confirmed by the adversary in a child process
 with `NODE_EXTRA_CA_CERTS` and is stated in `.env.example`.
 
-## Decision-needed
+## Architect review of PR #44: rulings and the one fix
 
-- **Ratify D-1** (an unlanded unknown-`kid` refetch is an outage) and **D-2** (the wider escape set).
-- **The outage oracle (A4):** accept it as documented, or check the unsigned `iss`, `aud` and `exp`
-  before the key lookup to narrow it (a check-order change).
-- **An empty key set after expiry (A7):** `401 unknown-kid` as now, or `503`.
-- **`typ: application/jwt`:** RFC 7515's prefix rule makes it the same media type as `JWT`; the WO's
-  list does not include it, so it stays refused.
+The architect measured the PR clean (one commit on `802162e`, protected surfaces empty with
+`jws.ts`, no new dependencies, an independent run of 536/69/8/4, both gates 0, CI green) and ruled:
 
+| Item | Ruling |
+|---|---|
+| **D-1** | **Ratified.** An unknown `kid` while the issuer is down is an outage, not a verdict on the token; the refetch window is not spent on a fetch that never landed. The cooldown still bounds fetches to one per 10 s during an outage |
+| **D-2** | **Ratified.** The wider escape set: DEL, the C1 controls, every Unicode format character |
+| **A4** | **Accepted as documented; no check-order change.** Claims cannot be judged before the signature, and a `503` telling a caller the issuer is down reveals operational state, not access |
+| **A7** | **Ratified as `401`.** An empty key set fetched successfully means the issuer answered, so the token is judged, not deferred |
+
+**The fix (a WO defect, the architect's):** the WO applied the RFC 7515 `application/` prefix rule to
+`at+jwt` but not to `JWT`, so `JWT` was accepted and `application/jwt`, the same media type, refused.
+`application/jwt` is now in the default set, case-insensitive; strict mode is unchanged (it accepts
+the `at+jwt` spellings only). CHECKS.md H10, `.env.example` and the `typ` matrix are updated.
+
+**Red-proof:** with `application/jwt` removed from the default set again, the matrix test goes red:
+`AssertionError [ERR_ASSERTION]: lenient application/jwt`.
 
 ## What did not work, and why
 
