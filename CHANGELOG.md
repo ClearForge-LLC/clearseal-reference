@@ -32,12 +32,17 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
   `x-mcp-header` handling, HMAC-sealed MRTR `requestState`, and a refuse-all verifier seam.
   `packages/core/src/transport/SPEC-MAP.md` maps it to the specification.
 
-- **CSR-WO-1000 (stage A, draft):** the canonical form, specified before it is built.
-  `docs/canonical-form.md` states ten rules (RFC 8785 as the JSON layer, numbers, strings without
-  Unicode normalization, description normalization, names, the ten-field hashed set, sets,
-  absent/null/empty, both hashes, versioning), each with a reason and byte-level vectors. The same
-  63 vectors are in `packages/core/test/vectors/canonical-v1.json`. Awaiting ratification; the
-  implementation is stage B.
+- **CSR-WO-1000:** the canonical form, specified, ratified, then implemented from the
+  specification.
+  - `docs/canonical-form.md` has ten rules, ratified 2026-09-26: RFC 8785 as the JSON layer,
+    numbers, strings without Unicode normalization, description normalization, names, the
+    ten-field hashed set, sets, absent/null/empty, both hashes, and versioning.
+  - `packages/core/src/pinning/canonical.ts` owns its JCS layer, with no dependency.
+  - An independent Python oracle is the only writer of the 64 vectors in
+    `packages/core/test/vectors/canonical-v1.json`. CI regenerates them and fails on any
+    difference.
+  - Property tests cross-check both implementations.
+  - `test:subset` holds every gate-read field inside the hash.
 
 ### Changed
 
@@ -72,6 +77,10 @@ Every dependency is pinned exactly and named here with its reason.
   `2025-11-25` client receives. Pinned at 1.30.1, the version `-0100` measured. It is imported by that
   test alone; no source file imports it and no runtime dependency names it (`eras.test.ts`). The
   tree already carried it for `spikes/0100-protocol`, so the lockfile gains no package.
+
+- `fast-check` (**dev only**, `@clearseal/core`, CSR-WO-1000): property-based tests of the
+  canonicalizer, cross-checked against the Python oracle. Pinned at 4.10.2. Its tree is 2 packages
+  (`fast-check`, `pure-rand`), both MIT.
 
 - `typescript`: the compiler and type checker for the core and the root scripts. Kept on 6.0.x,
   within `typescript-eslint`'s supported range.

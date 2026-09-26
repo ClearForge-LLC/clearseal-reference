@@ -1,125 +1,191 @@
-# FEEDBACK: CSR-WO-1000, stage A (the canonical form, specified; parked for ratification)
+# FEEDBACK: CSR-WO-1000, stage B (the canonical form, implemented from the ratified specification)
 
-Branch `wo/CSR-WO-1000`, cut from `main` at `b93e1b3`. This is a **draft** pull request, and there
-is no implementation code. The deliverables are `docs/canonical-form.md` (ten rules, 63 vectors)
-and `packages/core/test/vectors/canonical-v1.json`: the same 63 vectors, 41 canonical and 22
-refusals. Built on Node v24.21.0. Pushed over the repository's write deploy key. A short-lived token
-was minted only to open this draft pull request, kept in a mode-0600 scratch file for that call,
-and deleted straight after. `npm run check` exits 0 (no code changed), and `leak-gate --tree` and
-`--history` exited 0 before every push, each checked by exit code.
+Branch `wo/CSR-WO-1000`. Stage A (`b098d08`, `76f709b`) was ratified on 2026-09-26: D-1 and D-2
+adopted, C-1 to C-4 accepted, C-5 ruled the other way (plain hex, one allow entry). Built on Node
+v24.21.0 with Python 3.12.3. This is PR #32, marked ready for review.
 
-**How the vectors were made:**
-- A throwaway Python script, **not committed**, computed them. It carries its own JCS: ECMAScript
-  number formatting, UTF-16 member order, and JCS string escaping.
-- A second throwaway in Node recomputed every canonical vector, using `JSON.stringify` for
-  ECMAScript number and string forms and the default UTF-16 sort. Result: **41 of 41
-  byte-identical.**
-- The RFC 8785 wording was checked against the official text from the RFC Editor.
+## Gates
 
-## The rule list
-
-| Rule | Rule, in one line | Prior |
-|---|---|---|
-| A1 | Canonical bytes are the RFC 8785 (JCS) serialization; a duplicate key is refused | adopted |
-| A2 | ECMAScript `Number::toString`; NaN, the infinities, negative zero, and magnitude over 2^53−1 refused | adopted (C-1: `1e21` is refused under it) |
-| A3 | Strings as given, no Unicode normalization; a lone surrogate or a leading U+FEFF refused | adopted (C-2: "leading" read per string) |
-| A4 | Top-level `description` only: CRLF/CR → LF, per-line trailing `[ \t\f\v]+` stripped, leading/trailing LF stripped | adopted, the fleet's post-M5 rule exactly |
-| A5 | A name must fully match `[a-z0-9][a-z0-9._-]{0,63}`; `capability_class` is one of four | adopted (+ A5-8: whole-string match) |
-| A6 | The ten fields of ClearSeal v0.8, nothing else; booleans never coerced | adopted |
-| A7 | `containment_domain`: distinct strings, sorted by UTF-16 code units, case kept, or null; schema arrays keep their order | adopted (C-3) |
-| A8 | Inside `input_schema`, absent, `null`, `{}` and `[]` are distinct; **at the top level all ten fields are always present** | **argued, top level only: D-1** |
-| A9 | `tool_hash` = SHA-256(JCS(ten fields)); `manifest_hash` = SHA-256(JCS of `{canonical_form_version, tools:[{name, tool_hash}] sorted by name}`) | **argued: D-2** (the version member) |
-| A10 | `canonical_form_version: 1`, recorded inside the manifest hash; an unimplemented version refused | adopted; the placement is argued in D-2 |
-
-## Argued deviations (each with its vector)
-
-### D-1: A8 at the top level. All ten fields present, `null` where they do not apply; absent refused
-
-**The prior:** "an absent optional field is serialized as absent (not `null`)". Applied to the
-pinned object, that gives **one tool two hashes**. The vector is the `echo` tool of A6-1, with
-`containment_domain` either `null` or left out:
-
-| Form | `tool_hash` under the prior |
+| Gate | Result |
 |---|---|
-| `"containment_domain": null` (345 bytes) | `40e12e60 9f20f36f f25812f5 249676a9 b41ba509 c08b4a9c 97888065 1c2ff18c` |
-| field absent (319 bytes) | `f988231e e4f2bb93 d9d0d70d 2ec2cde1 a308c359 81c2c2e8 7aa16bff b73b8da4` |
+| `npm run check` | exit 0: core **291** tests (16 files), spike 0102 69, spike 0101 8, `test:subset` 4 |
+| CI | both runners; the oracle-diff step runs on Linux |
+| Protected surfaces | The steering documents (`README.md`, `northstar.md`, `architecture.md`, `roadmap.md`), `docs/upstream.md`, `LICENSE`, `NOTICE`, `scripts/**`, `spikes/**` and `packages/core/src/transport/**` diff **empty**. `.github/workflows/ci.yml` gains the one named step. `.leak-gate-allow` gains the one ruled line |
+| Leak gate | `--tree` and `--history` exited 0 before every push, each checked by exit code. The allow entry suppresses 55 long-hex findings, all in `packages/core/test/vectors/canonical-v1.json` |
+| Credentials | Pushes went over the repository's write deploy key. A short-lived token was minted only for the pull-request calls, kept in a mode-0600 scratch file, and deleted straight after |
 
-Both say "no containment claimed". Under the prior, a producer that omits the field and a verifier
-that fills in `null` report drift that is not there, which is the M5 failure in another place.
+## Commits, in order
 
-**The ruling proposed:** the ten top-level fields are always present, and a missing one is refused
-(vector A8-5). A8's distinctions still hold inside `input_schema`, where absent and `null` mean
-different things to a validator (A8-1…A8-4).
+1. **The ratified text first, in its own commit.** The document is marked ratified. The vectors
+   file goes to plain hex, and `.leak-gate-allow` gets
+   `packages/core/test/vectors/*.json long-hex digests of committed public test inputs, not secrets`.
+2. **The build (WO §1.4–§1.8).**
+3. **The adversarial pass's fixes.**
 
-**Support:** the standard itself says "`recoverability_basis` (null unless `owned_state`)", and
-both fleet canonicalizers already emit `null`, never absent.
+## What was built
 
-### D-2: A9 and A10. The version goes inside the manifest hash
+- **`packages/core/src/pinning/canonical.ts`** is the one canonicalizer, written rule by rule from
+  the ratified text.
+  - **It owns the JCS layer and has no dependency.** The only platform facilities it uses are the
+    two definitions JCS itself defers to: `String(number)`, which is ECMAScript's
+    `Number::toString`, and UTF-16 string comparison.
+  - **JSON text** is parsed by the transport's existing strict parser, imported and not copied (N1).
+- **`packages/core/src/capability/fields.ts`** is the one place `PINNED_FIELDS` and
+  `GATE_READ_FIELDS` are written.
+  - The canonicalizer imports the first; `test:subset` imports the second.
+  - `GATE_READ_FIELDS` is typed as a subset of the pinned fields, so an unpinned gate field also
+    fails the type check.
+- **`packages/core/test/oracle/`** has two parts:
+  - `canonical_oracle.py`, the independent Python implementation, standard library only;
+  - `generate.py`, the **only** writer of `canonical-v1.json`.
+- **CI** gets one step:
+  `python3 packages/core/test/oracle/generate.py && git diff --exit-code -- packages/core/test/vectors/canonical-v1.json`.
+- **`test:subset`** is wired into `npm run check`. It asserts three things:
+  - every gate-read field is in the hashed set, which is read from the canonicalizer's output, not
+    restated;
+  - that set is exactly the ten pinned fields;
+  - changing each gate-read field changes `tool_hash`.
+  It is shown able to go red on a synthetic unpinned field.
 
-**The prior:** `manifest_hash = SHA-256(JCS([{name, tool_hash}, …]))`, with the version recorded
-in the manifest beside the hash. Under that form the version can change without the hash moving.
-For the two tools of A9-2:
+## Oracle-diff output
 
-| Manifest | `manifest_hash` |
+**On the committed tree:**
+
+```
+$ python3 packages/core/test/oracle/generate.py && git diff --exit-code -- packages/core/test/vectors/canonical-v1.json
+wrote packages/core/test/vectors/canonical-v1.json: 64 vectors
+$ echo $?
+0
+```
+
+**Reproducing stage A.** The first run of the generator reproduced all 63 stage-A vectors, which a
+separate throwaway script had computed in stage A. Every expected result, hex string and digest was
+identical. The only line that changed was the A1-5 note's wording (the C-4 correction).
+
+**A flipped digit** in A1-1's `canonical_hex`:
+
+```
+  ✖ A1-1 (A1, json): canonical
+  ✖ the oracle, run now, agrees with the file on every vector
+ packages/core/test/vectors/canonical-v1.json | 2 +-
+ci_step_rc=1
+```
+
+The adversarial pass separately committed a one-digit mutant in a scratch clone and saw the step
+exit 1.
+
+## Property-test counts
+
+fast-check drives 300 runs per property, and every generated input goes through **both**
+implementations: the oracle by subprocess, one batch per property. The equality is on bytes, or on
+both refusing. These are the counts from one local run; CI's runs are of the same size, with 0
+mismatches:
+
+```
+A1 key order: 600 inputs (600 canonical, 0 refused), 0 mismatches
+A2 numbers: 1794 inputs (856 canonical, 938 refused), 0 mismatches
+A3 normalization forms: 1200 inputs (1184 canonical, 16 refused), 0 mismatches
+A3 surrogates and BOMs: 1200 inputs (300 canonical, 900 refused), 0 mismatches
+A4 descriptions: 300 inputs (300 canonical, 0 refused), 0 mismatches
+A5 names: 300 inputs (102 canonical, 198 refused), 0 mismatches
+A6-A9 tools: 600 inputs (600 canonical, 0 refused), 0 mismatches
+A8 absent/null/empty: 1500 inputs (1200 canonical, 300 refused), 0 mismatches
+A9-A10 manifests: 900 inputs (600 canonical, 300 refused), 0 mismatches
+```
+
+That is **8,694 inputs per run**. The adversarial pass also ran its own sweep of about 240,000
+requests (doubles by bit pattern, decimal forms, near-bound integers) and about 250 hand-made edge
+cases. There were 0 disagreements outside F1.
+
+## The dev dependency
+
+- **`fast-check` 4.10.2**, pinned exactly in `@clearseal/core`'s `devDependencies`, plus its one
+  dependency, **`pure-rand` 8.4.2**. Both are MIT.
+- **The lockfile adds 2 packages**, 1.8 MB on disk. There is no runtime change.
+- **No JCS dependency.**
+
+## Red-proofs (N5)
+
+Each mutant was applied to the committed `canonical.ts` and restored from it:
+
+| Mutant | Goes red in |
 |---|---|
-| prior form (either version) | `1fb5c092 6243642b 191fb04d c76a530f 7ec6e483 0f982071 7c4f9c89 2c996c52` |
-| proposed, `canonical_form_version: 1` (vector A9-2) | `e3e7c134 8daa166f 5e9c1bb0 1c4f314e 102ee64e 4a83b154 d56a2a8c e53b1ff6` |
-| proposed, `canonical_form_version: 2` (for contrast only; refused by A10-1) | `0cb16f91 7af7c928 3255f819 314004cb aa282432 936e13e0 a7a8d700 168b373e` |
+| A1 member names unsorted | vectors 13, properties 4, boundaries 2 |
+| A1 duplicate keys accepted (`JSON.parse`) | vectors 1 (A1-5) |
+| A1 names in code-point order (the fleet Python's) | vectors 1 (A1-2), properties 1 |
+| A2 negative zero accepted | vectors 2, properties 1 |
+| A2 magnitude bound removed | vectors 2, properties 2 |
+| A3 leading U+FEFF accepted | vectors 1, properties 2 |
+| A3 NFC applied | vectors 1, properties 3 |
+| A4 **M5**: per-line strip by `trimEnd()` (Unicode whitespace) | vectors 3, properties 4 |
+| A4 description not normalized | vectors 1, properties 3 |
+| A5 name pattern case-insensitive | vectors 1 |
+| A6 extra field dropped, not refused | vectors 1 |
+| A6 booleans coerced | vectors 1 |
+| A7 set not deduplicated | vectors 1, properties 3 |
+| A8 absent top-level field read as `null` (the prior D-1 replaced) | vectors 1, properties 1 |
+| A9 manifest hash without the version (the prior D-2 replaced) | vectors 2, properties 1 |
+| A9 duplicate names accepted | vectors 1 |
+| A10 version not checked | vectors 1, properties 1 |
+| `elevated` always hashed `false` (adversarial F4) | vectors 1 (A6-5), properties 3, `test:subset` 1 |
+| Nesting limit lowered to 64 (adversarial F1) | boundaries 1 |
+| **`test:subset`: `elevated` leaves the hashed object** | **`test:subset` 4**, vectors 7, properties 3 |
 
-**Why:** the pin gate decides from the version how to canonicalize and whether to refuse. By A6's
-own generating rule ("a gate must never decide on a field the manifest does not hash"), the
-version belongs inside the hash. A signature over the manifest file (`-1001`) would cover it too,
-but `manifest_hash` is the value that gets compared and displayed. Binding the version into it
-costs one member.
+One mutant is **equivalent** rather than a gap: "accessors not refused", which drops
+`"value" in d`. The canonicalizer reads each member from its property descriptor and never calls a
+getter. An accessor's descriptor has no `value`, so the field arrives as undefined and is still
+refused, under A8. The explicit check makes the refusal's reason honest; it adds no protection.
 
-**Proposed:** `manifest_hash = SHA-256(JCS({"canonical_form_version": 1, "tools": [...]}))`. **If
-the prior stands,** A9-2 and A10-2 change to the prior form and nothing else moves.
+## Adversarial pass (fresh subagent, WO §5)
 
-## Clarifications (not deviations; each is how I read the prior, for the architect to confirm)
+**WO §5 held:**
+- **§5.1:** duplicate keys are refused by both at every level, in every escape spelling, and after
+  100,000 keys.
+- **§5.2:** keys differing by a trailing U+FE0F, and the UTF-16 sort cases (U+D7FF, U+E000, U+FB01,
+  U+FFFF, U+10000, U+1F600, U+10FFFF), agree as keys and as set members.
+- **§5.3:** a 1 MiB description takes at most 159 ms in TypeScript and 482 ms in the oracle,
+  including process spawn. It scales linearly to 16 MiB with no quadratic path, and `"\n\n\n"` is
+  empty in both.
+- **§5.4:** a flipped byte fails CI's step.
 
-**C-1: `1e21` is refused.**
-- The prior asks for "a vector for `1e21`" and also refuses "integers beyond ±2^53−1".
-- Every double of magnitude 2^53 or more is an integer, so `1e21` falls under the bound (A2-2),
-  and JCS's positive-exponent form (`1e+21`) can never be emitted.
-- The rule is written as "magnitude over 2^53−1", which is the same set and simpler to check in
-  both languages.
-- If the architect intended `1e21` to serialize, the bound must be narrowed to integers **as
-  spelled**. That makes the result depend on the source text, which the value-level canonicalizer
-  in the core never sees, so I recommend against it.
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| F1 | **Nesting depth.** The oracle crashed with `RecursionError` from depth 498, below the 512 text bound, and a crash took down its whole batch. The TypeScript value path (`input_schema` passed as an object) had no bound and threw a bare `RangeError` somewhere between 2,000 and 20,000 deep. No test went past depth 4 | medium | **Fixed.** One nesting limit, 512 objects and arrays, in both implementations and on both paths; beyond it, both refuse. The oracle's recursion limit is raised so that the limit, not the interpreter, decides. Tests pin 512 accepted and 513 refused, for text and for a tool's schema, in both implementations. **Decision-needed:** version 1 sets no depth, so this is an implementation limit. It is kept out of the vectors file on purpose, since vectors are the spec's. Proposed for version 2: *"an input nested deeper than 512 objects and arrays is refused."* |
+| F2 | `canonicalManifestBytes(null)` threw a `TypeError` rather than refusing | low | **Fixed:** a manifest that is not a plain object is refused (A9) |
+| F3 | The TypeScript value API accepted some non-JSON shapes silently: a non-enumerable or symbol-keyed extra field, array extra properties, getters (read twice), and a cycle (`RangeError`) | low | **Fixed:** only enumerable, string-keyed data members, read once from their descriptors. Anything else is refused, never skipped, and a cycle meets the nesting limit. A `Proxy` can still describe itself consistently falsely. `-1001` should canonicalize manifests from text through `parseCanonicalJson`, which builds only plain values |
+| F4 | No canonical vector had `elevated: true`, so a mutant hashing `elevated` as always `false` passed every vector | low–medium | **Fixed:** vector **A6-5**, every boolean true plus a containment domain, added to both the file and the document. Adding a vector changes no expected result |
+| F5 | `test:subset` checked keys only, not that each value reaches the hash | info | **Fixed:** it now checks that changing each gate-read field changes `tool_hash` |
+| F6 | **Spec ambiguity, shared by both implementations.** A tool whose description is `"\n"` followed by U+FEFF and `abc` is refused: after A4 removes the LF, the string begins with U+FEFF, and serialization checks A3 again. The `description` kind accepts the same input. A3's Scope line says only "before A4 normalizes it" | low | **Recorded, decision-needed.** Proposed one sentence for A3: *the normalized description is checked again, as every string in the canonical object is.* That is what both implementations do |
+| F7 | **Spec silence on literal to double.** `1e-400` underflows to `0` and is accepted, `-1e-400` is refused as negative zero, and `9007199254740991.4` rounds to 2^53−1 and is accepted. Both implementations agree on all of them | info | **Recorded.** Proposed for version 2: *a number's value is the IEEE 754 double nearest its literal; A2 applies to that double* |
+| F8 | The oracle split its input with `splitlines()`, which also splits at U+2028 and U+0085 inside a raw-UTF-8 line. The harness hid this by escaping requests to ASCII | low | **Fixed:** it splits on LF only |
+| F9 | **Is the oracle independent (N3)?** The cores differ. Python implements `Number::toString` itself, sorts on UTF-16-BE bytes, and parses with `json` hooks; the TypeScript uses `String()`, string comparison, and the transport's parser. But the surfaces match: 17 of 26 refusal messages are identical, the check order is the same, and both carry the coordinated depth constant. **The same session wrote both, one after the other.** The oracle was written from the specification, not translated, but it is not the work of a second author. The shared readings the pass found (F1, F6) are exactly what a second author would catch | medium | **Disclosed.** Recommended: the architect or a separate session reviews `canonical_oracle.py` against `docs/canonical-form.md` alone before merge. Refusal messages are never compared (only bytes, or both refusing), so their sameness has no effect on the result |
+| F10 | FEEDBACK was still stage A's | process | **This file** |
+| F11 | About 39% of the key-order property's inputs were refusals, for which "same bytes" is trivial | info | **Fixed:** that property draws accepted values only (600 of 600 canonical) |
+| F12 | `__pycache__` is not in `.gitignore`. Importing the oracle as a module leaves an untracked directory | info | **Not changed.** `generate.py` sets `dont_write_bytecode` and `serve` runs as a script, so only ad hoc imports create it. `.gitignore` is outside this WO's named edits |
 
-**C-2: "a leading BOM" is read per string.** A string whose first code point is U+FEFF is refused
-(A3-3). U+FEFF elsewhere is preserved (A3-4).
+## What did not work, and why
 
-**C-3: "allowed hosts" is not one of the ten pinned fields.** A7 names `containment_domain` only,
-and says how a future set-valued field joins.
+- **My mutant script restored `canonical.ts` with `git checkout` while my fixes were uncommitted.**
+  It silently undid them. This is **the same slip as in `-1005b`**, repeated. I re-applied the
+  fixes, committed, and re-ran the whole matrix against the commit; the table above is from that
+  run. The lesson has to become a rule, not a memory: **commit before any mutant run.**
+- **The first surrogate-injection property guessed escape offsets and was wrong.** It now escapes
+  the two halves separately and asserts refusal exactly when the decoded string is not
+  well-formed.
+- **The first A8 property failed on its own generator.** An out-of-range number inside the schema
+  makes all four variants refused. The schema generator now stays in A2's range; out-of-range
+  numbers are A2's own property.
+- **This document shows spaced hex, not plain hex.** The ruled allow entry covers
+  `packages/core/test/vectors/*.json` only, and the WO permits that one line, so
+  `docs/canonical-form.md` still cannot carry a 64-digit run. It says so, and names the vectors file
+  as authoritative. Plain hex there would need a second allow line: your call.
 
-**C-4: the WO's §5.1 says "JCS does not define duplicates".** The official text requires its input
-to be I-JSON: "JSON objects MUST NOT exhibit duplicate property names". What JCS leaves open is
-what to do with input that breaks that. The specification refuses it (A1-5), so the adversarial
-item stands as written in substance.
+## What was deliberately not built
 
-**C-5: how the digests are written.** Every digest and byte string is written in spaced hex
-(bytes separated by spaces; SHA-256 as eight groups of eight). The leak gate's long-hex rule
-refuses any run of forty or more hex digits in a tracked file, and `scripts/**` is protected here.
-The vectors file's `format` block says so. The name vectors of A5-5 and A5-6 use `z`, not `a`,
-for the same reason. An exemption for the vectors file would be a gate change, and yours to make.
-
-## The fleet divergences the A1 prior asks to record (proposed text for `docs/upstream.md` entry 5)
-
-`docs/upstream.md` is the architect's ledger, so I have not edited it. These are the vectors for
-entry 5, measured with the fleet Python's own serialization,
-`json.dumps(v, sort_keys=True, ensure_ascii=False, separators=(",", ":"))`:
-
-| Input | Fleet Python bytes | JCS bytes (this specification) |
-|---|---|---|
-| A1-2 `{"ﬁ":1,"😀":2}` | `7b 22 ef ac 81 22 3a 31 2c 22 f0 9f 98 80 22 3a 32 7d` (code-point order) | `7b 22 f0 9f 98 80 22 3a 32 2c 22 ef ac 81 22 3a 31 7d` (UTF-16 order) |
-| A2-1 `1.0` | `31 2e 30` | `31` |
-| A2-11 `1E2` | `31 30 30 2e 30` | `31 30 30` |
-| A2-3 `1e-7` | `31 65 2d 30 37` | `31 65 2d 37` |
-
-- **Both fleet canonicalizers diverge from this specification.** The fleet's TypeScript twin sorts
-  by UTF-16 like JCS, so on A1-2 the two fleet canonicalizers also disagree with **each other**.
-  The Python side also keeps `1.0` and `100.0` as floats.
-- **None of these is reachable** by the 26 tools that node pins today; that is its own measured
-  claim. So an amendment that adopts this specification should move no existing hash. That is to
-  be measured when the amendment is made, not assumed.
+- **The manifest file format, signing, verify-before-register, drift refusal** (`-1001`).
+- **Any tool** (`-1004`).
+- **A gate-decision-derived field list** (the fleet's `gate_decision_fields`). There is no gate code
+  yet to derive it from. `test:subset` guards the declared list, and the first gate WO should add
+  the derived check.
+- **The `docs/upstream.md` entries 1 and 5**, which are the architect's ledger. The proposed entry-5
+  vectors are in stage A's FEEDBACK at `76f709b` (the fleet's code-point sort, `1.0`, `1E2`, `1e-7`).
