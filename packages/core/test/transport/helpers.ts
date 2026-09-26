@@ -7,7 +7,6 @@ import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 
 import { ValidationPool } from "../../src/transport/schema-pool.ts";
 import { loadPinnedRegistry } from "../../src/pinning/registry.ts";
-import type { Tool } from "../../src/transport/registry.ts";
 import { definitions } from "../fixtures/tools.ts";
 import { startTransport, type RunningTransport, type TransportOptions } from "../../src/transport/server.ts";
 import type { Verdict, Verifier } from "../../src/transport/verifier.ts";

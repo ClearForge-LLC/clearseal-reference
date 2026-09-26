@@ -18,8 +18,10 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 
+import { PinGate } from "../../packages/core/src/pinning/gate.ts";
+import { buildManifest, serializeManifest } from "../../packages/core/src/pinning/manifest.ts";
+import { PinnedRegistry } from "../../packages/core/src/pinning/registry.ts";
 import {
-  PlaceholderRegistry,
   requestStateKeyFromEnv,
   type RunningTransport,
   startTransport,
@@ -167,8 +169,9 @@ export async function startSpike(o: SpikeOptions): Promise<Spike> {
   const now = o.now ?? Date.now;
   const grants = new GrantStore(o.grantTtlMs ?? GRANT_TTL_MS, now);
   const pool = new ValidationPool({ workers: 1, timeoutMs: DEFAULT_LIMITS.validationTimeoutMs });
-  const registry = new PlaceholderRegistry(pool.compile, DEFAULT_LIMITS);
-  for (const tool of approvalTools(grants, log, now)) registry.register(tool);
+  // CSR-WO-1001 D-1: the spike pins its own tools at start (an in-memory approve), so it runs on the pinned core.
+  const tools = approvalTools(grants, log, now).map((t) => ({ ...t, description: t.description ?? "", capability: { capability_class: "read_only", untrusted_input_facing: false, scope: t.name, privacy_sensitive: false, recoverability_basis: null, elevated: false, containment_domain: null } }));
+  const registry = new PinnedRegistry(PinGate.load(serializeManifest(buildManifest(tools))).admit(tools), { compile: pool.compile, limits: DEFAULT_LIMITS, strict: true });
   const t = await startTransport({
     registry,
     serverInfo: { name: "clearseal-spike-0101-approval", version: "0.0.0" },
