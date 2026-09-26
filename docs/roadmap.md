@@ -137,7 +137,7 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   wired. **Property-based tests** over key order, Unicode normalization forms, surrogates,
   byte-order marks and the non-breaking space. Spike-first on the specification, STOP for
   ratification, then build.
-- `CSR-WO-1001` — the pin gate: manifest format, verify-before-register, drift and unpinned refused,
+- `CSR-WO-1001` — (WO written 2026-09-26) the pin gate: manifest format, verify-before-register, drift and unpinned refused,
   the approve/diff operator path, strict default, the cross-repo enumeration detector against the
   pinned public standard; `manifest_version` and the unenforced `build` block present from the
   first manifest (`architecture.md` §5, *Manifest schema*).
