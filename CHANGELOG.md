@@ -78,6 +78,17 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
 
 ### Fixed
 
+- **CSR-WO-1002a:** two containment corrections from the `-1002` review.
+  - A symlink swapped into a file's leaf after the cage's check, which the kernel refuses under
+    `O_NOFOLLOW`, is now recorded and audited as a containment refusal instead of surfacing as a
+    plain handler error. That covers `ELOOP` and `EMLINK`, plus `EEXIST` under `O_EXCL` when a link
+    now sits at the leaf.
+  - A `read_only` tool's cage now opens files for reading only, even under a declared root. Other
+    classes are unchanged.
+  - The cage seam editions implement (`cageFor`, `recordingCageFactory`, the harness's `makeCage`)
+    now carries a frozen `CagePolicy` with the tool's pinned class.
+  - The reach harness now fails a `read_only` tool that writes, whether its cage allowed the write
+    or the shim saw it directly, and it records the written path of two-path fs calls.
 - **CSR-WO-1005a:** two corrections to the transport, from the `-0101` spike's findings.
   - The server now owns the validation pool and closes it on `close()`. An open pool kept the
     process alive despite `unref()`.

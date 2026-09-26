@@ -2,7 +2,13 @@
 // arguments, under a RecordingCage built from the tool's pinned domain, while a shim observes the
 // process's direct routes out: fs, net, http, https, fetch and child_process. Every reach, seen by
 // the cage or by the shim, must lie inside the declared domain; a null domain must see none at all.
-// An undeclared reach fails the tool, naming the sink.
+// An undeclared reach fails the tool, naming the sink. For a read_only tool, a write is undeclared
+// wherever it lands, whether the cage allowed it or the shim saw it (CSR-WO-1002a): the harness
+// judges the class itself rather than trusting the cage under test. It can judge only what the cage
+// records (a missing mode counts as a write) and what the shim sees: a cage that records "r" while
+// opening for write through a function the shim cannot see passes. Descriptor-based metadata calls
+// (fchmod, futimes, fchown, and a FileHandle's chmod, utimes, chown) carry no path, and are not
+// judged.
 //
 // The shim is module patching, not a kernel observer (no strace), and it is the same on Linux and
 // Windows. It sees calls through the patched functions only, and it does NOT see: a function
@@ -17,7 +23,9 @@ import { posix } from "node:path";
 
 import { randomBytes } from "node:crypto";
 
-import { type Cage, type CageEffects, ContainmentRefusal, type Reach, RecordingCage, resolveReal } from "./cage.ts";
+import { constants } from "node:fs";
+
+import { type Cage, type CageEffects, type CagePolicy, cagePolicy, ContainmentRefusal, type Reach, READ_ONLY_MODES, RecordingCage, resolveReal } from "./cage.ts";
 import { type Domain, parseDomain } from "./domain.ts";
 import type { CallContext, Tool } from "../transport/registry.ts";
 
@@ -25,6 +33,8 @@ export interface HarnessTool {
   name: string;
   /** The pinned containment_domain, as hashed. */
   domain: readonly string[] | null;
+  /** The pinned capability_class, as hashed: it decides whether a write is declared. */
+  capabilityClass: string;
   handler: Tool["handler"];
   /** Arguments to run the handler with: the tool's own fixture inputs. */
   corpus: readonly Record<string, unknown>[];
@@ -34,6 +44,8 @@ export interface Observed {
   kind: "fs" | "net" | "svc" | "spawn";
   sink: string;
   via: "cage" | "shim";
+  /** For fs: present, and true, when the reach writes (a mutating open mode or function). */
+  write?: boolean;
 }
 
 export interface ToolVerdict {
@@ -48,8 +60,8 @@ export interface ToolVerdict {
 export interface HarnessOptions {
   /** What an allowed cage reach does. Tests pass stubs so the harness never touches the network. */
   effects?: CageEffects;
-  /** Builds the cage for a domain; editions pass their OS-level Cage here. */
-  makeCage?: (domain: Domain) => Cage;
+  /** Builds the cage for a domain and policy; editions pass their OS-level Cage here. */
+  makeCage?: (domain: Domain, policy: CagePolicy) => Cage;
 }
 
 const require = createRequire(import.meta.url);
@@ -63,8 +75,40 @@ const FS_FUNCTIONS = [
   "opendir", "opendirSync", "symlink", "symlinkSync", "readlink", "readlinkSync", "truncate", "truncateSync", "cp", "cpSync",
   "watch", "watchFile", "link", "linkSync", "chmod", "chmodSync", "chown", "chownSync", "utimes", "utimesSync", "statfs", "statfsSync",
   "openAsBlob", "mkdtemp", "mkdtempSync", "rmdir", "rmdirSync", "exists",
+  "lchown", "lchownSync", "lutimes", "lutimesSync", "lchmod", "lchmodSync",
 ];
-const FS_PROMISE_FUNCTIONS = ["open", "readFile", "writeFile", "appendFile", "readdir", "mkdir", "rm", "unlink", "stat", "lstat", "access", "copyFile", "rename", "opendir", "symlink", "readlink", "truncate", "cp", "watch", "link", "chmod", "chown", "utimes", "statfs", "mkdtemp", "rmdir"];
+const FS_PROMISE_FUNCTIONS = ["lchown", "lutimes", "lchmod", "open", "readFile", "writeFile", "appendFile", "readdir", "mkdir", "rm", "unlink", "stat", "lstat", "access", "copyFile", "rename", "opendir", "symlink", "readlink", "truncate", "cp", "watch", "link", "chmod", "chown", "utimes", "statfs", "mkdtemp", "rmdir"];
+/** fs functions that change the file system. copyFile, cp, rename, link and symlink also name a
+ *  second path, the one written, and both are recorded. */
+const FS_WRITE_FUNCTIONS = new Set([
+  "writeFile", "writeFileSync", "appendFile", "appendFileSync", "createWriteStream", "mkdir", "mkdirSync", "rm", "rmSync", "unlink", "unlinkSync",
+  "copyFile", "copyFileSync", "rename", "renameSync", "symlink", "symlinkSync", "truncate", "truncateSync", "cp", "cpSync", "link", "linkSync",
+  "chmod", "chmodSync", "chown", "chownSync", "utimes", "utimesSync", "mkdtemp", "mkdtempSync", "rmdir", "rmdirSync",
+  "lchown", "lchownSync", "lutimes", "lutimesSync", "lchmod", "lchmodSync",
+]);
+/** Functions whose options can carry an open flag (`flag`, or `flags` for streams) that writes. */
+const FS_FLAG_FUNCTIONS = new Set(["readFile", "readFileSync", "createReadStream", "openAsBlob"]);
+
+/** The open flag in an options argument: `flag`, or `flags` for streams, on an object. A bare
+ *  string there is the encoding, never a flag. */
+function flagOption(arg: unknown): unknown {
+  if (typeof arg === "object" && arg !== null) {
+    const o = arg as { flag?: unknown; flags?: unknown };
+    return o.flag ?? o.flags;
+  }
+  return undefined;
+}
+const FS_TWO_PATH_FUNCTIONS = new Set(["copyFile", "copyFileSync", "cp", "cpSync", "rename", "renameSync", "link", "linkSync", "symlink", "symlinkSync"]);
+const OPEN_FUNCTIONS = new Set(["open", "openSync"]);
+
+/** Does an open's flags argument write? Omitted, "r" and "rs" read; a number reads only when it
+ *  carries none of the writing bits. Anything else counts as a write. */
+function openWrites(flags: unknown): boolean {
+  if (flags === undefined || flags === "r" || flags === "rs") return false;
+  if (typeof flags === "number") return (flags & (constants.O_WRONLY | constants.O_RDWR | constants.O_CREAT | constants.O_TRUNC | constants.O_APPEND)) !== 0;
+  return true;
+}
+
 const SPAWN_FUNCTIONS = ["spawn", "spawnSync", "exec", "execSync", "execFile", "execFileSync", "fork"];
 
 function pathOf(arg: unknown): string | undefined {
@@ -110,16 +154,21 @@ function installShim(): { log: Observed[]; uninstall: () => void } {
   };
   const fs = require("node:fs") as Mutable;
   const fsPromises = require("node:fs/promises") as Mutable;
+  const recordFs = (name: string, args: unknown[]): void => {
+    const write = FS_WRITE_FUNCTIONS.has(name) || (OPEN_FUNCTIONS.has(name) && openWrites(args[1])) || (FS_FLAG_FUNCTIONS.has(name) && openWrites(flagOption(args[1])));
+    const p = pathOf(args[0]);
+    if (p !== undefined) log.push({ kind: "fs", sink: p, via: "shim", ...(write ? { write } : {}) });
+    const second = FS_TWO_PATH_FUNCTIONS.has(name) ? pathOf(args[1]) : undefined;
+    if (second !== undefined) log.push({ kind: "fs", sink: second, via: "shim", write: true });
+  };
   for (const name of FS_FUNCTIONS) {
     wrap(fs, name, (args) => {
-      const p = pathOf(args[0]);
-      if (p !== undefined) log.push({ kind: "fs", sink: p, via: "shim" });
+      recordFs(name, args);
     });
   }
   for (const name of FS_PROMISE_FUNCTIONS) {
     wrap(fsPromises, name, (args) => {
-      const p = pathOf(args[0]);
-      if (p !== undefined) log.push({ kind: "fs", sink: p, via: "shim" });
+      recordFs(name, args);
     });
   }
   const recordNet = (args: unknown[]): void => {
@@ -186,7 +235,8 @@ function declared(o: Observed, domain: Domain): boolean {
   return false;
 }
 
-const fromCage = (r: Reach): Observed => ({ kind: r.kind, sink: r.sink, via: "cage" });
+/** A cage's fs reach writes unless its mode is a read mode; a missing mode counts as a write. */
+const fromCage = (r: Reach): Observed => ({ kind: r.kind, sink: r.sink, via: "cage", ...(r.kind === "fs" && (r.mode === undefined || !READ_ONLY_MODES.has(r.mode)) ? { write: true } : {}) });
 
 let running = false;
 
@@ -214,11 +264,14 @@ async function runAll(tools: readonly HarnessTool[], options: HarnessOptions): P
   const principal = { id: randomBytes(12).toString("base64url") };
   for (const tool of tools) {
     const domain = parseDomain(tool.domain);
+    const policy = cagePolicy(tool.capabilityClass);
+    // A read_only tool writes nowhere, whatever its cage allowed.
+    const forbiddenWrite = (o: Observed): boolean => policy.capabilityClass === "read_only" && o.write === true;
     const reaches: Observed[] = [];
     const undeclared: Observed[] = [];
     let completed = 0;
     for (const args of tool.corpus.length === 0 ? [{}] : tool.corpus) {
-      const cage = options.makeCage?.(domain) ?? new RecordingCage(domain, options.effects);
+      const cage = options.makeCage?.(domain, policy) ?? new RecordingCage(domain, options.effects, undefined, undefined, policy);
       const shim = installShim();
       const ctx: CallContext = { principal, signal: new AbortController().signal, protocolVersion: "2026-07-28", clientCapabilities: {}, cage };
       try {
@@ -234,11 +287,11 @@ async function runAll(tools: readonly HarnessTool[], options: HarnessOptions): P
       for (const r of cage.reached()) {
         const o = fromCage(r);
         reaches.push(o);
-        if (!r.allowed) undeclared.push(o);
+        if (!r.allowed || forbiddenWrite(o)) undeclared.push(o);
       }
       for (const o of shim.log) {
         reaches.push(o);
-        if (!declared(o, domain)) undeclared.push(o);
+        if (!declared(o, domain) || forbiddenWrite(o)) undeclared.push(o);
       }
     }
     // A null domain declares nothing, so any reach it makes is undeclared: "zero reaches" follows.
@@ -254,7 +307,7 @@ async function runAll(tools: readonly HarnessTool[], options: HarnessOptions): P
 export function formatVerdicts(verdicts: readonly ToolVerdict[]): string {
   return verdicts
     .map((v) => {
-      const list = (os: readonly Observed[]): string => os.map((o) => `${o.kind}:${o.sink} (${o.via})`).join(", ") || "none";
+      const list = (os: readonly Observed[]): string => os.map((o) => `${o.kind}:${o.sink} (${o.via}${o.write === true ? ", write" : ""})`).join(", ") || "none";
       return v.pass ? `PASS ${v.tool}: reaches ${list(v.reaches)}` : `FAIL ${v.tool}: undeclared ${list(v.undeclared)}`;
     })
     .join("\n");

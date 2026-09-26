@@ -52,7 +52,7 @@ void describe("the reach harness over the fixtures (WO §3.3)", () => {
   });
 
   void it("WO §5.4: a handler that spawns a child process is an undeclared reach, and the harness never runs it", async () => {
-    const spawner = { name: "spawner", domain: null, corpus: [{}], handler: async () => {
+    const spawner = { name: "spawner", domain: null, capabilityClass: "read_only", corpus: [{}], handler: async () => {
       const cp = await import("node:child_process");
       cp.execFileSync("node", ["--version"]);
       return { content: [] };
@@ -134,7 +134,7 @@ void describe("dispatch runs every handler inside a per-call cage (WO §1.6, §3
 
   void it("a null-domain tool that reaches is refused: -32603 names the kind, the audit seam gets the path", async () => {
     const audits: string[] = [];
-    const registry = pinForTest([nullReacher, swallower], compileSchema, DEFAULT_LIMITS, true, { cageFor: (d) => recordingCageFactory(d, effects) });
+    const registry = pinForTest([nullReacher, swallower], compileSchema, DEFAULT_LIMITS, true, { cageFor: (d, p) => recordingCageFactory(d, p, effects) });
     const t = await startTransport({ registry, serverInfo: { name: "x", version: "0" }, verifier: new TestBearerVerifier(), requestStateKey: randomBytes(32), audit: (e, f) => audits.push(`${e} ${JSON.stringify(f)}`) });
     try {
       const r = await modern(t, "tools/call", { name: "null_reacher", arguments: {} });
@@ -151,7 +151,7 @@ void describe("dispatch runs every handler inside a per-call cage (WO §1.6, §3
   });
 
   void it("the pinned fixtures run through dispatch; cages never leak across concurrent calls", async () => {
-    const registry = loadPinnedRegistry(new URL("../fixtures/containment-manifest.json", import.meta.url), definitions, { compile: compileSchema, limits: DEFAULT_LIMITS, cageFor: (d) => recordingCageFactory(d, effects) });
+    const registry = loadPinnedRegistry(new URL("../fixtures/containment-manifest.json", import.meta.url), definitions, { compile: compileSchema, limits: DEFAULT_LIMITS, cageFor: (d, p) => recordingCageFactory(d, p, effects) });
     const t = await startTransport({ registry, serverInfo: { name: "x", version: "0" }, verifier: new TestBearerVerifier(), requestStateKey: randomBytes(32), audit: () => undefined });
     try {
       const calls = await Promise.all(Array.from({ length: 20 }, (_, i) => (i % 2 === 0 ? modern(t, "tools/call", { name: "read_note", arguments: { file: "today.txt" } }) : modern(t, "tools/call", { name: "pure_sum", arguments: { a: i, b: 1 } }))));

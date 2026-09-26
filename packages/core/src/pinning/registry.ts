@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 
 import { type Admission, isIssuedAdmission, PinGate, type PinRefusal } from "./gate.ts";
-import { type Cage, type Reach, recordingCageFactory } from "../containment/cage.ts";
+import { type Cage, type CagePolicy, cagePolicy, type Reach, recordingCageFactory } from "../containment/cage.ts";
 import type { HarnessTool } from "../containment/harness.ts";
 import { type Domain, DomainError, parseDomain } from "../containment/domain.ts";
 import { ManifestError, type PinnableTool } from "./manifest.ts";
@@ -28,9 +28,10 @@ export interface PinnedRegistryOptions {
    *  Omitted, it is read from the environment, forbidden unless exactly "false". An edition that
    *  turns it off must say why in its own tree. */
   execToolsForbidden?: boolean;
-  /** Builds each call's cage from a tool's pinned domain. Omitted: the core's RecordingCage.
-   *  Editions pass their OS-level Cage here. */
-  cageFor?: (domain: Domain) => (onRefused?: (reach: Reach) => void) => Cage;
+  /** Builds each call's cage from a tool's pinned domain and policy (its capability class, from the
+   *  same frozen snapshot). Omitted: the core's RecordingCage. Editions pass their OS-level Cage
+   *  here, and must honour the policy: a read_only tool's cage opens for reading only. */
+  cageFor?: (domain: Domain, policy: CagePolicy) => (onRefused?: (reach: Reach) => void) => Cage;
 }
 
 /** A definition the registry refuses at construction: its containment domain is malformed or
@@ -52,6 +53,7 @@ export function execToolsForbiddenFromEnv(env: NodeJS.ProcessEnv = process.env):
 export class PinnedRegistry implements ToolRegistry {
   readonly #tools: ReadonlyMap<string, RegisteredTool>;
   readonly #domains: ReadonlyMap<string, readonly string[] | null>;
+  readonly #classes: ReadonlyMap<string, string>;
   readonly pinning: PinningStatus;
 
   constructor(admission: Admission, options: PinnedRegistryOptions) {
@@ -60,8 +62,9 @@ export class PinnedRegistry implements ToolRegistry {
     if (!isIssuedAdmission(admission)) throw new TypeError("a pinned registry is built only from PinGate.admit's Admission");
     const tools = new Map<string, RegisteredTool>();
     const execForbidden = options.execToolsForbidden ?? execToolsForbiddenFromEnv();
-    const cageFor = options.cageFor ?? ((domain: Domain) => recordingCageFactory(domain));
+    const cageFor = options.cageFor ?? ((domain: Domain, policy: CagePolicy) => recordingCageFactory(domain, policy));
     const domains = new Map<string, readonly string[] | null>();
+    const classes = new Map<string, string>();
     for (const tool of admission.admitted) {
       // Everything here is read from the gate's frozen snapshot, the copy that was hashed.
       const { capability_class: capabilityClass, containment_domain: pinnedDomain } = tool.capability;
@@ -77,11 +80,13 @@ export class PinnedRegistry implements ToolRegistry {
       }
       // Served exactly as hashed: the gate's frozen snapshot of name, description and schema.
       const prepared = prepareTool({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, handler: tool.handler }, options.compile, options.limits);
-      tools.set(tool.name, { ...prepared, newCage: cageFor(domain) });
+      tools.set(tool.name, { ...prepared, newCage: cageFor(domain, cagePolicy(capabilityClass)) });
       domains.set(tool.name, tool.capability.containment_domain);
+      classes.set(tool.name, capabilityClass);
     }
     this.#tools = tools;
     this.#domains = domains;
+    this.#classes = classes;
     const refusedNames = new Set(admission.refused.map((r) => r.name));
     this.pinning = Object.freeze({
       strict: options.strict ?? pinStrictFromEnv(),
@@ -99,7 +104,9 @@ export class PinnedRegistry implements ToolRegistry {
     return this.list().map((t) => {
       const corpus = corpora[t.definition.name];
       if (corpus === undefined || corpus.length === 0) throw new Error(`the registered tool ${t.definition.name} has no harness corpus`);
-      return { name: t.definition.name, domain: this.#domains.get(t.definition.name) ?? null, handler: t.handler, corpus };
+      const capabilityClass = this.#classes.get(t.definition.name);
+      if (capabilityClass === undefined) throw new Error(`the registered tool ${t.definition.name} has no capability class`);
+      return { name: t.definition.name, domain: this.#domains.get(t.definition.name) ?? null, capabilityClass, handler: t.handler, corpus };
     });
   }
 
