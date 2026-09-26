@@ -159,10 +159,13 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
 - `CSR-WO-1004` — (built, merged `bfeb418` 2026-09-26; owns the supply-boundary and P1 evidence clauses) the teaching edition's skeleton and its first tool (`read_only`), its manifest, and
   the supply-boundary test that fails if an edition exports anything other than tool definitions, a
   manifest, a deploy scaffold, or a registered implementation of a core interface.
-- `CSR-WO-1006` — (WO written 2026-09-26; **P1 exits after it**) core corrections from the `-1004`
+- `CSR-WO-1006` — (built, merged `4182858` 2026-09-26) core corrections from the `-1004`
   adversarial pass: admitted tools deeply frozen so nothing in the process changes what `tools/list`
   serves (N2); the cage opens without blocking and admits regular files only; the Windows cage
   resolves symlinks and junctions, measured on `windows-latest`.
+- `CSR-WO-1006a` — (WO written 2026-09-26) two transport corrections from `-1006` FEEDBACK before the
+  P1 exit red-team: a handler is called with no `this` (A5: an unaudited cage); the running config is
+  deeply frozen (A7).
 - `CSR-WO-1005b` — era-dependent status mapping: legacy-era JSON-RPC errors at `200` with the
   error object (measured: the official SDK client drops the body at `400`); HTTP-level refusals
   and the modern era untouched; the official SDK returns only as a test-only dev dependency to
