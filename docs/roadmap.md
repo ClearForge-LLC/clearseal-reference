@@ -149,6 +149,10 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
 - `CSR-WO-1004` — the teaching edition's skeleton and its first tool (`read_only`), its manifest, and
   the supply-boundary test that fails if an edition exports anything other than tool definitions, a
   manifest, a deploy scaffold, or a registered implementation of a core interface.
+- `CSR-WO-1005b` — era-dependent status mapping: legacy-era JSON-RPC errors at `200` with the
+  error object (measured: the official SDK client drops the body at `400`); HTTP-level refusals
+  and the modern era untouched; the official SDK returns only as a test-only dev dependency to
+  keep that measurement as a regression test.
 - `CSR-WO-1005a` — transport corrections from the `-0101` spike: the validation pool closes with
   the server (a handle-count test), and an `input_required` result under the legacy era is a
   proper JSON-RPC error, never a `500`; the Tasks extension's three required core changes listed.
@@ -329,6 +333,7 @@ Divergence between what was planned and what was built. **History is left as wri
 |---|---|---|
 | *(genesis pull request, unnumbered)* | The four steering documents | — (precedes the first work order, deliberately; recorded so the absence of a number is not read as an omission) |
 | `CSR-WO-0000a` | Skeleton corrections from the `-0000` review: supported lint major, suppression policy, built `dist/` exports | Not planned; inserted as a refinement under `-0000` because all three are corrections to the skeleton the review exposed, and a port must never consume raw source (`architecture.md` §10) |
+| `CSR-WO-1005b` | Era-dependent HTTP status for JSON-RPC errors | Not planned; inserted after `-1005a` measured that a legacy client loses the error body at `400` |
 | `CSR-WO-1005a` | Transport corrections the `-0101` spike measured: an unclosed worker pool and a `500` for MRTR under the legacy era | Not planned; inserted because a spike on the substrate found two defects the substrate's own tests could not see from inside |
 | `CSR-WO-0002a` | Corrections from the `-0002` review: the gate admits the platform bot's commit shapes; engine strictness moves from `.npmrc` to an explicit check | Not planned; inserted because the bot's commits would fail the gate and its lockfile regeneration would fail the exact engine pin — both discovered by the builder before the first bot run |
 
