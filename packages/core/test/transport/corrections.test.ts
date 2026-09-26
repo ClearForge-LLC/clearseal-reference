@@ -64,12 +64,12 @@ void describe("WO §1.1 the validation pool closes with the server", () => {
 });
 
 void describe("WO §1.2 an input_required result on the legacy era is refused cleanly, never a 500", () => {
-  void it("LG-8 legacy tools/call to an MRTR tool → 400, application/json, -32601, and the tool is logged at the seam", async () => {
+  void it("LG-8 ST-2 legacy tools/call to an MRTR tool → 200 (the legacy era's convention, CSR-WO-1005b), application/json, -32601, and the tool is logged at the seam", async () => {
     const s = await start();
     try {
       const r = await raw(s.t, { headers: legacyHeaders({ "mcp-protocol-version": "2025-11-25" }), body: JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "ask", arguments: {} } }) });
       console.log(`LEGACY-MRTR status=${String(r.status)} type=${String(r.headers["content-type"])} body=${r.text}`);
-      assert.equal(r.status, 400);
+      assert.equal(r.status, 200);
       assert.equal(r.headers["content-type"], "application/json");
       const err = (r.json as { id: number; error: { code: number; message: string; data: unknown } });
       assert.equal(err.id, 7);
@@ -87,7 +87,7 @@ void describe("WO §1.2 an input_required result on the legacy era is refused cl
     try {
       for (const [name, args] of [["ask_other", {}], ["approve_target", { target: "file-a" }]] as const) {
         const r = await raw(s.t, { headers: legacyHeaders({ "mcp-protocol-version": "2025-11-25" }), body: JSON.stringify({ jsonrpc: "2.0", id: 9, method: "tools/call", params: { name, arguments: args } }) });
-        assert.equal(r.status, 400, `${name}: ${r.text}`);
+        assert.equal(r.status, 200, `${name}: ${r.text}`);
         assert.equal((r.json as { error: { code: number } }).error.code, -32601);
         assert.ok(!r.text.includes("requestState"), "no sealed state reaches a legacy client");
       }
@@ -100,7 +100,7 @@ void describe("WO §1.2 an input_required result on the legacy era is refused cl
     const s = await start();
     try {
       const r = await raw(s.t, { headers: legacyHeaders({ "mcp-protocol-version": "2025-11-25" }), body: JSON.stringify({ jsonrpc: "2.0", id: 8, method: "tools/call", params: { name: "ask_big", arguments: {} } }) });
-      assert.equal(r.status, 400);
+      assert.equal(r.status, 200);
       assert.equal((r.json as { error: { code: number } }).error.code, -32601);
       assert.ok(r.text.length < 500, `body ${String(r.text.length)} bytes`);
     } finally {

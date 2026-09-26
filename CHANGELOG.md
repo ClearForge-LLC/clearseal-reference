@@ -32,6 +32,14 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
   `x-mcp-header` handling, HMAC-sealed MRTR `requestState`, and a refuse-all verifier seam.
   `packages/core/src/transport/SPEC-MAP.md` maps it to the specification.
 
+### Changed
+
+- **CSR-WO-1005b:** the HTTP status of an error is now era-dependent. On `2025-11-25`, a JSON-RPC
+  error answering a well-formed request goes back at `200` with the error object unchanged, as that
+  era's page and its client (the official SDK, which loses the code and `data` at any non-`2xx`)
+  expect. HTTP-level refusals and the whole `2026-07-28` era are unchanged. SPEC-MAP gains the ST
+  rows, an era column and LG-9.
+
 ### Fixed
 
 - **CSR-WO-1005a:** two corrections to the transport, from the `-0101` spike's findings.
@@ -51,6 +59,12 @@ Every dependency is pinned exactly and named here with its reason.
   run if one is). Writing a complete 2020-12 validator would be the larger risk. Its tree is 5
   packages (`punycode`, `safe-regex2`, `ret`, `validator`), plus `commander`, an optional
   dependency used only by its command line.
+
+- `@modelcontextprotocol/sdk` (**dev only**, `@clearseal/core`, CSR-WO-1005b): the official SDK's
+  client, driven against the transport by `packages/core/test/sdk-client/` to prove what a
+  `2025-11-25` client receives. Pinned at 1.30.1, the version `-0100` measured. It is imported by that
+  test alone; no source file imports it and no runtime dependency names it (`eras.test.ts`). The
+  tree already carried it for `spikes/0100-protocol`, so the lockfile gains no package.
 
 - `typescript`: the compiler and type checker for the core and the root scripts. Kept on 6.0.x,
   within `typescript-eslint`'s supported range.

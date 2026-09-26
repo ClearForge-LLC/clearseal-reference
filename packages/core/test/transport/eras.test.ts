@@ -1,5 +1,5 @@
 // The served revisions, measured (WO §1.13, §3.5); the legacy exchange (§1.7, §3.4); /health and
-// the RFC 9728 document (§1.12); the refuse-all default (§1.11); no SDK anywhere (§1.15).
+// the RFC 9728 document (§1.12); the refuse-all default (§1.11); no SDK in any package's source or runtime dependencies (§1.15).
 
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -123,19 +123,36 @@ void describe("WO §1.11: the shipped verifier refuses everything", () => {
   });
 });
 
-void describe("WO §1.15: no SDK import anywhere in packages/", () => {
-  void it("no file under packages/ imports @modelcontextprotocol/sdk, and no package depends on it", () => {
-    const root = fileURLToPath(new URL("../../../", import.meta.url));
-    const offenders: string[] = [];
-    const walk = (dir: string): void => {
-      for (const entry of readdirSync(dir)) {
-        if (entry === "node_modules" || entry === "dist") continue;
-        const p = join(dir, entry);
-        if (statSync(p).isDirectory()) walk(p);
-        else if (/\.(ts|mts|cts|js|mjs|cjs|json)$/.test(entry) && readFileSync(p, "utf8").includes("@modelcontextprotocol/sdk") && !p.endsWith("eras.test.ts")) offenders.push(p);
+void describe("WO §1.15: no SDK import in any package's source, and no runtime dependency on it", () => {
+  // CSR-WO-1005b §1.5 admits the official SDK as a test-only dev dependency of @clearseal/core, so
+  // that its client can be measured against the transport. Everything else stands: no file under
+  // packages/ names it except that one test and this one, and no package depends on it at runtime.
+  const SDK = "@modelcontextprotocol/sdk";
+  const root = fileURLToPath(new URL("../../../", import.meta.url));
+  const allowedTests = [join(root, "core", "test", "transport", "eras.test.ts"), join(root, "core", "test", "sdk-client", "sdk-client.test.ts")];
+  const manifestsNaming: string[] = [];
+  const offenders: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir)) {
+      if (entry === "node_modules" || entry === "dist") continue;
+      const p = join(dir, entry);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.(ts|mts|cts|js|mjs|cjs|json)$/.test(entry) && readFileSync(p, "utf8").includes(SDK)) {
+        if (entry === "package.json") manifestsNaming.push(p);
+        else if (!allowedTests.includes(p)) offenders.push(p);
       }
-    };
-    walk(root);
+    }
+  };
+  walk(root);
+
+  void it("no file under packages/ imports it, except the SDK-client test", () => {
     assert.deepEqual(offenders, []);
+  });
+
+  void it("no package depends on it at runtime: the one manifest naming it is core's, as an exact devDependency", () => {
+    assert.deepEqual(manifestsNaming, [join(root, "core", "package.json")]);
+    const pkg = JSON.parse(readFileSync(join(root, "core", "package.json"), "utf8")) as Record<string, Record<string, string> | undefined>;
+    for (const field of ["dependencies", "peerDependencies", "optionalDependencies", "bundleDependencies", "bundledDependencies"]) assert.equal(pkg[field]?.[SDK], undefined, field);
+    assert.match(pkg["devDependencies"]?.[SDK] ?? "", /^\d+\.\d+\.\d+$/, "pinned exactly");
   });
 });
