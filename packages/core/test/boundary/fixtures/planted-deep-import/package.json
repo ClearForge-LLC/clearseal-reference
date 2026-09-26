@@ -1,0 +1,7 @@
+{
+  "name": "@clearseal-fixture/planted-deep-import",
+  "private": true,
+  "type": "module",
+  "exports": { ".": { "default": "./src/index.ts" } },
+  "clearseal": { "exports": { "start": "deploy-scaffold", "verifier": "deploy-scaffold" } }
+}

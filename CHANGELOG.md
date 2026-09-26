@@ -41,6 +41,17 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     `EXEC_TOOLS_FORBIDDEN` is on, which is the default.
   - `tools/call` runs every handler inside a per-call cage and refuses an undeclared reach.
   - A reusable reach harness for editions.
+- **CSR-WO-1004:** the teaching edition's skeleton, and the supply-boundary test.
+  - `packages/teaching`, a thin edition that depends on `@clearseal/core` through its package entry
+    only. It exports tool definitions, its manifest path, a configuration schema and a `start()`
+    scaffold, each declared by kind in its `package.json`.
+  - `notes.read`: `read_only`, `untrusted_input_facing`, contained to the notes root, and reading
+    through its cage only. It is pinned in the committed `pins/teaching.json`, with a drift test.
+  - The supply-boundary test in the core's suite holds every edition under `packages/` to the
+    enumerated kinds, and reads their source for imports outside the core's entry and for controls
+    built at home. Three planted editions show it red.
+  - `packages/teaching/test/p1-exit.test.ts` runs every P1 exit-gate clause, each against a real
+    teaching node or as the core suite that proves it.
 - **CSR-WO-1003:** the resource server's token verifier, AS-agnostic.
   - `packages/core/src/auth/CHECKS.md` lists every check, from RFC 8725, RFC 6750, RFC 9728 and
     the MCP authorization page, each with its negative test.

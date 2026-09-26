@@ -16,3 +16,4 @@ coverage/
 .vscode/
 .idea/
 *.swp
+packages/core/test/boundary/.planted/
