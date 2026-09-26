@@ -113,6 +113,28 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
 
 ### Fixed
 
+- **CSR-WO-1006:** three core corrections from the `-1004` adversarial pass.
+  - Admitted tools are immutable (N2). Each tool the pinned registry holds is frozen at
+    construction: the object, its definition, the schema and its parameter headers. `list()` and
+    `get()` hand out those same frozen objects, and `list()`'s array is frozen too. Nothing that
+    holds the registry can change what `tools/list` serves, or which handler and validator a call
+    runs.
+  - The cage opens regular files only, and never waits (N4). A directory, FIFO, socket or device
+    inside a declared root is a recorded containment refusal naming its type. POSIX opens carry
+    `O_NONBLOCK`, and the descriptor is `fstat`-ed after the open, so one swapped in after the
+    check is refused too. A write open with no reader (`ENXIO`) is also a refusal. Before this, a
+    FIFO held a worker and a concurrency slot past the handler timeout.
+  - On Windows the cage resolves links. `resolveReal` uses `realpathSync.native`, which follows
+    symlinks and junctions, and the leaf link check applies there too. A symlink or junction
+    planted in a root is refused. Spellings of a root (case, drive letter, `\\?\`, 8.3 names)
+    resolve to one canonical form, measured on `windows-latest`. The check-then-open race on
+    Windows remains the edition OS cage's job. The reach harness uses the cage's own root
+    comparison.
+  - From the adversarial pass: a path whose real path cannot be resolved for any reason but absence
+    (a link into a real path longer than `PATH_MAX`, a loop) matches no root. Before, a write open
+    through it truncated a file outside the root before the refusal. A directory or FIFO swapped in
+    and refused by the open itself (`EISDIR`, or `EEXIST` under `O_EXCL`) is a recorded refusal. On
+    Windows a reserved device name in the path is refused as a device.
 - **CSR-WO-1003a:** auth corrections from the `-1003` review and red-team.
   - An issuer outage (the key set unreachable, no valid cache) answers `503` with `Retry-After` and
     no challenge, not `401 invalid_token`, so a correct client keeps its token. The verdict carries
