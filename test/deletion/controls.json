@@ -188,6 +188,21 @@
       "stub": "stubs/exec-domain-refused.patch"
     },
     {
+      "id": "exec-tools-forbidden",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "every arbitrary_exec definition is refused while EXEC_TOOLS_FORBIDDEN is on (N7)",
+      "touches": [
+        "packages/core/src/pinning/registry.ts"
+      ],
+      "tests": [
+        "packages/core/test/containment/construction.test.ts"
+      ],
+      "mustFail": [
+        "arbitrary_exec is refused a domain, and refused outright under the default flag (N7)"
+      ],
+      "stub": "stubs/exec-tools-forbidden.patch"
+    },
+    {
       "id": "cage-undeclared-reach",
       "section8": "Reach harness",
       "control": "the RecordingCage refuses an fs reach outside every declared root",
@@ -282,6 +297,21 @@
       "stub": "stubs/cage-facade.patch"
     },
     {
+      "id": "discover-versions",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "server/discover answers exactly the recorded protocol pair",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/eras.test.ts"
+      ],
+      "mustFail": [
+        "WO §1.13 VR-1 DS-2: server/discover answers supportedVersions = the architecture's set"
+      ],
+      "stub": "stubs/discover-versions.patch"
+    },
+    {
       "id": "origin-check",
       "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
       "control": "a request whose Origin is not allowed is refused 403",
@@ -329,6 +359,52 @@
       "stub": "stubs/body-cap.patch"
     },
     {
+      "id": "concurrency-cap",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "a request past maxInFlight is refused 503 with Retry-After",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "concurrency overflow → 503 with Retry-After; the held calls complete"
+      ],
+      "stub": "stubs/concurrency-cap.patch"
+    },
+    {
+      "id": "handler-timeout",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "a handler past handlerTimeoutMs is ended at the configured deadline (the stub stretches it 30-fold: deleting it outright hangs the test, which is correctly not an assertion)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/limits.test.ts"
+      ],
+      "mustFail": [
+        "a handler that never returns is ended by the timeout, its signal is aborted, and the slot is released"
+      ],
+      "stub": "stubs/handler-timeout.patch"
+    },
+    {
+      "id": "mirrored-param-headers",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "an Mcp-Param-* header that is missing or disagrees with the body is refused 400 -32020",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/x-mcp-header.test.ts"
+      ],
+      "mustFail": [
+        "SH-35 value in the body but header missing → 400 -32020",
+        "SH-35 header does not match the body → 400 -32020, and the message never carries either value"
+      ],
+      "stub": "stubs/mirrored-param-headers.patch"
+    },
+    {
       "id": "running-config-frozen",
       "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
       "control": "the running transport config is a deep-frozen snapshot (CSR-WO-1006a §1.2)",
@@ -360,6 +436,55 @@
       "stub": "stubs/schema-closed.patch"
     },
     {
+      "id": "external-ref-refused",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "an inputSchema $ref or $dynamicRef outside its own document is refused at registration",
+      "touches": [
+        "packages/core/src/transport/registry.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/schema.test.ts"
+      ],
+      "mustFail": [
+        "root https $ref: refused, and no network call was attempted",
+        "external $dynamicRef: refused, and no network call was attempted"
+      ],
+      "stub": "stubs/external-ref-refused.patch"
+    },
+    {
+      "id": "output-cap",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "a result over maxResultBytes is not sent",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts",
+        "packages/core/test/transport/limits.test.ts"
+      ],
+      "mustFail": [
+        "oversize result → 500 -32603, result not sent",
+        "a result at the cap is sent; one byte over is not"
+      ],
+      "stub": "stubs/output-cap.patch"
+    },
+    {
+      "id": "verdict-gate",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "the transport dispatches only on the verifier's ok verdict; a missing or failed token is refused 401",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "AU-2 missing bearer → 401 with a resource_metadata challenge",
+        "AU-2 wrong bearer → 401 with error=invalid_token"
+      ],
+      "stub": "stubs/verdict-gate.patch"
+    },
+    {
       "id": "missing-token-challenge",
       "section8": "401 + protected-resource metadata; audience-bound verify",
       "control": "an unauthenticated request gets 401 with WWW-Authenticate naming the protected-resource metadata",
@@ -389,6 +514,54 @@
         "C3 aud missing → invalid_token / aud"
       ],
       "stub": "stubs/audience-check.patch"
+    },
+    {
+      "id": "issuer-check",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "a token from another issuer is refused (C2)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "C2 iss another issuer → invalid_token / iss",
+        "C2 iss missing → invalid_token / iss"
+      ],
+      "stub": "stubs/issuer-check.patch"
+    },
+    {
+      "id": "expiry-check",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "an expired token is refused (C4: exp is compared with the clock, less the skew)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "C4 exp 90 s ago (skew 60) → invalid_token / exp"
+      ],
+      "stub": "stubs/expiry-check.patch"
+    },
+    {
+      "id": "algorithm-check",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "alg none, HS*, and algorithms off the allow-list are refused (H6)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "H6 alg none, unsigned → invalid_token / alg",
+        "H6 WO §5.1: HS256 keyed with the issuer's own public key → invalid_token / alg",
+        "H6 alg PS256, not on the allow-list → invalid_token / alg"
+      ],
+      "stub": "stubs/algorithm-check.patch"
     },
     {
       "id": "signature-check",

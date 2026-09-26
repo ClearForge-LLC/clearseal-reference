@@ -1,0 +1,11 @@
+--- a/packages/core/src/pinning/registry.ts
++++ b/packages/core/src/pinning/registry.ts
+@@ -96,7 +96,7 @@
+       const { capability_class: capabilityClass, containment_domain: pinnedDomain } = tool.capability;
+       // N7: a shell cannot be caged by a list, and the reference ships no exec tool at all.
+       if (capabilityClass === "arbitrary_exec" && pinnedDomain !== null) throw new ContainmentConstructionError(tool.name, "arbitrary_exec is refused a containment domain (N7)");
+-      if (capabilityClass === "arbitrary_exec" && execForbidden) throw new ContainmentConstructionError(tool.name, "arbitrary_exec is refused while EXEC_TOOLS_FORBIDDEN is on (N7)");
++      if (capabilityClass === "arbitrary_exec" && execForbidden && pinnedDomain !== pinnedDomain) throw new ContainmentConstructionError(tool.name, "arbitrary_exec is refused while EXEC_TOOLS_FORBIDDEN is on (N7)");
+       let domain: Domain;
+       try {
+         domain = parseDomain(pinnedDomain);

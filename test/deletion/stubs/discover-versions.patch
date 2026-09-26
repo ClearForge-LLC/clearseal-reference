@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -193,7 +193,7 @@
+       case "server/discover":
+         return {
+           resultType: "complete",
+-          supportedVersions: [...SUPPORTED_VERSIONS],
++          supportedVersions: [...SUPPORTED_VERSIONS, "2024-11-05"],
+           capabilities: { tools: {} },
+           instructions: ctx.config.instructions,
+           ttlMs: ctx.config.discoverTtlMs,

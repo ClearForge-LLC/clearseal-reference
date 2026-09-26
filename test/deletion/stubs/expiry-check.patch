@@ -1,0 +1,11 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -161,7 +161,7 @@
+     if (!audOk) return fail("aud");
+     const now = this.#now() / 1000;
+     const exp = payload["exp"]; // C4
+-    if (typeof exp !== "number" || !Number.isFinite(exp) || !(now - this.#skewS < exp)) return fail("exp");
++    if (typeof exp !== "number" || !Number.isFinite(exp)) return fail("exp");
+     // C4a: the lifetime horizon. The issuer sets the lifetime; this bounds it, and needs no iat.
+     if (exp > now + this.#skewS + this.#maxLifetimeS) return fail("exp-horizon");
+     const nbf = payload["nbf"]; // C5

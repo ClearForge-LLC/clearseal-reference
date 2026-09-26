@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/registry.ts
++++ b/packages/core/src/transport/registry.ts
+@@ -98,7 +98,7 @@
+     for (const key of ["$ref", "$dynamicRef"]) {
+       if (!Object.hasOwn(node, key)) continue;
+       const value = node[key];
+-      if (typeof value !== "string" || !value.startsWith("#")) throw new RegistrationError(`inputSchema has a ${key} outside its own document; external references are never dereferenced`);
++      if (typeof value !== "string") throw new RegistrationError(`inputSchema has a ${key} outside its own document; external references are never dereferenced`);
+     }
+   });
+ }

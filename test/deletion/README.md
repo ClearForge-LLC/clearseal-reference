@@ -14,8 +14,15 @@ runs as the `control-deletion` CI job on every push and pull request.
   row; regenerate the stub against the changed control so that it still deletes that control.
 - **A named test that stops going red is a finding.** Either the control no longer works as its row
   says, or the test no longer tests it. Neither is fixed by removing the name.
-- **A stub touches only the files its row lists under `touches`,** never a `*.test.ts` file, a file
-  of its own row's tests, or anything under `test/deletion/`. The runner refuses one that does.
+- **A stub touches only the files its row lists under `touches`,** and those must be a package's
+  source (`packages/*/src/**`) or one of the runner's named test-code controls (the
+  supply-boundary checker). Never a `*.test.ts` file, a file of its own row's tests, or anything
+  under `test/deletion/`. The runner reads what a stub changed from `git status` in the copy after
+  applying it, not from the patch's headers, and refuses one that strays.
+- **RED proves the named assertions flipped, not that the control is gone.** A stub that trips the
+  same assertion some other way (a changed message, a control made to crash) would also read RED.
+  That the stub deletes exactly the control on its row is what the review of the stub is for: read
+  it against the row's `control` line.
 - **Name a test only if it discriminates.** It must pass on the unpatched tree, and fail by
   assertion under the stub, not by a crash, a timeout or a skip. The runner checks both.
 

@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -294,7 +294,7 @@
+     if (verdict.error !== undefined) header["WWW-Authenticate"] = `${header["WWW-Authenticate"] ?? ""}, error="${verdict.error}"`;
+     // RFC 6750: a malformed request is 400, a missing or failed token 401; both carry the challenge.
+     if (verdict.error === "invalid_request") throw audited(new Refusal(400, INVALID_REQUEST, "Bad Request", undefined, header));
+-    throw audited(new Refusal(401, INVALID_REQUEST, "Unauthorized", undefined, header));
++    return { id: "anonymous" };
+   };
+ 
+   /** A refusal sent before the pipeline's try block: audited here, then sent with no body. */
