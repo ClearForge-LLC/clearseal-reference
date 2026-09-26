@@ -90,7 +90,7 @@ void describe("the probe's local half (WO §3.2, §3.3, §3.4, §5.1)", () => {
     assert.match(text("mrtr: retry with accept but approve:false"), /^REFUSED via mrtr/);
     assert.equal(ex("mrtr: client does NOT declare elicitation").status, 400);
     assert.equal(ex("mrtr: state from one action replayed").status, 400);
-    assert.equal(ex("legacy mrtr call").status, 500);
+    assert.deepEqual([ex("legacy mrtr call").status, (ex("legacy mrtr call").response as { error?: { code?: number } }).error?.code], [400, -32601]);
     assert.match(text("task (modern)"), /^NOT OFFERED/);
     assert.equal(ex("tasks/get").status, 404);
     assert.match(text("grant: issue (modern)"), /^PENDING via grant/);

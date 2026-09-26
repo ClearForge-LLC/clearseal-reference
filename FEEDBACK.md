@@ -1,174 +1,153 @@
-# FEEDBACK: CSR-WO-0101 (spike: which in-flight approval transports the real client honours)
+# FEEDBACK: CSR-WO-1005a (a pool that closes, and a clean refusal for MRTR under the legacy era)
 
-Branch `wo/CSR-WO-0101`, cut from `main` at `72893ac`, which has `-1005` merged, so the spike runs
-on `packages/core/src/transport`. **Spike: I built the harness, measured the local half, and
-stopped.** The server never left loopback in my hands, and nothing here says how it gets exposed.
+Branch `wo/CSR-WO-1005a`, cut from `main` at `b95d9e2`; `spikes/0101-approval` is on the base.
 Parked as one unmerged pull request. Built on Node v24.21.0.
 
-Per the WO's 2026-09-25 rewrite and the kickoff, **no SDK anywhere**: the WO's "SDK half" is
-this "local half", measured on the core's own transport.
+It contains two repairs, each with a red-proof, and one list. Every commit carries the role
+identity, and `leak-gate --tree` and `--history` were clean before every push (checked by exit
+code).
 
-## The two-part table
-
-**Local half** (measured by the builder, `node spikes/0101-approval/probe.ts`, a scripted raw
-HTTP client on loopback):
-
-| Transport | Era | Carried locally? | Client behaviour (scripted) | Latency | Completed? | Notes |
-|---|---|---|---|---|---|---|
-| (a) MRTR-carried elicitation | `2026-07-28` | **yes** | `input_required` with an `elicitation/create` form request and a sealed `requestState`; the retry carries `inputResponses` plus the echoed state | 63 ms + 2 ms (two round trips; human time excluded) | **yes** (accept) | **Every answer here was produced by the script itself, with no human** (see the opinion) |
-| (a) MRTR: decline | `2026-07-28` | yes | decline, and accept with `approve:false`, both → `REFUSED via mrtr` (`isError`) | 1 ms | refused, as it should be | **The same sealed state re-presented with accept → APPROVED**: the state is not single-use, so a decline is not final (finding B1) |
-| (a) MRTR without the elicitation capability | `2026-07-28` | **no** | `400`, `-32021`, `requiredCapabilities: {elicitation: {}}`: the core refuses before the tool asks | 1 ms | no | A state replayed for another action → `400 -32602`. Principal binding cannot be exercised with one static principal |
-| (a) MRTR-carried elicitation | `2025-11-25` | **no** | `500 -32603`, "The tool needs input, which the legacy revision cannot carry" | 1 ms | no | `2025-11-25` has no MRTR; its elicitation is a server→client request on SSE, which the core does not send. **If the hosted client speaks `2025-11-25`, path (a) cannot work on this core** |
-| (b) Tasks extension | both | **not offered** | The tool returns `NOT OFFERED …` (`isError`); `tasks/get` → `404 -32601` | 1 ms | n/a | Implementable from its text (`ext-tasks` schema v2 at `6c0997f` defines `tasks/get`/`update`/`cancel`), but **not on the core transport as merged** (see below) |
-| (c) Out-of-band grant | `2026-07-28` | **yes** | `PENDING via grant` (no code in the reply); the code appears only in the server log; redeem → `APPROVED via grant` | 1 ms + 1 ms (two calls) | **yes**; second use → refused | It is plain tool results, with no protocol feature needed |
-| (c) Grant refusals | `2026-07-28` | yes | wrong action → `REFUSED … not for this call`; after TTL → `REFUSED … the code is expired`; reuse → `REFUSED … unknown or already used` | — | refused, as it should be | 0 grants live after the run |
-| (c) Out-of-band grant | `2025-11-25` | **yes** | issue and redeem both work | 3 ms + 3 ms | **yes** | Works on both eras: it needs only `tools/call` |
-
-**Client half** (for the operator, blank; `spikes/0101-approval/OPERATOR-PROTOCOL.md` §5 has
-the full setup table as well):
-
-| Transport | Carried by the client? | Client behaviour | Latency | Completed? | Notes |
-|---|---|---|---|---|---|
-| (a) MRTR: approve | | | | | |
-| (a) MRTR: decline | | | | | |
-| (a) MRTR: cancel | | | | | |
-| (b) Tasks extension | | | | n/a | |
-| (c) grant: issue and redeem | | | | | |
-| (c) grant: second redemption | | | | | |
-| Protocol revision the client used | | | | | |
-
-**Why Tasks is not offered.** Offering it needs three changes to `packages/core`, which this WO
-protects:
-1. `server/discover` returns fixed capabilities (`{tools: {}}`), so the extension cannot be
-   advertised.
-2. The core refuses a `resultType` other than `complete` or `input_required` (`500`, "unknown
-   result type").
-3. `tasks/get`, `tasks/update` and `tasks/cancel` are not routed (`404 -32601`).
-
-This is a "not offered", not a flag-and-stop. The kickoff says to record it that way when the path
-cannot be implemented here.
-
-## Raw messages (from `probe.ts`; `requestState` truncated, codes masked)
-
-```
-no bearer          → 401 {"jsonrpc":"2.0","error":{"code":-32600,"message":"Unauthorized"}}
-wrong bearer       → 401 {"jsonrpc":"2.0","error":{"code":-32600,"message":"Unauthorized"}}
-
-mrtr first call    → {"resultType":"input_required","inputRequests":{"approval":{"method":"elicitation/create","params":{"mode":"form",
-                      "message":"Approve this action? rotate the demo key","requestedSchema":{"type":"object","properties":{"approve":
-                      {"type":"boolean","title":"Approve"}},"required":["approve"]}}}},"requestState":"<base64url payload>.<HMAC tag>"}
-mrtr retry+accept  → "APPROVED via mrtr (elicitation in an input_required round trip): \"rotate the demo key\". Waited 3 ms.
-                      Raw answer: {\"action\":\"accept\",\"content\":{\"approve\":true}}"
-mrtr decline       → "REFUSED via mrtr: \"delete the demo file\" was not approved. Waited 2 ms. Raw answer: {\"action\":\"decline\"}"  isError
-same state, accept → "APPROVED via mrtr … \"delete the demo file\". Waited 5 ms."        ← B1: the state is reusable
-no elicitation cap → 400 {"code":-32021,"message":"The request needs a client capability that was not declared","data":{"requiredCapabilities":{"elicitation":{}}}}
-legacy mrtr        → 500 {"code":-32603,"message":"The tool needs input, which the legacy revision cannot carry"}
-
-task               → "NOT OFFERED: the Tasks extension … is implementable from its text, but not on the core transport as merged …"  isError
-tasks/get          → 404 {"code":-32601,"message":"Method not found"}
-
-grant issue        → "PENDING via grant: a one-time code for \"restart the demo\" was issued out of band (not in this reply). …"
-server log         → [approval-spike] GRANT issued: code XXXXX-XXXXX for approve_via_grant action="restart the demo"; expires in 1.5 s; single use
-grant redeem       → "APPROVED via grant: \"restart the demo\". Redeemed 1 ms after it was issued."
-same code again    → "REFUSED via grant: the code is unknown or already used."   isError
-after the TTL      → "REFUSED via grant: the code is expired."                     isError
-```
-
-The probe uses a 1.5 s grant TTL so that expiry runs in seconds; the server's default is 120 s. A
-real 150 s run with the default TTL is under §5.4 below.
-
-## Opinion (builder's; the architect rules)
-
-**Only (c) passes the channel-separation rule in architecture §5 *Approval binding*.**
-- **(a), MRTR elicitation, cannot meet it on any client.** The token holder both receives the input
-  request and answers it, and the server cannot tell a human's answer from the client's. The probe
-  approved every MRTR call itself in 1–5 ms, with no human present.
-  - At best, (a) is the prior's lower tier, "a human is present", and only if the hosted client
-    provably shows the prompt to a human. The operator's `NO PROMPT SEEN` and `Waited N ms` cells
-    measure exactly that.
-  - Even then, B1 means a decline is not final until `-2001` makes the state single-use.
-  - It is also unreachable if the hosted client speaks `2025-11-25`.
-- **(c), the out-of-band grant, works on both eras with no client support at all.** Its channel is
-  separate only if the notifier delivers where the calling principal cannot read. The log stands in
-  for that here, and C2 shows why that is not good enough for `elevated`.
-- **(b) is not offered.** Offering it needs three core changes, for a path the prior says to use
-  "only if the hosted client uses it".
-
-## Adversarial pass (fresh subagent, WO §5)
-
-I re-ran B1 and D1 myself before adopting them.
-
-| # | Finding | Severity | Status |
-|---|---|---|---|
-| C1 | **MRTR approval needs no human.** A script holding the bearer answers its own elicitation: `APPROVED … "wipe the production database". Waited 1 ms` | channel separation | **Recorded, for `-2001`.** It is expected by construction. The protocol now records `Waited N ms` and `NO PROMPT SEEN` |
-| B1 | **One sealed `requestState` gives unlimited approvals, even after a decline.** Replaying it gave REFUSED, then APPROVED, then APPROVED. Re-asking reseals it with a fresh expiry, so approval age is not bounded by the 10-minute state TTL (49 min measured with an injected clock) | binding gap | **Recorded, for `-2001`.** It needs a single-use nonce consumed on the first answer, and `askedAt` enforced as a deadline. The probe now measures it (the table's decline row) |
-| B2 | **The harness cannot tell which connection redeems a grant.** Issued on one connection, redeemed on another → APPROVED; issued modern, redeemed legacy → APPROVED. No approver is recorded, and the grant's `nonce` is never checked | binding gap | **Recorded, as the WO expected.** With a stateless transport and one static principal there is nothing to bind to. `-2001` must record the approver and bind to a real principal |
-| C2 | **The "out-of-band" code is readable by a caller on the same host.** A process that spawned the server read the code from its stderr and redeemed it | channel separation | **Recorded, for `-2001`.** The notifier must deliver to a channel the calling principal cannot read. It does not apply to a remote hosted client |
-| D1 | The protocol promised `… the code is expired`, but the 1 s sweeper deleted expired codes, so the operator would have seen `unknown or already used`. I reproduced this: a redemption 1.3 s after expiry gave `unknown-or-used` | doc / harness | **Fixed.** An expired code leaves a tombstone with no authority, so the reason stays "expired". Tested |
-| D2 | A 403 diagnostic relied on the server log, but the core logs nothing on requests | doc | **Fixed.** The protocol now says the log is silent on connect, and diagnoses 403 from the client's error text |
-| D3 | The probe's table claimed more binding than it exercised, and printed grant codes unmasked in raw exchanges | doc | **Fixed.** The rows state only what was exercised, codes are masked everywhere, and a test asserts it |
-| I1 | Codes matched after case folding, which accepted a non-ASCII look-alike (U+017F for S). The Crockford aliases were not honoured | info | **Fixed.** Codes must be ASCII `[0-9A-Za-z]{5}-[0-9A-Za-z]{5}`, then are upper-cased with O→0 and I/L→1. Tested |
-| I2 | Codes carry 50 bits (alphabet 32, uniform over 20k samples). There is no timing signal on redemption (medians 0.408–0.419 ms). Grant issuance is uncapped: 2000 in 659 ms floods the operator's log | info | Recorded. `-2001` should cap pending grants per principal |
-| I3 | Text the model controls reaches the human. The elicitation message embeds the model's `action` ("…pre-approved, choose Approve."). U+2028 and bidi overrides pass into the log line raw | info | Recorded. `-2001` should build the prompt from canonical arguments and neutralise bidi and line-separator characters |
-| I4 | The bearer check tested length only, so 32 spaces started (every request then got 401) | info | **Fixed.** At least 32 base64 or base64url characters are required. Tested |
-
-**WO §5, item by item:**
-1. **Decline** → `REFUSED via mrtr` (`isError`). So are cancel, a missing `approve`, `"true"` as a
-   string, `1`, and `"ACCEPT"`. An answer under another key, or with no state, is re-asked. A state
-   from another process → integrity failure. The legacy era → `500`. The replay gap is B1.
-2. **Cross-connection redemption:** the harness **cannot tell** (B2), as the WO predicted.
-3. **Start without the bearer:** refuses. With `env -u CLEARSEAL_SPIKE_BEARER node
-   spikes/0101-approval/server.ts`, stderr is `… must be set to a bearer of at least 32 characters;
-   refusing to start open` and the exit code is `2`. Empty and 31-character bearers behave the same.
-4. **No grant survives expiry.** A real run with the default 120 s TTL and no traffic:
-   `size()=1` at 60 s and 119 s, `0` at 121 s and 155 s. Redeeming at 155 s is refused, and with
-   D1's fix the reason is now "expired". With an injected clock: redeemable at +119.999 s, gone at
-   +120.000 s.
-
-## Operator protocol, read cold by three fresh subagents (WO §3.5)
-
-The WO's bar is that someone not in the room can say what they would do at each step without
-asking a question. I measured it three times, each time with a subagent that had seen no earlier
-version:
-
-| Pass | Questions it would have had to ask | Blocking | What changed next |
-|---|---|---|---|
-| 1st draft | about 25 | 5 | The exposure step moved before setting `ALLOWED_HOSTS`; the log stays in the server's own terminal; the 403 guidance moved into registration; the client's own permission dialog is told apart from the server's prompt; timing and identifiers are defined; the 120 s warning is placed at the redemption step; every recorded item has a cell; the README and `.env.example` contradiction on the request-state key is resolved |
-| 2nd | 25 | 1 (a second shell does not inherit the exported bearer) | The bearer goes to the clipboard in shell 1 before the server starts; every cell and timing is defined per row; the hosted-client conversation, which holds codes, is deleted at the stop |
-| 3rd | 11 | **0** | All 11 minor points were then closed: Node checked in shell 1, the PR commit, a bearer-token field, non-403 errors, "Completed?" for refusal rows, stalled rows, a too-slow redemption, skipped optional rows, when Done stops, default ports, and macOS `lsof` |
-
-All three passes confirmed that the protocol never says how the server is exposed and never leads
-to an identifier being written down. The final text was not re-read by a fourth subagent after the
-last small edits.
-
-## Standard entries
-
-**Gates line**
+## Gates line
 
 | Gate | Result |
 |---|---|
-| `npm run check` | exit 0 on v24.21.0: core 135, spike 0102 69, spike 0101 8 tests |
-| Tests pinned to the probe | `test/approval.test.ts` runs the probe and asserts every row it states, including the B1 measurement and the masking of codes |
-| Leak gate | `--tree` and `--history` clean before every push, checked by exit code |
+| `npm run check` | exit 0 on v24.21.0: core **141** tests (10 files; +6 in `corrections.test.ts`), spike 0102 69, spike 0101 8 |
+| CI | both runners, on the pull request |
+| Protected surfaces | the steering documents, `LICENSE`, `NOTICE`, `scripts/**`, `.github/**` and the governance files diff **empty**. Under `packages/core/src` only three files changed: `server.ts` (server lifecycle), `dispatch.ts` (the result-mapping path), and `SPEC-MAP.md` (the line WO §1.2 requires). `packages/core/test` only grew: a new `corrections.test.ts`, and `helpers.ts` has additions only (`git diff` shows no removed line). `spikes/**` has **one** changed line, by the architect's ruling (D-1) |
 | Credentials | pushes over the repository's write deploy key. A short-lived token was minted **only** to open this pull request, kept in a mode-0600 scratch file for that call, and **deleted** straight after |
-| Protected surfaces | the steering documents, `LICENSE`, `NOTICE`, `packages/**`, `scripts/**`, `.github/**` and `spikes/0100-protocol/**` diff **empty** against `main`. Changed outside the spike: the root `package.json` (workspace entry and test glob), `package-lock.json`, and `.env.example` (names only) |
-| Exposure | none. Every server in this work bound 127.0.0.1, including the subagents' (they checked `ss -ltnp` afterwards) |
 
-**What did not work, and why**
-- **The first spike tests hung for 60 s after passing.** `startSpike` created its validation pool
-  before a start-refusal check, and an unclosed pool keeps the process alive.
-  - Fixed by moving every check ahead of resource creation.
-  - **A finding for the core:** a `ValidationPool` that is never closed keeps a process alive past
-    a 10 s timeout, despite `unref()` (measured with a two-line script). The core is protected here.
-- **My first `pkill` pattern matched its own shell and killed it.** I no longer use `pkill` with
-  patterns.
-- **The operator protocol took three drafts** (table above), and the first cold reader would have
-  been blocked five times.
+## Deviation
 
-**What was deliberately not built**
-- **No `ApprovalBackend`, no notifier, no single-use MRTR state, and no approver record.** These are
-  `-2001`'s; B1, B2, C1 and C2 are the input for it.
-- **No Tasks implementation.** It needs core changes, recorded above.
-- **The server was never exposed, never registered anywhere, and the operator half was not run.**
-- **No OAuth.** The static bearer is a spike device, and the README's first line says the harness is
-  never to be left running.
+| # | Deviation | Ruling |
+|---|---|---|
+| D-1 | `spikes/0101-approval/test/approval.test.ts:93` changed from `assert.equal(ex("legacy mrtr call").status, 500)` to `assert.deepEqual([status, error.code], [400, -32601])`. `spikes/**` is protected (WO §2), and the spike's test pinned the exact defect this WO repairs. That fired WO §7's flag-and-stop, so the work stopped and asked | **Ruled by the architect:** change that single assertion to the corrected shape, asserting the status **and** the code. "A spike's test tracks the core it runs on; a protected surface exists to stop scope creep, not to preserve a recorded defect." Nothing else under `spikes/**` changed |
+
+## Paste 1: the handle count (WO §3.2)
+
+The test `corrections.test.ts`, "after close(), the process's active handles return to the
+baseline within two seconds", printed:
+
+```
+HANDLES baseline=["PipeWrap","PipeWrap"] (2)  while serving=["MessagePort","MessagePort","PipeWrap","PipeWrap","SimpleShutdownWrap","TCPServerWrap","TCPSocketWrap"] (7)  after close()=["PipeWrap","PipeWrap"] (2) in 3 ms
+```
+
+**Before `close()`: 7 handles. After: 2, equal to the baseline, 3 ms later.**
+
+**The root cause, measured:** `unref()` releases the `Worker`, but each worker's `MessagePort`
+stays active until the worker exits:
+
+```
+before: []   after new ValidationPool: ["MessagePort"]   after use: ["MessagePort"]   after pool.close(): []
+```
+
+**The repair:**
+- `TransportOptions.validationPool`: once handed over, the transport owns the pool.
+- `close()` closes the server and its connections, then awaits `pool.close()`, which awaits every
+  worker's `terminate()`. So `close()` resolves only after the workers have exited.
+- A transport that fails to start closes the pool too, both on a listen error and on a
+  configuration error (adversarial F2 below).
+
+## Paste 2: the legacy-era MRTR refusal (WO §3.3)
+
+```
+LEGACY-MRTR status=400 type=application/json body={"jsonrpc":"2.0","id":7,"error":{"code":-32601,"message":"This tool needs a multi round-trip request, which protocol revision 2025-11-25 cannot carry; use 2026-07-28","data":{"requires":"2026-07-28"}}}
+```
+
+- **Status:** 400, `application/json`, `-32601`, with `data.requires`. The tool name is logged at
+  the audit seam as `legacy-input-required`.
+- **Before this WO:** `500 -32603 "The tool needs input, which the legacy revision cannot carry"`.
+- **SPEC-MAP line:** LG-8 (and MR-1 now says "never on the legacy era").
+- **The era refusal wins over the result cap** (WO §5.2): a legacy call to `ask_big`, whose input
+  request is 400 KB, gets the same 400 in a 203-byte body, and nothing of the result is sent.
+- **It covers state-only results too:** a legacy call to `ask_other` or `approve_target` (no
+  `inputRequests`, only `state`) gets the same refusal, and no sealed state reaches the legacy
+  client (adversarial F1).
+
+**The code choice, recorded as WO §1.2 asks.** The `2025-11-25` schema defines only the standard
+codes plus `-32042` (`URL_ELICITATION_REQUIRED`, which is URL-elicitation-specific, and which
+`2026-07-28` forbids emitting). There is nothing closer in the schema, so the code is `-32601`:
+- JSON-RPC defines it as "the method does not exist / **is not available**";
+- `2025-11-25` itself mandates it for the same situation: a tool that needs an interaction mode
+  the request does not use (`basic/utilities/tasks`, "`taskSupport` is `"required"` … Servers
+  **MUST** return a `-32601`").
+
+## Red-proofs (N5)
+
+These ran in a scratch copy of `packages/core`, running `corrections.test.ts`:
+
+```
+=== 1: close() no longer closes the pool
+HANDLES … after close()=["MessagePort","MessagePort","PipeWrap","PipeWrap"] (4) in 2014 ms
+  ✖ after close(), the process's active handles return to the baseline within two seconds
+✖ test/transport/corrections.test.ts (59961 ms)   ← and the file then hangs: the unclosed pool keeps the process alive
+
+=== 2a: the old line restored (Refusal(500, INTERNAL_ERROR, …))
+LEGACY-MRTR status=500 … "code":-32603 …
+  ✖ LG-8 legacy tools/call to an MRTR tool → 400, application/json, -32601, …
+  ✖ WO §5.2 an oversized input_required on the legacy era: the era refusal wins …
+
+=== 2b: the era check removed entirely
+LEGACY-MRTR status=400 … "code":-32021 … "requiredCapabilities":{"elicitation":{}}   ← a modern-only code served to a legacy client
+  ✖ LG-8 … ✖ WO §5.2 …
+  (state-only tools fall through to 200 input_required with a sealed requestState; caught by the F1 test)
+
+=== F1 mutant: the era check only when inputRequests is present
+  ✖ LG-8 a state-only input_required (no inputRequests) on the legacy era is refused the same way   (actual 200, expected 400)
+
+=== F2 mutant: the pool not closed on a configuration error
+  ✖ a transport refused at configuration closes the pool it was handed   ← and the file hangs 60 s
+```
+
+With the era check removed, the result is **not** "the 500 returns", as the WO's N5 wording
+supposes. Instead the legacy client gets a modern-only `-32021`, or a `200 input_required` with a
+sealed state. Both are red.
+
+## The Tasks extension: three core changes, recorded not built (WO §1.3)
+
+Measured by `-0101` on the core as merged; the text is `ext-tasks` schema v2:
+1. **`server/discover` capabilities must be configurable**, so the server can advertise
+   `extensions: { "io.modelcontextprotocol/tasks": {} }`. Today they are fixed at `{ tools: {} }`
+   in `dispatch.ts`.
+2. **A tool result with `resultType: "task"`** (`CreateTaskResult`: `taskId`, status,
+   `pollIntervalMs`) must pass the result-mapping path. Today `shapeResult` refuses any
+   `resultType` other than `complete` and `input_required` with `500`.
+3. **The methods `tasks/get`, `tasks/update` and `tasks/cancel` must be routed** to a task store on
+   the modern era. Today they are `404 -32601`.
+
+## Adversarial pass (fresh subagent, WO §5)
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| F1 | The tests pinned the legacy refusal only for tools with `inputRequests`. A mutant checking the era only when `inputRequests` is present passed the whole suite (138/138) and served `200 input_required` with a sealed state to a legacy client | medium | **Fixed:** a state-only test, red-proofed |
+| F2 | A `startTransport` refused by `resolveConfig`, which runs before `listen`, leaked the handed-over pool. The process stayed alive until it was killed | low–medium | **Fixed:** configuration errors close the pool too. Tested and red-proofed |
+| F3 | Ownership is opt-in: `validationPool` is optional, and a caller who creates a pool but does not hand it over has the old defect. The conformance fixture server does exactly that (it survives only because it calls `process.exit`). One pool shared by two transports fails closed (500 after the first closes) | design | **Recorded.** Making the field required, or having the transport create the pool, is an API change beyond this WO |
+| F4 | A protected surface changed (`spikes/**`), and `helpers.ts` changed existing lines | process | The spike line was flagged, stopped on, and ruled (D-1). `helpers.ts` has been made additions-only |
+| F5 | The §5.1 test ("close while a validation is in flight") passes even without the repair | info | Recorded. It shows the in-flight request fails cleanly and `close()` resolves. The evidence for the repair is the handle test and its red-proof |
+| F6 | On the legacy era, the refusal also covers a handler bug (an empty or unknown input request) and a missing request-state key. The modern era answers those with `500`; the legacy era says "use 2026-07-28". The handler has already run by then, as before this WO | low | Recorded. It is never a 500 on legacy (N4 holds), but the message can be untrue in those cases |
+| F7 | **At HTTP 400, the official SDK client (1.30.1, `2025-11-25`) loses the JSON-RPC error.** It throws `StreamableHTTPError(code=400)` with no `data` and fires `onerror`. **At 200 with the same body it raises `McpError(-32601, data)`.** The `2025-11-25` transport page prescribes an HTTP error status only for rejected notifications and responses | **decision-needed** | Not changed here. The 400 follows the standing D-6 rule (client-correctable → 400), and F7 applies to **every** legacy-era JSON-RPC error (unknown tool, invalid arguments, …), not just this one. Proposed: legacy-era JSON-RPC errors for requests at 200. That is a ruling on D-6 |
+
+**Held (run by the subagent):**
+- `close()` resolved in about 3 ms, and the process exited cleanly (rc 0, no unhandled
+  rejections), in each case: while a validation or a `hold` handler was in flight, closed twice,
+  and closed concurrently.
+- Handles were at the baseline immediately after `await close()`, with no polling.
+- On `EADDRINUSE`, the pool was closed and the process exited.
+- Modern-era behaviour for every shared tool is byte-identical to `origin/main`. Only the legacy
+  rows changed (500/-32603 → 400/-32601).
+
+## What did not work, and why
+
+- **My first F1 red-proof "failed" only on syntax.** The `\&\&` inside single quotes stayed
+  literal, so the mutant file did not parse. Rerun with a plain `&&`, it goes red on the new test.
+- **My first `helpers.ts` change rewrote the helper's `close()`,** which is more than "tests may
+  grow". It was reverted to an additions-only diff: one `validationPool: pool` line and the
+  `ask_big` fixture.
+
+## What was deliberately not built
+
+- **The Tasks extension** (the three changes are listed above).
+- **Any approval logic or `requestState` semantics** (`-2001`).
+- **Any change to a limit or default.**
+- **Changes to the spike's harness beyond D-1's single line.**
+- **A change of HTTP status for legacy errors** (F7 waits for a ruling).
+- **Making `validationPool` required** (F3).

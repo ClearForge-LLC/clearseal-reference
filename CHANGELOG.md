@@ -32,6 +32,14 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
   `x-mcp-header` handling, HMAC-sealed MRTR `requestState`, and a refuse-all verifier seam.
   `packages/core/src/transport/SPEC-MAP.md` maps it to the specification.
 
+### Fixed
+
+- **CSR-WO-1005a:** two corrections to the transport, from the `-0101` spike's findings.
+  - The server now owns the validation pool and closes it on `close()`. An open pool kept the
+    process alive despite `unref()`.
+  - A handler's `input_required` result on a `2025-11-25` request is now refused with
+    `400`/`-32601`, instead of a `500`.
+
 ### Dependencies
 
 Every dependency is pinned exactly and named here with its reason.
