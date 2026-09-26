@@ -1,10 +1,16 @@
-// CSR-WO-1006 §1.3, measure first: what realpathSync.native and lstat report for links planted
-// inside a root, on this platform. Prints MEASURE lines; the assertions come after the measurement.
+// CSR-WO-1006 §1.3: the cage resolves links on Windows too. Measured first, on every runner: what
+// realpathSync.native and lstat report for links planted inside a root, and for spellings of the
+// root (MEASURE lines). Then the operation that matters: a real open through the cage of each
+// planted link, and of each spelling, asserted refused or admitted, on every platform (LINKS lines).
 
+import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { lstatSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { after, it } from "node:test";
+
+import { ContainmentRefusal, RecordingCage } from "../../src/containment/cage.ts";
+import { parseDomain } from "../../src/containment/domain.ts";
 
 const ID = randomBytes(6).toString("hex");
 const ROOT = `/tmp/clearseal-links-${ID}/root`;
@@ -12,6 +18,7 @@ const OUTSIDE = `/tmp/clearseal-links-${ID}/outside`;
 
 after(() => {
   rmSync(`/tmp/clearseal-links-${ID}`, { recursive: true, force: true });
+  console.log(lines.join("\n"));
 });
 
 const tryIt = (f: () => unknown): string => {
@@ -52,5 +59,40 @@ void it("measures links, junctions, drive letters and case on this platform", ()
   for (const v of variants) measure(`realpath.native variant ${v}`, tryIt(() => realpathSync.native(v)));
   measure("tmpdir", tmpdir());
   measure("realpath.native tmpdir", tryIt(() => realpathSync.native(tmpdir())));
-  console.log(lines.join("\n"));
+});
+
+/** A real open through a cage whose one root is ROOT: "opened", "refused", or the open's error. */
+async function openThroughCage(path: string): Promise<string> {
+  const cage = new RecordingCage(parseDomain([`fs:${ROOT}`]));
+  try {
+    const h = await cage.open(path, "r");
+    const text = await h.readFile("utf8");
+    await h.close();
+    return `opened ${JSON.stringify(text)}`;
+  } catch (err) {
+    return err instanceof ContainmentRefusal ? "refused" : `error ${String((err as { code?: string }).code)}`;
+  }
+}
+
+void it("a planted symlink, directory symlink, junction or UNC link is refused, and spellings of the root compare canonically", async () => {
+  const win = process.platform === "win32";
+  const cases: [string, string, (outcome: string) => boolean][] = [
+    ["a regular file inside the root", `${ROOT}/inside.txt`, (o) => o === 'opened "inside\\n"'],
+    ["a file symlink at the leaf, to outside", `${ROOT}/file-link.txt`, (o) => o === "refused"],
+    ["a file through a directory symlink, to outside", `${ROOT}/dir-link/secret.txt`, (o) => o === "refused"],
+    ["a junction at the leaf", `${ROOT}/junction`, (o) => o === "refused"],
+    ["a file through a junction, to outside", `${ROOT}/junction/secret.txt`, (o) => o === "refused"],
+    ["a symlink to a UNC path", `${ROOT}/unc-link.txt`, (o) => o === "refused"],
+    ["a dangling symlink", `${ROOT}/dangling.txt`, (o) => o === "refused"],
+    ["the root spelled upper-case", `${ROOT.toUpperCase()}/INSIDE.TXT`, (o) => (win ? o === 'opened "inside\\n"' : o === "refused")],
+    ["the root's last component in another case", `${ROOT.replace(/root$/, "ROOT")}/inside.txt`, (o) => (win ? o === 'opened "inside\\n"' : o === "refused")],
+    ["a drive-letter spelling", `${/^[a-zA-Z]:/.exec(process.cwd())?.[0] ?? "C:"}${ROOT}/inside.txt`, (o) => o === "refused"],
+    ["a \\\\?\\ prefix", `\\\\?\\D:${ROOT.replaceAll("/", "\\")}\\inside.txt`, (o) => o === "refused"],
+    ["backslash separators", `${ROOT.replaceAll("/", "\\")}\\inside.txt`, (o) => o === "refused"],
+  ];
+  for (const [label, path, ok] of cases) {
+    const outcome = await openThroughCage(path);
+    lines.push(`LINKS platform=${process.platform} ${label} (${path}): ${outcome}`);
+    assert.ok(ok(outcome), `${label}: ${outcome}`);
+  }
 });
