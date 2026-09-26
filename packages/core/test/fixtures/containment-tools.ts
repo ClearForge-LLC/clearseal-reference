@@ -74,7 +74,7 @@ export const leaky: PinnableTool = {
 /** What the pin CLI reads: the three well-behaved tools only. */
 export const definitions: PinnableTool[] = [readNote, fetchStatus, pureSum];
 
-const asHarness = (t: PinnableTool, corpus: Record<string, unknown>[]): HarnessTool => ({ name: t.name, domain: t.capability.containment_domain, handler: t.handler, corpus });
+const asHarness = (t: PinnableTool, corpus: Record<string, unknown>[]): HarnessTool => ({ name: t.name, domain: t.capability.containment_domain, capabilityClass: t.capability.capability_class, handler: t.handler, corpus });
 
 /** Each tool with its own fixture inputs, for the reach harness. */
 export const harnessTools: HarnessTool[] = [

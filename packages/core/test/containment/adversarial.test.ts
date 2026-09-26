@@ -101,7 +101,7 @@ void describe("the domain parser (A11 #12, #17; A14)", () => {
   });
 });
 
-const harnessTool = (name: string, domain: string[] | null, handler: PinnableTool["handler"]) => ({ name, domain, handler, corpus: [{}] });
+const harnessTool = (name: string, domain: string[] | null, handler: PinnableTool["handler"]) => ({ name, domain, capabilityClass: "read_only", handler, corpus: [{}] });
 
 void describe("the harness (A4–A7, A11 #33 #37 #38)", () => {
   void it("A4: a direct read through an in-root symlink to outside fails the tool", async () => {
@@ -189,7 +189,7 @@ void describe("the harness (A4–A7, A11 #33 #37 #38)", () => {
   });
 
   void it("A12: targets come from the registry's frozen domains, and a registered tool without a corpus is an error", () => {
-    const registry = pinForTest(definitions, compileSchema, DEFAULT_LIMITS, true, { cageFor: (d) => recordingCageFactory(d, effects) });
+    const registry = pinForTest(definitions, compileSchema, DEFAULT_LIMITS, true, { cageFor: (d, p) => recordingCageFactory(d, p, effects) });
     const targets = registry.reachTargets({ read_note: [{ file: "today.txt" }], fetch_status: [{}], pure_sum: [{ a: 1, b: 2 }] });
     assert.deepEqual(targets.map((t) => [t.name, t.domain]), [["fetch_status", ["host:status.example.invalid:443"]], ["pure_sum", null], ["read_note", ["fs:/tmp/clearseal-reach/notes"]]]);
     assert.throws(() => registry.reachTargets({ read_note: [{}] }), /has no harness corpus/);
@@ -226,8 +226,8 @@ void describe("dispatch (A8, A9, A11 #25 #26)", () => {
         await (await ctx.cage.open(`${IN}/ok.txt`)).close();
         return { content: [] };
       }),
-    ], compileSchema, DEFAULT_LIMITS, true, { cageFor: (d) => {
-      const make = recordingCageFactory(d, effects);
+    ], compileSchema, DEFAULT_LIMITS, true, { cageFor: (d, p) => {
+      const make = recordingCageFactory(d, p, effects);
       return (onRefused) => {
         built++;
         return make(onRefused);
