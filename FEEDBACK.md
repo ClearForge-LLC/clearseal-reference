@@ -20,7 +20,7 @@ divergence. These are the rulings and requests, and what was done:
 **After the round:**
 - **Vectors:** 69. The oracle diff on the commit exits 0: `wrote packages/core/test/vectors/canonical-v1.json: 69 vectors`.
 - **`npm run check`:** exits 0. Core has **296** tests; the spikes have 69 and 8; `test:subset` has 4.
-- **Property suite:** re-run, with 0 mismatches in every property; 8,700 inputs this run.
+- **Property suite:** re-run, with 0 mismatches in every property; 8,400 inputs this run.
 - **Red-proof matrix:** re-run against the commit. The script now refuses to start on a dirty tree. Every mutant goes red except the equivalent accessor mutant, as before.
 - **Leak gate:** `--tree` and `--history` exited 0 before the push.
 
@@ -115,7 +115,7 @@ A8 absent/null/empty: 1500 inputs (1200 canonical, 300 refused), 0 mismatches
 A9-A10 manifests: 900 inputs (600 canonical, 300 refused), 0 mismatches
 ```
 
-That is **8,694 inputs per run**. The adversarial pass also ran its own sweep of about 240,000
+That is **8,394 inputs per run**. The adversarial pass also ran its own sweep of about 240,000
 requests (doubles by bit pattern, decimal forms, near-bound integers) and about 250 hand-made edge
 cases. There were 0 disagreements outside F1.
 
