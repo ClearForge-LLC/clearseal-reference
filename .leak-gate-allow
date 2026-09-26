@@ -1,0 +1,2 @@
+packages/core/test/vectors/*.json long-hex digests of committed public test inputs, not secrets
+docs/canonical-form.md long-hex digests of committed public test inputs, not secrets
