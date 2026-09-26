@@ -145,6 +145,20 @@ void describe("CSR-WO-1006 §1.2: regular files only, and the open never waits",
       ["regular → fifo, mode r (opens at once under O_NONBLOCK; the fstat refuses it)", "r", toFifo, "fifo"],
       ["regular → fifo, mode w (no reader: ENXIO under O_NONBLOCK)", "w", toFifo, "fifo"],
       ["regular → fifo, mode r+", "r+", toFifo, "fifo"],
+      ["regular → fifo, mode wx (O_EXCL: EEXIST, and a fifo now at the leaf)", "wx", toFifo, "fifo"],
+      ["regular → fifo, mode ax+ (O_EXCL: EEXIST)", "ax+", toFifo, "fifo"],
+      ["regular → directory, mode w (EISDIR)", "w", (p) => {
+        rmSync(p, { force: true });
+        mkdirSync(p);
+      }, "directory"],
+      ["regular → directory, mode a+ (EISDIR)", "a+", (p) => {
+        rmSync(p, { force: true });
+        mkdirSync(p);
+      }, "directory"],
+      ["regular → directory, mode wx (EEXIST)", "wx", (p) => {
+        rmSync(p, { force: true });
+        mkdirSync(p);
+      }, "directory"],
       ["regular → socket, mode r (ENXIO)", "r", async (p) => {
         rmSync(p, { force: true });
         const s = createServer();
@@ -160,7 +174,7 @@ void describe("CSR-WO-1006 §1.2: regular files only, and the open never waits",
       assert.equal(r.refused?.fileType, type, label);
       assert.ok(r.ms < 1_000, `${label}: ${String(r.ms)} ms`);
       evidence.push(row(label, r));
-      rmSync(target, { force: true });
+      rmSync(target, { recursive: true, force: true });
     }
   });
 

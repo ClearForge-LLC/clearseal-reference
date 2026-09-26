@@ -136,6 +136,15 @@ function linkAt(path: string): boolean {
   }
 }
 
+/** What sits at this path now, if it is something other than a regular file (a link included). */
+function nonRegularAt(path: string): FileType | undefined {
+  try {
+    return nonRegular(lstatOwn(path));
+  } catch {
+    return undefined;
+  }
+}
+
 /** What sits at this path now, for a refusal's record. */
 function typeAt(path: string): FileType {
   try {
@@ -309,9 +318,15 @@ export class RecordingCage implements Cage {
       if (noFollow && (code === "ELOOP" || code === "EMLINK" || (code === "EEXIST" && exclusive && linkAt(normalized ?? path)))) {
         this.#record({ kind: "fs", sink: path, mode, allowed: false });
       }
-      // ENXIO under O_NONBLOCK: a FIFO opened for writing with no reader, a socket, or a device with
-      // nothing behind it, swapped in after the check. Not a regular file, so a refusal.
-      if (code === "ENXIO") this.#record({ kind: "fs", sink: path, mode, allowed: false, fileType: typeAt(normalized ?? path) });
+      // Something that is not a regular file, swapped in after the check, and refused by the open
+      // itself rather than by the fstat below. ENXIO under O_NONBLOCK: a FIFO opened for writing with
+      // no reader, a socket, or a device with nothing behind it. EISDIR: a directory, in a write mode.
+      // EEXIST under O_EXCL is also the ordinary answer for an existing regular file, so it counts
+      // only when what now sits at the leaf is not one (a link there was recorded just above).
+      // Each is a refusal naming the type (CSR-WO-1006 adversarial P6-REC).
+      const leaf = normalized ?? path;
+      const swapped = code === "ENXIO" || code === "EISDIR" ? typeAt(leaf) : code === "EEXIST" && exclusive && !linkAt(leaf) ? nonRegularAt(leaf) : undefined;
+      if (swapped !== undefined) this.#record({ kind: "fs", sink: path, mode, allowed: false, fileType: swapped });
       throw err;
     }
     // The descriptor, not the name: a path swapped for a FIFO or a device between the lstat and the
