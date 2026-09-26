@@ -102,6 +102,21 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
 
 ### Fixed
 
+- **CSR-WO-1003a:** auth corrections from the `-1003` review and red-team.
+  - An issuer outage (the key set unreachable, no valid cache) answers `503` with `Retry-After` and
+    no challenge, not `401 invalid_token`, so a correct client keeps its token. The verdict carries
+    the distinction as a field.
+  - `AUTH_MAX_TOKEN_LIFETIME_S` (default 86400) bounds how far out `exp` may lie.
+  - `typ` accepts `JWT`, `at+jwt` and `application/at+jwt`, case-insensitive;
+    `AUTH_REQUIRE_AT_JWT=true` accepts the `at+jwt` spellings only.
+  - The default audit sink escapes line-separator and bidirectional-control characters.
+  - `AUTH_JWKS_CA_FILE` trusts a private-CA issuer for the key-set client only.
+  - An audience that differs from the resource URL is audited at start, and each JSON-RPC error
+    writes one `rpc-refused` line.
+  - From the adversarial pass: an unknown `kid` whose refetch fails during an outage is also a
+    `503`, and the failed refetch no longer spends the window. The sink also escapes DEL, the C1
+    controls and every format character. A logged method is bounded. A CA file allows no other PEM
+    armour and is read without blocking. Numeric settings are plain digits.
 - **CSR-WO-1002a:** two containment corrections from the `-1002` review.
   - A symlink swapped into a file's leaf after the cage's check, which the kernel refuses under
     `O_NOFOLLOW`, is now recorded and audited as a containment refusal instead of surfacing as a

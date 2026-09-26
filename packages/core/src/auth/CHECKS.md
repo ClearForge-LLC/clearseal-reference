@@ -27,7 +27,7 @@ Sources:
 | H7 | `crit` present is refused: no extension is understood | RFC 7515 *"crit" Header Parameter* | `invalid_token` | `crit` |
 | H8 | `jku`, `x5u`, `jwk` and `x5c` are ignored; only the configured JWKS URL is ever fetched | RFC 8725 *Validate All Cryptographic Operations* (key selection) | — | — |
 | H9 | `kid` is required: 1–128 characters of `[A-Za-z0-9._-]`. Anything else is refused without a fetch | RFC 8725 (key selection); WO §5.4 | `invalid_token` | `kid` |
-| H10 | `typ`, when present, is `JWT` or `at+jwt` | RFC 8725 *Use Explicit Typing* | `invalid_token` | `typ` |
+| H10 | `typ`, when present, is `JWT`, `at+jwt` or `application/at+jwt`, case-insensitive (RFC 7515 lets the `application/` prefix be omitted); nothing else, no whitespace, no parameters. With `AUTH_REQUIRE_AT_JWT=true`, only the two `at+jwt` spellings, and an absent `typ` is refused (RFC 9068) | RFC 8725 *Use Explicit Typing*; RFC 9068 | `invalid_token` | `typ` |
 
 ## Key and signature
 
@@ -45,6 +45,7 @@ Sources:
 | C2 | `iss` is string-equal to `AUTH_ISSUER` | RFC 8725 *Validate Issuer and Subject* | `invalid_token` | `iss` |
 | C3 | `aud` equals `AUTH_AUDIENCE`: as a string, or as a one-element array. A multi-audience array is refused | RFC 8725 *Use and Validate Audience*; MCP *Token Handling* (audience-bound) | `invalid_token` | `aud` |
 | C4 | `exp` is required, a number, and `now - skew < exp`. (`Number.isFinite` is a **(layer)**: the strict parser refuses a non-finite literal) | RFC 7519; RFC 8725 | `invalid_token` | `exp` |
+| C4a | `exp` is no further than `now + skew + AUTH_MAX_TOKEN_LIFETIME_S` (default 86400 s, 60 to 604800): the issuer sets the lifetime, this bounds it, and it needs no `iat` | CSR-WO-1003a; red-team F4 | `invalid_token` | `exp-horizon` |
 | C5 | `nbf`, when present, is a number and `nbf < now + skew` | RFC 7519 | `invalid_token` | `nbf` |
 | C6 | `iat`, when present, is a number and not later than `now + skew` | RFC 7519 | `invalid_token` | `iat` |
 | C7 | `sub` is required: a non-empty string of at most 256 UTF-16 code units. It is the principal's id, and nothing else in the token is trusted for identity | RFC 8725 *Validate Issuer and Subject*; architecture §5 *Authorization server* | `invalid_token` | `sub` |
@@ -58,7 +59,7 @@ Sources:
 | J1 | `AUTH_JWKS_URL` is `https:`; anything else refuses start | architecture §5 *Key-set fetching* | start refused | — |
 | J2 | The key set is cached for `AUTH_JWKS_TTL_S` (default 300 s, bounded 30 s to 86,400 s). A clock stepped backwards expires the cache rather than stretching it | same | — | — |
 | J3 | An unknown `kid` triggers **one** refetch per TTL window; a second unknown `kid` in the window answers from the cache. Concurrent lookups share one fetch. **The trade-off, stated:** anyone can spend the window with a forged unknown `kid`, so a genuinely new key can wait up to one TTL before it is fetched. Issuers publish a new key before signing with it, which covers this | same | `invalid_token` | `unknown-kid` |
-| J4 | A fetch failure with a valid (unexpired) cache serves the cache; with no valid cache, the token is refused. After a failure, no fetch for 10 s (`JWKS_FAILURE_COOLDOWN_MS`), so clients cannot set the rate at which a failing issuer is asked | same | `invalid_token` | `jwks-unavailable` |
+| J4 | A fetch failure with a valid (unexpired) cache serves the cache; with no valid cache, the token is refused **without a judgement on it**: the transport answers `503` with `Retry-After` (the remaining cooldown, at least 1 s) and no challenge, and audits `auth-unavailable`, so a correct client keeps its token (CSR-WO-1003a). The verdict carries this as its `unavailable` field. The same holds when the cache is valid but an unknown `kid`'s refetch does not land (the key may be a genuine new one): `503`, and the refetch window is not spent (adversarial A1). After a failure, no fetch for 10 s (`JWKS_FAILURE_COOLDOWN_MS`), so clients cannot set the rate at which a failing issuer is asked | same | `503`, `Retry-After` | `jwks-unavailable` |
 | J5 | A response over 64 KiB is refused while streaming, before parsing; more than 32 keys is refused; the body is strict UTF-8 and the JSON is parsed strictly | WO §1.3 | `invalid_token` | `jwks-unavailable` |
 | J6 | The whole fetch has a 3 s deadline (not an idle timeout, which a server dripping bytes never trips), and a redirect is not followed (`node:https` follows none) | WO §1.3 | `invalid_token` | `jwks-unavailable` |
 
@@ -70,6 +71,7 @@ Sources:
 | G2 | The RFC 9728 document is `{resource, authorization_servers: [AUTH_ISSUER], bearer_methods_supported: ["header"], scopes_supported: []}`, and `resource` comes from configuration, never from `Host` | RFC 9728; MCP *Protected Resource Metadata* |
 | G3 | Every `401` carries `WWW-Authenticate: Bearer resource_metadata="…"`, plus `error` when a token was presented and failed, and never a reason naming a key, claim value or check | RFC 6750; RFC 9728 *WWW-Authenticate Response* |
 | G4 | Every HTTP-level refusal the transport sends writes exactly one audit line: its event (`http-refused {status, reason}`, or the event's own line for `auth-refused`, `verifier-timeout`, `verifier-contract` and `transport-error`), a one-word reason (`duplicate-authorization` for H1), and the principal once it is known (red-team F1). JSON-RPC errors that dispatch returns for a well-formed request are not HTTP-level refusals: their status is the era's and their events are dispatch's own | CHECKS H1; red-team F1 |
+| G5 | At start: an `AUTH_JWKS_CA_FILE` that is not a regular file of PEM certificates (and nothing else) refuses start; when `AUTH_AUDIENCE` differs from the resource URL, one `auth-audience-differs` line names both and the node starts. The default audit sink escapes as `\uXXXX`, besides what JSON escapes, DEL, the C1 controls (U+0085 among them), U+2028, U+2029 and every format character (`\p{Cf}`: the bidirectional controls U+202A–U+202E and U+2066–U+2069, the marks, zero-width characters, the BOM); a custom sink gets the fields unchanged. A JSON-RPC error dispatch returns writes one `rpc-refused {code, method}` line with the principal, unless dispatch wrote a specific line for it; the method is logged only as a method-shaped name of at most 128 characters. A CA file may carry commentary between certificates, but no other PEM armour; it is opened once, without blocking, and read with a cap. The numeric settings are plain decimal digits | CSR-WO-1003a |
 
 ## The MCP authorization page, for a resource server
 

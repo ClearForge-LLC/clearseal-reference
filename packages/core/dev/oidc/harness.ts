@@ -89,7 +89,14 @@ const provider = new Provider(issuer, {
     },
   },
 });
-handler = provider.callback();
+const live = provider.callback();
+// --serve only: SIGUSR1 takes the authorization server down (every request 503) and back up, to
+// show the node's outage answer (CSR-WO-1003a §3.2).
+let down = false;
+handler = (req, res) => {
+  if (down) res.writeHead(503).end();
+  else live(req, res);
+};
 
 // 2. The node: the core's verifier, configured by issuer, key-set URL and audience only.
 const whoami: PinnableTool = {
@@ -103,7 +110,7 @@ const node = await startTransport({
   registry: pinForTest([whoami], compileSchema, DEFAULT_LIMITS),
   serverInfo: { name: "@clearseal/core", version: "0.0.0" },
   config: { port: mcpPort, resourceUrl: resource },
-  verifier: new JwtVerifier({ issuer, jwksUrl: `${issuer}/jwks`, audience: resource, jwksCa: cert.certPem }),
+  verifier: new JwtVerifier({ issuer, jwksUrl: `${issuer}/jwks`, audience: resource, jwksCa: cert.certPem, jwksTtlS: Number(process.env["AUTH_JWKS_TTL_S"] ?? "") || 300 }),
   audit: (event, fields) => {
     console.log(`[audit-seam] ${event} ${JSON.stringify(fields)}`);
   },
@@ -113,6 +120,10 @@ if (serve) {
   const dir = mkdtempSync(join(tmpdir(), "clearseal-dev-oidc-"));
   const caFile = join(dir, "issuer-cert.pem");
   writeFileSync(caFile, cert.certPem, { mode: 0o600 });
+  process.on("SIGUSR1", () => {
+    down = !down;
+    console.log(`authorization server ${down ? "DOWN" : "UP"}`);
+  });
   console.log(`NOT FOR DEPLOYMENT\nissuer   ${issuer}\ntoken    ${issuer}/token\nnode     ${resource}\ncacert   ${caFile}\nclient   ${CLIENT_ID}\nCtrl-C to stop.`);
 } else {
   // 3. One end-to-end call: a token from the provider, then tools/call with it.

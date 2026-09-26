@@ -318,7 +318,8 @@ void describe("the JWKS client (J1–J6, WO §3.4)", () => {
     assert.equal((await v.verify(bearer(issuer.mint(claims())))).ok, true);
     issuer.mode = "down";
     try {
-      assert.equal(why(await v.verify(bearer(issuer.mint(claims(), { header: { kid: "unknown-while-down" } })))), "unknown-kid");
+      // CSR-WO-1003a (adversarial A1): the kid may be a genuine new key, so a refetch that did not land is an outage.
+      assert.equal(why(await v.verify(bearer(issuer.mint(claims(), { header: { kid: "unknown-while-down" } })))), "jwks-unavailable");
       assert.equal((await v.verify(bearer(issuer.mint(claims())))).ok, true, "the cache survived the failed refetch");
     } finally {
       issuer.mode = "ok";

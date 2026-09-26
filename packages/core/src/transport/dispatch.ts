@@ -6,6 +6,8 @@ import { LEGACY_VERSION, MODERN_VERSION, SUPPORTED_VERSIONS } from "./config.ts"
 import { checkParamHeaders, decodeHeaderValue, mismatch, singleHeader } from "./headers.ts";
 import type { JsonValue } from "./json.ts";
 import {
+  AUDITED_REFUSALS,
+  audited,
   type Classified,
   HEADER_MISMATCH,
   INTERNAL_ERROR,
@@ -84,7 +86,7 @@ export async function dispatch(classified: Classified, ctx: DispatchContext): Pr
     const body = { jsonrpc: "2.0" as const, id: request.id, result };
     if (Buffer.byteLength(JSON.stringify(body)) > ctx.limits.maxResultBytes) {
       ctx.audit("result-over-cap", { method: request.method, limit: ctx.limits.maxResultBytes });
-      throw new Refusal(500, INTERNAL_ERROR, `The result exceeds ${String(ctx.limits.maxResultBytes)} bytes and was not sent`);
+      throw audited(new Refusal(500, INTERNAL_ERROR, `The result exceeds ${String(ctx.limits.maxResultBytes)} bytes and was not sent`));
     }
     return { kind: "result", body };
   } catch (err) {
@@ -108,7 +110,9 @@ const HTTP_LEVEL_CODES: ReadonlySet<number> = new Set([HEADER_MISMATCH]);
  *  with the error object unchanged. Only the status changes: nothing refused becomes accepted. */
 function statusForEra(era: Era | undefined, refusal: Refusal): Refusal {
   if (era !== LEGACY_VERSION || HTTP_LEVEL_CODES.has(refusal.code)) return refusal;
-  return new Refusal(200, refusal.code, refusal.message, refusal.data, { ...refusal.headers });
+  const mapped = new Refusal(200, refusal.code, refusal.message, refusal.data, { ...refusal.headers });
+  // The mapping changes the status only: an event already audited stays audited.
+  return AUDITED_REFUSALS.has(refusal) ? audited(mapped) : mapped;
 }
 
 function singleHeaderOrRefuse(headers: NodeJS.Dict<string[]>, name: string, display: string): { ok: true; value: string | undefined } | { ok: false; refusal: Refusal } {
@@ -254,10 +258,10 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
   } catch (err) {
     if (err instanceof ValidationTimeout) {
       ctx.audit("validation-timeout", { tool: name, limitMs: ctx.limits.validationTimeoutMs });
-      throw new Refusal(400, INVALID_PARAMS, "The arguments could not be validated within the time limit");
+      throw audited(new Refusal(400, INVALID_PARAMS, "The arguments could not be validated within the time limit"));
     }
     ctx.audit("validation-error", { tool: name });
-    throw new Refusal(500, INTERNAL_ERROR, "Internal error");
+    throw audited(new Refusal(500, INTERNAL_ERROR, "Internal error"));
   }
   if (!valid) throw new Refusal(400, INVALID_PARAMS, `Invalid arguments for tool ${name}`);
   const binding = { principal: ctx.principal.id, method: "tools/call", tool: name, args: argumentsDigest(args) };
@@ -309,7 +313,8 @@ async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, c
     const refused = reached().filter((r) => !r.allowed);
     if (refused.length === 0) return undefined;
     const kind = (refused[0] as Reach).kind;
-    return new Refusal(500, INTERNAL_ERROR, `The tool reached outside its containment domain (${REACH_KIND[kind]})`);
+    // Each refused reach already wrote its containment-refused line.
+    return audited(new Refusal(500, INTERNAL_ERROR, `The tool reached outside its containment domain (${REACH_KIND[kind]})`));
   };
   let result: ToolResult;
   try {
@@ -321,12 +326,12 @@ async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, c
       timeout.abort(new Error("handler timeout"));
       const disconnected = ctx.signal.aborted;
       ctx.audit(disconnected ? "client-disconnect" : "handler-timeout", { tool: tool.definition.name, limitMs: ctx.limits.handlerTimeoutMs });
-      throw new Refusal(500, INTERNAL_ERROR, disconnected ? "The client disconnected" : "The tool call timed out");
+      throw audited(new Refusal(500, INTERNAL_ERROR, disconnected ? "The client disconnected" : "The tool call timed out"));
     }
     // Whatever a handler throws, even a Refusal, becomes the same opaque error: its text and code
     // never reach the client (F12).
     ctx.audit("handler-error", { tool: tool.definition.name });
-    throw new Refusal(500, INTERNAL_ERROR, "The tool call failed");
+    throw audited(new Refusal(500, INTERNAL_ERROR, "The tool call failed"));
   } finally {
     clearTimeout(timer);
   }
@@ -348,7 +353,7 @@ function shapeResult(era: Era, binding: StateBinding, result: ToolResult, caps: 
       // a request does (statusForEra); the refusal's own 400 is its status on the modern mapping
       // (SPEC-MAP LG-8).
       ctx.audit("legacy-input-required", { tool: name });
-      throw new Refusal(400, METHOD_NOT_FOUND, `This tool needs a multi round-trip request, which protocol revision ${LEGACY_VERSION} cannot carry; use ${MODERN_VERSION}`, { requires: MODERN_VERSION });
+      throw audited(new Refusal(400, METHOD_NOT_FOUND, `This tool needs a multi round-trip request, which protocol revision ${LEGACY_VERSION} cannot carry; use ${MODERN_VERSION}`, { requires: MODERN_VERSION }));
     }
     const out: Record<string, unknown> = { resultType: "input_required" };
     if (result.inputRequests !== undefined) {
@@ -367,7 +372,7 @@ function shapeResult(era: Era, binding: StateBinding, result: ToolResult, caps: 
         out["requestState"] = sealState(ctx.requestStateKey, binding, result.state, ctx.now(), ctx.limits.requestStateTtlMs);
       } catch {
         ctx.audit("request-state-unsealable", { tool: name });
-        throw new Refusal(500, INTERNAL_ERROR, "The tool call failed");
+        throw audited(new Refusal(500, INTERNAL_ERROR, "The tool call failed"));
       }
     }
     if (out["inputRequests"] === undefined && out["requestState"] === undefined) throw new Refusal(500, INTERNAL_ERROR, "The tool returned an empty input request");

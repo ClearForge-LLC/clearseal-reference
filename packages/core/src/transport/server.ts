@@ -26,7 +26,7 @@ import type { AddressInfo } from "node:net";
 import { type Limits, resolveConfig, SUPPORTED_VERSIONS, type TransportConfig } from "./config.ts";
 import { dispatch, type DispatchContext } from "./dispatch.ts";
 import { JsonParseError, parseJsonStrict } from "./json.ts";
-import { classify, INTERNAL_ERROR, INVALID_REQUEST, PARSE_ERROR, Refusal, type RequestId } from "./jsonrpc.ts";
+import { AUDITED_REFUSALS, audited, classify, INTERNAL_ERROR, INVALID_REQUEST, PARSE_ERROR, Refusal, type RequestId } from "./jsonrpc.ts";
 import { PinnedRegistry, PinRefusedError } from "../pinning/registry.ts";
 import type { Principal, Verdict, Verifier } from "./verifier.ts";
 import { JwtVerifier, jwtVerifierFromEnv } from "../auth/verifier.ts";
@@ -96,7 +96,28 @@ function refuse(res: ServerResponse, refusal: Refusal, id?: RequestId): void {
 // JSON-RPC errors that dispatch returns for a well-formed request are not HTTP-level refusals here:
 // their status is the era's, and their audit events are dispatch's own.
 const REASONS = new WeakMap<Refusal, string>();
-const AUDITED = new WeakSet<Refusal>();
+
+/** Characters JSON leaves raw that break a line, drive a terminal or reorder what a reader sees:
+ *  DEL and the C1 controls (NEL, CSI, OSC among them), the line and paragraph separators, and every
+ *  format character (\p{Cf}: the bidirectional embeddings, overrides, isolates and marks, the
+ *  zero-width characters, the BOM). The WO's set is U+0085, U+2028, U+2029, U+202A–U+202E and
+ *  U+2066–U+2069; the rest came from the adversarial pass (A2). */
+const UNSAFE_IN_LOG = /[\u007f-\u009f\u2028\u2029\p{Cf}]/gu;
+
+/** The default audit sink's line (CSR-WO-1003a §1.4): JSON, with the characters above also escaped
+ *  as \uXXXX, so a principal or sink cannot split the line or disguise what it says. A custom sink
+ *  receives the fields unchanged; this is rendering, not a change to the values. */
+export function renderAuditLine(event: string, fields: Record<string, string | number>): string {
+  // Each UTF-16 unit of a match, so an astral format character is escaped as its surrogate pair.
+  const escape = (text: string): string => text.replace(UNSAFE_IN_LOG, (c) => c.split("").map((u) => `\\u${u.charCodeAt(0).toString(16).padStart(4, "0")}`).join(""));
+  return `[audit-seam] ${escape(JSON.stringify(event).slice(1, -1))} ${escape(JSON.stringify(fields))}`;
+}
+
+/** A request's method as the audit line may carry it: a method-shaped name of at most 128
+ *  characters, or a placeholder, so a client cannot write a megabyte into the log (A3). */
+function loggableMethod(method: string): string {
+  return /^[A-Za-z0-9_./-]{1,128}$/.test(method) ? method : "(not a method name)";
+}
 
 /** A refusal with its one-word audit reason. */
 function refusal(status: number, code: number, message: string, reason: string, data?: unknown, headers: Record<string, string> = {}): Refusal {
@@ -105,11 +126,6 @@ function refusal(status: number, code: number, message: string, reason: string, 
   return r;
 }
 
-/** A refusal whose event has already been audited under its own name. */
-function audited(r: Refusal): Refusal {
-  AUDITED.add(r);
-  return r;
-}
 
 /** Does the Accept header admit application/json (SH-7; narrower than the client MUST)? */
 function acceptsJson(accept: string | undefined): boolean {
@@ -193,7 +209,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
   }
   const { limits } = config;
   const now = options.now ?? Date.now;
-  const audit = options.audit ?? ((event, fields) => console.error(`[audit-seam] ${event} ${JSON.stringify(fields)}`));
+  const audit = options.audit ?? ((event, fields) => console.error(renderAuditLine(event, fields)));
 
   // CSR-WO-1001 §1.4: the pin gate's decision is read before anything binds. Only a pinned
   // registry is served; every refusal is logged once at the audit seam; under the strict default
@@ -222,6 +238,8 @@ export async function startTransport(options: TransportOptions): Promise<Running
     throw err;
   }
   const issuers: readonly string[] = verifier instanceof JwtVerifier ? [verifier.issuer] : config.authorizationServers;
+  // A legitimate configuration (an audience identifier rather than a URL), but said at start.
+  if (verifier instanceof JwtVerifier && verifier.audience !== config.resourceUrl) audit("auth-audience-differs", { audience: verifier.audience, resource: config.resourceUrl });
   let inFlight = 0;
   // Filled once the port is known (port 0 binds an ephemeral one).
   let allowedHosts: string[] = [];
@@ -255,6 +273,14 @@ export async function startTransport(options: TransportOptions): Promise<Running
       if (typeof id === "string" && id !== "") return verdict.principal;
       audit("verifier-contract", { reason: "ok without a principal" });
       throw audited(new Refusal(500, INTERNAL_ERROR, "Internal error"));
+    }
+    // The key set is unreachable: no judgement on the token. 503 with Retry-After, no challenge, so
+    // a correct client keeps its token and retries (CSR-WO-1003a §1.1).
+    if (verdict.unavailable !== undefined) {
+      const after = Number(verdict.unavailable.retryAfterS);
+      const retryAfter = String(Number.isFinite(after) ? Math.min(3600, Math.max(1, Math.ceil(after))) : 1);
+      audit("auth-unavailable", { reason: verdict.reason ?? "unavailable", retryAfterS: Number(retryAfter) });
+      throw audited(new Refusal(503, INTERNAL_ERROR, "Authentication is unavailable; retry later", undefined, { "Retry-After": retryAfter }));
     }
     audit("auth-refused", { reason: verdict.reason ?? "refused" });
     const header = challenge();
@@ -407,11 +433,15 @@ export async function startTransport(options: TransportOptions): Promise<Running
       };
       const outcome = await dispatch(classified, ctx);
       if (outcome.kind === "accepted") send(res, 202, undefined);
-      else if (outcome.kind === "refused") refuse(res, outcome.refusal, outcome.id);
+      else if (outcome.kind === "refused") {
+        // One line per JSON-RPC error, unless dispatch already wrote a specific one (§1.7).
+        if (!AUDITED_REFUSALS.has(outcome.refusal)) audit("rpc-refused", { code: outcome.refusal.code, method: loggableMethod(classified.message.method), principal: principal.id });
+        refuse(res, outcome.refusal, outcome.id);
+      }
       else send(res, 200, outcome.body);
     } catch (err) {
       if (err instanceof Refusal) {
-        if (!AUDITED.has(err)) audit("http-refused", { status: err.status, reason: REASONS.get(err) ?? "refused", ...(principalId === undefined ? {} : { principal: principalId }) });
+        if (!AUDITED_REFUSALS.has(err)) audit("http-refused", { status: err.status, reason: REASONS.get(err) ?? "refused", ...(principalId === undefined ? {} : { principal: principalId }) });
         refuse(res, err);
       } else {
         audit("transport-error", { reason: err instanceof Error ? err.name : "unknown", ...(principalId === undefined ? {} : { principal: principalId }) });
