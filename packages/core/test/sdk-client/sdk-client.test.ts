@@ -18,15 +18,19 @@ import { BEARER, start, type Started } from "../transport/helpers.ts";
 
 type Fetch = typeof fetch;
 
-/** Serves every JSON-RPC error body that arrives at 200 at `status` instead, byte for byte. */
-function errorsAt(status: number): Fetch {
-  return async (input, init) => {
+/** Serves every JSON-RPC error body that the transport sent at 200 at `status` instead, byte for
+ *  byte, and counts what it rewrote: a shim that rewrote nothing proves nothing. */
+function errorsAt(status: number): { fetch: Fetch; rewritten: string[] } {
+  const rewritten: string[] = [];
+  const shim: Fetch = async (input, init) => {
     const r = await fetch(input, init);
     if (r.status !== 200 || r.headers.get("content-type") !== "application/json") return r;
     const text = await r.text();
     const isError = (JSON.parse(text) as { error?: unknown }).error !== undefined;
+    if (isError) rewritten.push(text);
     return new Response(text, { status: isError ? status : 200, headers: r.headers });
   };
+  return { fetch: shim, rewritten };
 }
 
 interface Caught {
@@ -81,8 +85,11 @@ void describe("WO §1.5 the official SDK client against the legacy era (F7)", ()
     assert.deepEqual(onerror, [], "no transport error is raised");
   });
 
-  void it("ST-2 the same body at 400 (the mapping before CSR-WO-1005b): the SDK client loses the code and the data", async () => {
-    const { caught, onerror } = await callMrtrTool(s, errorsAt(400));
+  void it("ST-2 the transport's own 200 body, re-served at 400 (the status before CSR-WO-1005b): the SDK client loses the code and the data", async () => {
+    const shim = errorsAt(400);
+    const { caught, onerror } = await callMrtrTool(s, shim.fetch);
+    assert.equal(shim.rewritten.length, 1, "the transport served the error at 200, and exactly that body was re-served at 400");
+    assert.match(shim.rewritten[0] ?? "", /"code":-32601/);
     console.log(`SDK-CLIENT at 400: error=${caught.name} code=${String(caught.code)} data=${JSON.stringify(caught.data)} onerror=${JSON.stringify(onerror)} message=${JSON.stringify(caught.message)}`);
     assert.equal(caught.isHttpError, true, caught.name);
     assert.equal(caught.isMcpError, false);

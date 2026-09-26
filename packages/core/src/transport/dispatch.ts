@@ -92,9 +92,11 @@ export async function dispatch(classified: Classified, ctx: DispatchContext): Pr
   }
 }
 
-/** Refusals the legacy page itself puts at the HTTP layer: an invalid or unsupported
- *  `MCP-Protocol-Version` is a `400` (LG-4), and so is every header that disagrees with the body. */
-const HTTP_LEVEL_CODES: ReadonlySet<number> = new Set([HEADER_MISMATCH, UNSUPPORTED_PROTOCOL_VERSION]);
+/** Refusals that stay HTTP-level on the legacy era too. An invalid or unsupported
+ *  `MCP-Protocol-Version` (`-32022`, LG-4) is refused before the era is known, so it never reaches
+ *  this mapping. A header that disagrees with the body (`-32020`) stays a `400` by this server's
+ *  rule (CSR-WO-1005b §1.2), not the legacy page's: that page defines no mirrored headers. */
+const HTTP_LEVEL_CODES: ReadonlySet<number> = new Set([HEADER_MISMATCH]);
 
 /** The HTTP status of a JSON-RPC error that answers a well-formed request is era-dependent
  *  (architecture §5 *Protocol revision*, SPEC-MAP ST-*, CSR-WO-1005b). The `2026-07-28` page maps

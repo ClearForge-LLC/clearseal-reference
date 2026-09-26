@@ -48,6 +48,7 @@ const extraTools: Tool[] = [
   { name: "returns_no_content", description: "A complete result without content.", inputSchema: { type: "object" }, handler: badResults({}) },
   { name: "bad_input_kind", description: "An input request of no known kind.", inputSchema: { type: "object" }, handler: badResults({ resultType: "input_required", inputRequests: { x: { method: "no/such-request" } } }) },
   { name: "empty_input", description: "input_required with nothing in it.", inputSchema: { type: "object" }, handler: badResults({ resultType: "input_required" }) },
+  { name: "returns_bigint", description: "A result JSON cannot serialize.", inputSchema: { type: "object" }, handler: badResults({ content: [], structuredContent: { n: 1n } }) },
 ];
 
 interface Server {
@@ -145,6 +146,7 @@ const CASES: Case[] = [
   { error: "MCP-Protocol-Version missing (not initialize)", ...both([400, -32020]), build: (era) => { const r = rpc(era, "tools/list"); return { ...r, headers: without(r.headers, "mcp-protocol-version") }; } },
   { error: "MCP-Protocol-Version sent twice", ...both([400, -32020]), build: (era) => { const r = rpc(era, "tools/list"); return { ...r, headers: { ...r.headers, "mcp-protocol-version": [VERSION[era], VERSION[era]] } }; } },
   { error: "_meta protocol version disagrees with the header", ...both([400, -32020]), build: (era) => rpc(era, "tools/list", {}, { meta: { [PV]: era === "modern" ? VERSION.legacy : VERSION.modern } }) },
+  { error: "legacy initialize without the header, _meta naming another version", modern: null, legacy: [400, -32020], build: (era) => { const r = rpc(era, "initialize", { protocolVersion: VERSION.legacy, capabilities: {}, clientInfo: { name: "c", version: "0" } }, { meta: { [PV]: VERSION.modern } }); return { ...r, headers: without(r.headers, "mcp-protocol-version") }; } },
   { error: "Mcp-Method missing", modern: [400, -32020], legacy: null, build: (era) => { const r = rpc(era, "tools/list"); return { ...r, headers: without(r.headers, "mcp-method") }; } },
   { error: "Mcp-Method disagrees with the body", ...both([400, -32020]), build: (era) => rpc(era, "tools/list", {}, { headers: { "mcp-method": "tools/call" } }) },
   { error: "Mcp-Name disagrees with the body", ...both([400, -32020]), build: (era) => call(era, "echo", { text: "a" }, {}, { headers: { "mcp-name": "no_args" } }) },
@@ -167,6 +169,7 @@ const CASES: Case[] = [
   { error: "tool returned no result", ...both([500, -32603], 200), build: (era) => call(era, "returns_nothing") },
   { error: "tool returned an unknown resultType", ...both([500, -32603], 200), build: (era) => call(era, "returns_task") },
   { error: "tool returned no content", ...both([500, -32603], 200), build: (era) => call(era, "returns_no_content") },
+  { error: "result not serializable (ST-5: no id, so never 200)", ...both([500, -32603]), build: (era) => call(era, "returns_bigint") },
   { error: "input_required on the legacy era (LG-8)", modern: null, legacy: [200, -32601], build: (era) => call(era, "ask") },
   { error: "input request of an unknown kind", modern: [500, -32603], legacy: [200, -32601], build: (era) => call(era, "bad_input_kind") },
   { error: "input_required with nothing in it", modern: [500, -32603], legacy: [200, -32601], build: (era) => call(era, "empty_input") },

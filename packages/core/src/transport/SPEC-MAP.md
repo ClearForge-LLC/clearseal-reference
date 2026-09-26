@@ -185,13 +185,14 @@ the same annotation rules at registration (SH-27…SH-29).
 
 The status mapping is **era-dependent**. The rule lives in one place, `statusForEra` in
 `dispatch.ts`; every row is measured in both eras by `era-status.test.ts`, whose printed table is the
-evidence (61 rows).
+evidence (63 rows).
 
 | ID | Source | Rule | Disposition |
 |---|---|---|---|
-| ST-1 | SH #protocol-version-header: a mismatch "MUST reject the request with `400 Bad Request` and a `HeaderMismatch` JSON-RPC error"; an unsupported version "MUST respond with `400 Bad Request`"; an unimplemented method "MUST respond with `404 Not Found` and a JSON-RPC error with code `-32601`". SH #server-validation: `400` and `-32020` for a mirrored-header mismatch | The modern page maps specific refusals to `4xx` explicitly | **impl**: on `2026-07-28` every refusal keeps its own status (the table below). Unchanged by CSR-WO-1005b: its 61 modern-era bodies and statuses are byte-identical before and after |
+| ST-1 | SH #protocol-version-header: a mismatch "MUST reject the request with `400 Bad Request` and a `HeaderMismatch` JSON-RPC error"; an unsupported version "MUST respond with `400 Bad Request`"; an unimplemented method "MUST respond with `404 Not Found` and a JSON-RPC error with code `-32601`". SH #server-validation: `400` and `-32020` for a mirrored-header mismatch | The modern page maps specific refusals to `4xx` explicitly | **impl**: on `2026-07-28` every refusal keeps its own status (the table below). Unchanged by CSR-WO-1005b: the 59 rows with a modern cell have byte-identical bodies and statuses before and after (a one-off measurement, recorded in its FEEDBACK) |
 | ST-2 | LG-9 | A JSON-RPC error answering a well-formed legacy-era request is the request's one JSON object | **impl**: on `2025-11-25`, once the request parsed with an `id` and passed the version and mirrored-header gates, the error goes back at `200`, `application/json`, with the error object byte-identical to the modern era's. The official SDK client (1.30.1, a `2025-11-25` client) throws a bare `StreamableHTTPError` at any non-`2xx` and loses the code and `data`; at `200` it raises `McpError(code, data)` (`sdk-client.test.ts`) |
-| ST-3 | LG-9, LG-4, SH-2…SH-18 | HTTP-level refusals | **impl**: the same status in both eras: `401`/`403` (verifier, `Host`, `Origin`), `405`, `406`, `415`, `413`, `400` for a body that is not one well-formed JSON-RPC request (malformed, not UTF-8, duplicate key, over-depth, batch, response-shaped, `id: null`, a rejected notification), `400` for the version and mirrored-header gates (`-32022`, `-32020`), `503` for capacity and the verifier deadline, `500` without an `id` for a verifier contract breach |
+| ST-3 | LG-9, LG-4, SH-2…SH-18; SH-24…SH-38 for the mirrored headers, which the legacy page does not define (their `400` on the legacy era is this server's rule, CSR-WO-1005b §1.2) | HTTP-level refusals | **impl**: the same status in both eras: `401`/`403` (verifier, `Host`, `Origin`), `405`, `406`, `415`, `413`, `400` for a body that is not one well-formed JSON-RPC request (malformed, not UTF-8, duplicate key, over-depth, batch, response-shaped, `id: null`, a rejected notification), `400` for the version and mirrored-header gates (`-32022`, `-32020`), `503` for capacity and the verifier deadline, `500` without an `id` for a verifier contract breach. A legacy `initialize` sent without the header whose `_meta` names another version is the `-32020` gate too, so `400` |
+| ST-5 | (N4) | A handler result that cannot be serialized (a `BigInt`, a cycle, a throwing `toJSON`) | **out, recorded**: `500`, `-32603`, **no `id`**, in both eras, as before CSR-WO-1005b. It is thrown as a plain error by the result-size check, not as a refusal, so the server's last-resort handler answers it and no `200` can carry it. Turning it into a refusal with the `id` would be a new refusal, outside that WO's fence; it is a follow-up |
 | ST-4 | (N4) | Only the status changes | **impl**: nothing refused becomes accepted; code, message and `data` are unchanged |
 
 | Error | Code | `2026-07-28` | `2025-11-25` |
@@ -203,6 +204,7 @@ evidence (61 rows).
 | `input_required` on the legacy era (LG-8) | `-32601` | (a result) | `200` |
 | Modern-only MRTR refusals: undeclared capability `-32021`, `inputResponses` or `requestState` refused `-32602` | as named | `400` | (LG-8, or not read) |
 | Version and mirrored-header gates | `-32022` / `-32020` | `400` | `400` |
+| A result that cannot be serialized (ST-5) | `-32603`, no `id` | `500` | `500` |
 | Every HTTP-level refusal (ST-3) | as named | as named | the same |
 
 ## Limits (WO §1.10, architecture §5): all in this layer, all asserted

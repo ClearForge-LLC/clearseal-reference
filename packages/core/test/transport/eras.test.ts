@@ -137,7 +137,7 @@ void describe("WO §1.15: no SDK import in any package's source, and no runtime 
       if (entry === "node_modules" || entry === "dist") continue;
       const p = join(dir, entry);
       if (statSync(p).isDirectory()) walk(p);
-      else if (/\.(ts|mts|cts|js|mjs|cjs|json)$/.test(entry) && readFileSync(p, "utf8").includes(SDK)) {
+      else if (/\.(ts|mts|cts|tsx|js|mjs|cjs|jsx|json)$/.test(entry) && readFileSync(p, "utf8").includes(SDK)) {
         if (entry === "package.json") manifestsNaming.push(p);
         else if (!allowedTests.includes(p)) offenders.push(p);
       }
