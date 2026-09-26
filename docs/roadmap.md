@@ -143,7 +143,7 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   first manifest (`architecture.md` §5, *Manifest schema*).
 - `CSR-WO-1002` — (built, merged `e95048f` 2026-09-26) containment: `containment_domain` as a sink set or null, `arbitrary_exec` refused
   a domain at construction, the reach harness that records every declared sink a tool touches.
-- `CSR-WO-1002a` — containment corrections from the `-1002` review: a symlink leaf the kernel refuses
+- `CSR-WO-1002a` — (WO written 2026-09-26) containment corrections from the `-1002` review: a symlink leaf the kernel refuses
   under `O_NOFOLLOW` (`ELOOP`) is recorded and audited as a containment refusal rather than surfacing
   as a plain handler error; a `read_only` tool's cage admits read modes only (the class and the cage
   agree), each with its red-proof (`architecture.md` §5, *Containment matching*).
