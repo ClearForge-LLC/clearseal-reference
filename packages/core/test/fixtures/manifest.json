@@ -1,0 +1,68 @@
+{
+  "manifest_version": 1,
+  "canonical_form_version": 1,
+  "generated_at": "2026-09-26T04:55:20.431Z",
+  "tools": [
+    {
+      "name": "approve_target",
+      "tool_hash": "176b75696f649dce68f521a77dcc9512f0dbbe47880ac2c979a31dcb583d1c16"
+    },
+    {
+      "name": "ask",
+      "tool_hash": "72e77d034f0ff0011bfb27e351ac9304af8c885a986f3e511ece5f8a622cd213"
+    },
+    {
+      "name": "ask_big",
+      "tool_hash": "2835dbe2918d2f1086484e020e7c05b16962ca4bca0ddb6317ea489674708848"
+    },
+    {
+      "name": "ask_other",
+      "tool_hash": "629ece77ee52d5c41998c088f60c4e5508f5c496373db7cb791546e452fde671"
+    },
+    {
+      "name": "big",
+      "tool_hash": "830b5ba4fb0da36ac6a90583a200b876def7643763017b9f2cbe4024fde91575"
+    },
+    {
+      "name": "costly_schema",
+      "tool_hash": "30583da5d5ee593861ffd71a88b5d6e90215d89bef906b25168956621b077c96"
+    },
+    {
+      "name": "echo",
+      "tool_hash": "64ef141a74374128865ee135da9ebe9434d0833e8e44bfc5a79267fd389203a8"
+    },
+    {
+      "name": "hold",
+      "tool_hash": "13ad250bcec8313c9ee76d4ab7141f2964832a24a362548214723943dd07aa7d"
+    },
+    {
+      "name": "needs_sampling",
+      "tool_hash": "6daf8569b5761b8120d5814cc6f1b142d61f5135443723f7bd0e604020842bf8"
+    },
+    {
+      "name": "no_args",
+      "tool_hash": "b1007fbd83ac86955f34a1f54f9517a07a5c852a94dccd5925a700e735fcdc54"
+    },
+    {
+      "name": "region_query",
+      "tool_hash": "f8a91d30942f3906eac8412a644557dbb9d9d3210ebb389b16a073fdde0c646a"
+    },
+    {
+      "name": "slow",
+      "tool_hash": "d46e0cdd8116430ce7e5a34f6c7cd1ea2faec214f91dfe6743040de96d71ced0"
+    },
+    {
+      "name": "throws_refusal",
+      "tool_hash": "2ff46a8be8ec8230746fc9e6bb47599a41bd36e2bc55ae22b875cfd21ef97929"
+    }
+  ],
+  "manifest_hash": "3a9bcac394074b413888195f459bf1e4f17fb62b5c5e78682e91cd45c33f6a52",
+  "build": {
+    "commit": null,
+    "distribution_digest": null,
+    "signature": null,
+    "kid": null,
+    "key_valid_from": null,
+    "key_valid_to": null
+  }
+}

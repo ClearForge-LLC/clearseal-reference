@@ -27,12 +27,14 @@ import { type Limits, resolveConfig, SUPPORTED_VERSIONS, type TransportConfig } 
 import { dispatch, type DispatchContext } from "./dispatch.ts";
 import { JsonParseError, parseJsonStrict } from "./json.ts";
 import { classify, INTERNAL_ERROR, INVALID_REQUEST, PARSE_ERROR, Refusal, type RequestId } from "./jsonrpc.ts";
-import type { ToolRegistry } from "./registry.ts";
+import { PinnedRegistry, PinRefusedError } from "../pinning/registry.ts";
 import { type Principal, RefuseAllVerifier, type Verdict, type Verifier } from "./verifier.ts";
 
 export interface TransportOptions {
   config?: Parameters<typeof resolveConfig>[0];
-  registry: ToolRegistry;
+  /** The pinned registry: the only registry the transport serves, built only from the pin gate's
+   *  admission (CSR-WO-1001, N2). Anything else is refused at start. */
+  registry: PinnedRegistry;
   /** Defaults to RefuseAllVerifier: nothing dispatches until -1003 supplies a real one. */
   verifier?: Verifier;
   /** MRTR requestState key (CLEARSEAL_REQUEST_STATE_KEY). Without it, state is refused. */
@@ -162,6 +164,24 @@ export async function startTransport(options: TransportOptions): Promise<Running
   const verifier = options.verifier ?? new RefuseAllVerifier();
   const now = options.now ?? Date.now;
   const audit = options.audit ?? ((event, fields) => console.error(`[audit-seam] ${event} ${JSON.stringify(fields)}`));
+
+  // CSR-WO-1001 §1.4: the pin gate's decision is read before anything binds. Only a pinned
+  // registry is served; every refusal is logged once at the audit seam; under the strict default
+  // any refusal stops the node here.
+  const registry: unknown = options.registry;
+  if (!(registry instanceof PinnedRegistry)) {
+    await options.validationPool?.close();
+    throw new TypeError("the transport serves only a PinnedRegistry, built from the pin gate's admission");
+  }
+  const { pinning } = registry;
+  for (const r of pinning.refused) audit("pin-refused", { tool: r.name, reason: r.reason, ...(r.rule === undefined ? {} : { rule: r.rule }) });
+  if (pinning.refused.length > 0) {
+    if (pinning.strict) {
+      await options.validationPool?.close();
+      throw new PinRefusedError(pinning.refused);
+    }
+    audit("pin-non-strict", { admitted: pinning.admitted, refused: pinning.refused.length });
+  }
   let inFlight = 0;
   // Filled once the port is known (port 0 binds an ephemeral one).
   let allowedHosts: string[] = [];
@@ -238,7 +258,8 @@ export async function startTransport(options: TransportOptions): Promise<Running
         send(res, 403, undefined);
         return;
       }
-      if (isHealth) send(res, 200, { status: "ok", version: options.serverInfo.version, protocolVersions: [...SUPPORTED_VERSIONS] });
+      // The pinned counts only: the refused tools' names are in the start-up log, never here.
+      if (isHealth) send(res, 200, { status: "ok", version: options.serverInfo.version, protocolVersions: [...SUPPORTED_VERSIONS], pinned: { admitted: pinning.admitted, refused: pinning.refused.length } });
       else send(res, 200, { resource: resourceUrl, authorization_servers: [...config.authorizationServers], bearer_methods_supported: ["header"] });
       return;
     }

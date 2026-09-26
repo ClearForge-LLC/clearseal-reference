@@ -5,7 +5,8 @@ import { connect } from "node:net";
 import { describe, it } from "node:test";
 
 import { DEFAULT_LIMITS } from "../../src/transport/config.ts";
-import { PlaceholderRegistry, RegistrationError, type Tool } from "../../src/transport/registry.ts";
+import { RegistrationError, type Tool } from "../../src/transport/registry.ts";
+import { pinForTest } from "../fixtures/pin.ts";
 import { compileSchema } from "../../src/transport/schema.ts";
 import { startTransport } from "../../src/transport/server.ts";
 import type { Verdict, Verifier } from "../../src/transport/verifier.ts";
@@ -137,7 +138,7 @@ void describe("F2 validation runs off the event loop under a deadline", () => {
 void describe("F6 the schema walk is keyword-aware", () => {
   const reg = (schema: Record<string, unknown>): void => {
     const tool: Tool = { name: "t", inputSchema: schema, handler: () => Promise.resolve({ content: [] }) };
-    new PlaceholderRegistry(compileSchema, DEFAULT_LIMITS).register(tool);
+    pinForTest([tool], compileSchema, DEFAULT_LIMITS);
   };
   void it("an external $ref hidden under a property named const or default is refused", () => {
     assert.throws(() => {
@@ -243,8 +244,7 @@ void describe("F7 F8 F9 F10 F11 F12 F13 F14 F16 F17", () => {
 
 void describe("the transport can run with no pool at all (the synchronous compiler), for unit use", () => {
   void it("starts and validates", async () => {
-    const registry = new PlaceholderRegistry(compileSchema, DEFAULT_LIMITS);
-    registry.register({ name: "e", inputSchema: { type: "object", properties: { a: { type: "string" } } }, handler: () => Promise.resolve({ content: [] }) });
+    const registry = pinForTest([{ name: "e", inputSchema: { type: "object", properties: { a: { type: "string" } } }, handler: () => Promise.resolve({ content: [] }) }], compileSchema, DEFAULT_LIMITS);
     const t = await startTransport({ registry, serverInfo: { name: "x", version: "0" }, verifier: { verify: () => Promise.resolve({ ok: true, principal: { id: "p" } }) } });
     try {
       const r = await raw(t, { headers: modernHeaders("tools/call", "e"), body: JSON.stringify(modernBody("tools/call", { name: "e", arguments: { a: 1 } })) });

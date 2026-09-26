@@ -9,12 +9,17 @@ import { describe, it } from "node:test";
 import ZSchema from "z-schema";
 
 import { DEFAULT_LIMITS } from "../../src/transport/config.ts";
-import { PlaceholderRegistry, RegistrationError, type Tool } from "../../src/transport/registry.ts";
+import { CanonicalRefusal } from "../../src/pinning/canonical.ts";
+import { ManifestError } from "../../src/pinning/manifest.ts";
+import type { PinnedRegistry } from "../../src/pinning/registry.ts";
+import { RegistrationError, type Tool } from "../../src/transport/registry.ts";
+import { pinForTest } from "../fixtures/pin.ts";
 import { compileSchema, SchemaLoaderError } from "../../src/transport/schema.ts";
 
 const ok = (): Promise<{ content: { type: "text"; text: string }[] }> => Promise.resolve({ content: [{ type: "text", text: "ok" }] });
 const tool = (inputSchema: Record<string, unknown>, name = "t"): Tool => ({ name, inputSchema, handler: ok });
-const registry = (): PlaceholderRegistry => new PlaceholderRegistry(compileSchema, DEFAULT_LIMITS);
+/** One tool through the pin gate into a registry: the static checks run in the constructor. */
+const pin = (...tools: Tool[]): PinnedRegistry => pinForTest(tools, compileSchema, DEFAULT_LIMITS);
 
 /** Replaces every network entry point with one that records and throws, for the callback's duration. */
 async function withNetworkTrap<T>(fn: () => T | Promise<T>): Promise<{ value?: T; error?: unknown; attempts: string[] }> {
@@ -49,7 +54,7 @@ void describe("BI-16 BI-17 WO §5.5 an external $ref is refused at registration,
   for (const [label, schema] of external) {
     void it(`${label}: refused, and no network call was attempted`, async () => {
       const result = await withNetworkTrap(() => {
-        registry().register(tool(schema));
+        pin(tool(schema));
       });
       assert.ok(result.error instanceof RegistrationError, String(result.error));
       assert.match((result.error).message, /outside its own document/);
@@ -75,8 +80,7 @@ void describe("BI-16 BI-17 WO §5.5 an external $ref is refused at registration,
   });
 
   void it("a same-document $ref and $defs are supported", () => {
-    const r = registry();
-    r.register(tool({ type: "object", $defs: { n: { type: "integer", minimum: 1 } }, properties: { a: { $ref: "#/$defs/n" } } }));
+    const r = pin(tool({ type: "object", $defs: { n: { type: "integer", minimum: 1 } }, properties: { a: { $ref: "#/$defs/n" } } }));
     const t = r.get("t");
     assert.equal(t?.validate({ a: 3 }), true);
     assert.equal(t?.validate({ a: 0 }), false);
@@ -95,54 +99,44 @@ void describe("TL-4 BI-14 BI-15 BI-18 registration checks", () => {
   for (const [label, schema, why] of cases) {
     void it(`refused: inputSchema ${label}`, () => {
       assert.throws(() => {
-        registry().register(tool(schema));
+        pin(tool(schema));
       }, (err: unknown) => err instanceof RegistrationError && why.test(err.message));
     });
   }
 
-  void it("TL-5 a tool name outside [A-Za-z0-9_.-]{1,128}, or a duplicate name, is refused", () => {
-    const r = registry();
-    assert.throws(() => {
-      r.register(tool({ type: "object" }, "bad name"));
-    }, RegistrationError);
-    r.register(tool({ type: "object" }, "a"));
-    assert.throws(() => {
-      r.register(tool({ type: "object" }, "a"));
-    }, RegistrationError);
+  void it("TL-5 a bad tool name, or a duplicate name, is refused, now before registration: the canonical form refuses the name (A5) and approve refuses the duplicate", () => {
+    assert.throws(() => pin(tool({ type: "object" }, "bad name")), CanonicalRefusal);
+    assert.throws(() => pin(tool({ type: "object" }, "a"), tool({ type: "object" }, "a")), ManifestError);
+    assert.equal(pin(tool({ type: "object" }, "a")).get("a")?.definition.name, "a");
   });
 });
 
 void describe("TL-10 D-7 validation before the handler: the root default is unevaluatedProperties: false", () => {
   void it("a flat schema: an extra property is refused; declared ones pass", () => {
-    const r = registry();
-    r.register(tool({ type: "object", properties: { a: { type: "string" } } }));
+    const r = pin(tool({ type: "object", properties: { a: { type: "string" } } }));
     assert.equal(r.get("t")?.validate({ a: "x" }), true);
     assert.equal(r.get("t")?.validate({ a: "x", b: 1 }), false);
   });
 
   void it("composition at the root: properties declared under allOf still pass, extras are refused (why not additionalProperties)", () => {
-    const r = registry();
-    r.register(tool({ type: "object", allOf: [{ properties: { a: { type: "string" } } }, { properties: { b: { type: "integer" } } }] }));
+    const r = pin(tool({ type: "object", allOf: [{ properties: { a: { type: "string" } } }, { properties: { b: { type: "integer" } } }] }));
     assert.equal(r.get("t")?.validate({ a: "x", b: 1 }), true);
     assert.equal(r.get("t")?.validate({ a: "x", b: 1, c: true }), false);
   });
 
   void it("a schema that decides for itself is left alone: additionalProperties: true admits extras", () => {
-    const r = registry();
-    r.register(tool({ type: "object", properties: { a: { type: "string" } }, additionalProperties: true }));
+    const r = pin(tool({ type: "object", properties: { a: { type: "string" } }, additionalProperties: true }));
     assert.equal(r.get("t")?.validate({ a: "x", b: 1 }), true);
   });
 
   void it("the advertised definition is the registered schema, unchanged", () => {
-    const r = registry();
     const schema = { type: "object", properties: { a: { type: "string" } } };
-    r.register(tool(schema));
+    const r = pin(tool(schema));
     assert.deepEqual(r.get("t")?.definition.inputSchema, { type: "object", properties: { a: { type: "string" } } });
   });
 
   void it("format is an annotation in 2020-12, not an assertion", () => {
-    const r = registry();
-    r.register(tool({ type: "object", properties: { e: { type: "string", format: "email" } } }));
+    const r = pin(tool({ type: "object", properties: { e: { type: "string", format: "email" } } }));
     assert.equal(r.get("t")?.validate({ e: "not an email" }), true);
   });
 });

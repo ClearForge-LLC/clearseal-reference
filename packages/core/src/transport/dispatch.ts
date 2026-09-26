@@ -236,7 +236,9 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
   const name = params["name"];
   if (typeof name !== "string") throw new Refusal(400, INVALID_PARAMS, "params.name is required");
   const tool = ctx.registry.get(name);
-  if (tool === undefined) throw new Refusal(400, INVALID_PARAMS, "Unknown tool");
+  // A tool the pin gate refused is named, so the operator can find it in the start-up log; any
+  // other unknown name is not echoed (CSR-WO-1001 §1.4).
+  if (tool === undefined) throw new Refusal(400, INVALID_PARAMS, ctx.registry.pinning?.isRefused(name) === true ? `The tool "${name}" is refused by the pin gate` : "Unknown tool");
   const args = params["arguments"] ?? {};
   if (!isPlainObject(args)) throw new Refusal(400, INVALID_PARAMS, "params.arguments must be an object");
   const modern = era === MODERN_VERSION;

@@ -6,8 +6,9 @@ import { randomBytes } from "node:crypto";
 import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 
 import { ValidationPool } from "../../src/transport/schema-pool.ts";
-import { Refusal } from "../../src/transport/jsonrpc.ts";
-import { PlaceholderRegistry, type Tool } from "../../src/transport/registry.ts";
+import { loadPinnedRegistry } from "../../src/pinning/registry.ts";
+import type { Tool } from "../../src/transport/registry.ts";
+import { definitions } from "../fixtures/tools.ts";
 import { startTransport, type RunningTransport, type TransportOptions } from "../../src/transport/server.ts";
 import type { Verdict, Verifier } from "../../src/transport/verifier.ts";
 import { DEFAULT_LIMITS, type Limits } from "../../src/transport/config.ts";
@@ -24,141 +25,9 @@ export class TestBearerVerifier implements Verifier {
   }
 }
 
-export interface Gate {
-  promise: Promise<void>;
-  open: () => void;
-}
-export function gate(): Gate {
-  let open = (): void => undefined;
-  const promise = new Promise<void>((resolve) => {
-    open = resolve;
-  });
-  return { promise, open };
-}
+export { fixtureTools, gate, held, type Gate } from "../fixtures/tools.ts";
 
-export const held = { gates: [] as Gate[] };
-
-const text = (t: string): { content: { type: "text"; text: string }[] } => ({ content: [{ type: "text", text: t }] });
-
-/** Fixture tools, registered only by tests. */
-export function fixtureTools(): Tool[] {
-  return [
-    {
-      name: "echo",
-      description: "Returns its text.",
-      inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
-      handler: (args) => Promise.resolve(text(String(args["text"]))),
-    },
-    {
-      name: "no_args",
-      description: "Takes nothing.",
-      inputSchema: { type: "object" },
-      handler: () => Promise.resolve(text("ok")),
-    },
-    {
-      name: "region_query",
-      description: "A fixture declaring x-mcp-header on string, integer, boolean and nested properties.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          region: { type: "string", "x-mcp-header": "Region" },
-          limit: { type: "integer", "x-mcp-header": "Limit" },
-          dry: { type: ["boolean", "null"], "x-mcp-header": "Dry" },
-          scope: { type: "object", properties: { zone: { type: "string", "x-mcp-header": "Zone" } } },
-          query: { type: "string" },
-        },
-        required: ["query"],
-      },
-      handler: (args) => Promise.resolve(text(JSON.stringify(args))),
-    },
-    {
-      name: "slow",
-      description: "Never returns until aborted.",
-      inputSchema: { type: "object" },
-      handler: (_args, ctx) =>
-        new Promise((_, reject) => {
-          ctx.signal.addEventListener("abort", () => {
-            reject(new Error("aborted"));
-          });
-        }),
-    },
-    {
-      name: "hold",
-      description: "Returns when the test opens its gate.",
-      inputSchema: { type: "object" },
-      handler: async () => {
-        const g = gate();
-        held.gates.push(g);
-        await g.promise;
-        return text("released");
-      },
-    },
-    {
-      name: "big",
-      description: "Returns `size` bytes of text.",
-      inputSchema: { type: "object", properties: { size: { type: "integer", minimum: 0 } }, required: ["size"] },
-      handler: (args) => Promise.resolve(text("x".repeat(Number(args["size"])))),
-    },
-    {
-      name: "ask",
-      description: "MRTR: asks for a name, then greets.",
-      inputSchema: { type: "object" },
-      handler: (_args, ctx) => {
-        if (ctx.state === undefined) {
-          return Promise.resolve({
-            resultType: "input_required" as const,
-            inputRequests: { who: { method: "elicitation/create", params: { mode: "form", message: "Name?", requestedSchema: { type: "object", properties: { name: { type: "string" } } } } } },
-            state: { step: 1, tool: "ask" },
-          });
-        }
-        return Promise.resolve(text(`state ${JSON.stringify(ctx.state)} responses ${JSON.stringify(ctx.inputResponses ?? {})}`));
-      },
-    },
-    {
-      name: "ask_other",
-      description: "MRTR: a second tool whose state must not be accepted by `ask`.",
-      inputSchema: { type: "object" },
-      handler: (_args, ctx) =>
-        Promise.resolve(ctx.state === undefined ? { resultType: "input_required" as const, state: { step: 1, tool: "ask_other" } } : text("other done")),
-    },
-    {
-      name: "approve_target",
-      description: "MRTR with arguments: asks once, then acts on `target`.",
-      inputSchema: { type: "object", properties: { target: { type: "string" } }, required: ["target"] },
-      handler: (args, ctx) =>
-        Promise.resolve(ctx.state === undefined ? { resultType: "input_required" as const, state: { approved: args["target"] as string } } : text(`acting on ${String(args["target"])}`)),
-    },
-    {
-      name: "ask_big",
-      description: "MRTR with an oversized input request: on the legacy era the era refusal must win over the result cap.",
-      inputSchema: { type: "object" },
-      handler: () =>
-        Promise.resolve({
-          resultType: "input_required" as const,
-          inputRequests: { big: { method: "elicitation/create", params: { mode: "form", message: "x".repeat(400_000), requestedSchema: { type: "object" } } } },
-        }),
-    },
-    {
-      name: "throws_refusal",
-      description: "Throws a Refusal-shaped error with a long message; none of it may reach the client.",
-      inputSchema: { type: "object" },
-      handler: () => Promise.reject(new Refusal(200, 0, "x".repeat(300_000))),
-    },
-    {
-      name: "costly_schema",
-      description: "uniqueItems over objects: validation cost grows with the square of the array.",
-      inputSchema: { type: "object", properties: { tags: { type: "array", uniqueItems: true, items: { type: "object" } } } },
-      handler: () => Promise.resolve(text("validated")),
-    },
-    {
-      name: "needs_sampling",
-      description: "MRTR: asks for a sampling round.",
-      inputSchema: { type: "object" },
-      handler: () =>
-        Promise.resolve({ resultType: "input_required" as const, inputRequests: { s: { method: "sampling/createMessage", params: { messages: [], maxTokens: 1 } } } }),
-    },
-  ];
-}
+export const FIXTURE_MANIFEST = new URL("../fixtures/manifest.json", import.meta.url);
 
 export interface Started {
   t: RunningTransport;
@@ -169,8 +38,8 @@ export interface Started {
 export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifier | null; key?: Uint8Array | null; config?: TransportOptions["config"] } = {}): Promise<Started> {
   const limits = { ...DEFAULT_LIMITS, ...opts.limits };
   const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
-  const registry = new PlaceholderRegistry(pool.compile, limits);
-  for (const tool of fixtureTools()) registry.register(tool);
+  // The fixture tools through the pin gate, against the manifest the CLI approved.
+  const registry = loadPinnedRegistry(FIXTURE_MANIFEST, definitions, { compile: pool.compile, limits, strict: true });
   const audits: string[] = [];
   const t = await startTransport({
     registry,
