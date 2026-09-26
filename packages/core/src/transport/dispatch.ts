@@ -7,6 +7,7 @@ import { checkParamHeaders, decodeHeaderValue, mismatch, singleHeader } from "./
 import type { JsonValue } from "./json.ts";
 import {
   type Classified,
+  HEADER_MISMATCH,
   INTERNAL_ERROR,
   INVALID_PARAMS,
   isPlainObject,
@@ -71,9 +72,10 @@ export async function dispatch(classified: Classified, ctx: DispatchContext): Pr
     return { kind: "refused", refusal: new Refusal(400, METHOD_NOT_FOUND, "This notification is not accepted") };
   }
   const request = classified.message;
+  let era: Era | undefined;
   try {
     if (!versionHeader.ok) throw versionHeader.refusal;
-    const era = selectEra(versionHeader.value, request);
+    era = selectEra(versionHeader.value, request);
     const params = request.params ?? {};
     const clientCapabilities = era === MODERN_VERSION ? checkModernMeta(params, era) : checkLegacyMeta(params, era);
     checkMirroredHeaders(request, ctx.headers, era);
@@ -85,9 +87,27 @@ export async function dispatch(classified: Classified, ctx: DispatchContext): Pr
     }
     return { kind: "result", body };
   } catch (err) {
-    if (err instanceof Refusal) return { kind: "refused", refusal: err, id: request.id };
+    if (err instanceof Refusal) return { kind: "refused", refusal: statusForEra(era, err), id: request.id };
     throw err;
   }
+}
+
+/** Refusals that stay HTTP-level on the legacy era too. An invalid or unsupported
+ *  `MCP-Protocol-Version` (`-32022`, LG-4) is refused before the era is known, so it never reaches
+ *  this mapping. A header that disagrees with the body (`-32020`) stays a `400` by this server's
+ *  rule (CSR-WO-1005b §1.2), not the legacy page's: that page defines no mirrored headers. */
+const HTTP_LEVEL_CODES: ReadonlySet<number> = new Set([HEADER_MISMATCH]);
+
+/** The HTTP status of a JSON-RPC error that answers a well-formed request is era-dependent
+ *  (architecture §5 *Protocol revision*, SPEC-MAP ST-*, CSR-WO-1005b). The `2026-07-28` page maps
+ *  specific refusals to `4xx`, so the modern era keeps each refusal's own status. The `2025-11-25`
+ *  page answers a request with one JSON object and prescribes an HTTP error status only for a
+ *  rejected notification or response and for the version header, and its client (the official
+ *  SDK) drops the error body at any non-`2xx`. So on the legacy era the error goes back at `200`,
+ *  with the error object unchanged. Only the status changes: nothing refused becomes accepted. */
+function statusForEra(era: Era | undefined, refusal: Refusal): Refusal {
+  if (era !== LEGACY_VERSION || HTTP_LEVEL_CODES.has(refusal.code)) return refusal;
+  return new Refusal(200, refusal.code, refusal.message, refusal.data, { ...refusal.headers });
 }
 
 function singleHeaderOrRefuse(headers: NodeJS.Dict<string[]>, name: string, display: string): { ok: true; value: string | undefined } | { ok: false; refusal: Refusal } {
@@ -296,8 +316,9 @@ function shapeResult(era: Era, binding: StateBinding, result: ToolResult, caps: 
       // refusal, never a 500 (CSR-WO-1005a). The 2025-11-25 schema defines only the standard
       // codes and -32042 (URL elicitation, banned in 2026-07-28), so the code is -32601, whose
       // JSON-RPC meaning is "the method does not exist / is not available": this tool is not
-      // available on this revision. The status is 400: the client can correct it by using the
-      // modern revision (SPEC-MAP LG-8).
+      // available on this revision. It goes back at 200, as every legacy-era JSON-RPC error for
+      // a request does (statusForEra); the refusal's own 400 is its status on the modern mapping
+      // (SPEC-MAP LG-8).
       ctx.audit("legacy-input-required", { tool: name });
       throw new Refusal(400, METHOD_NOT_FOUND, `This tool needs a multi round-trip request, which protocol revision ${LEGACY_VERSION} cannot carry; use ${MODERN_VERSION}`, { requires: MODERN_VERSION });
     }

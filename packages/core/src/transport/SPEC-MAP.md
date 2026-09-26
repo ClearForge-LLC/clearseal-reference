@@ -178,9 +178,39 @@ the same annotation rules at registration (SH-27…SH-29).
 | LG-5 | lifecycle #initialized | `notifications/initialized` | (flow) | **impl**: `202`, no body, no state recorded |
 | LG-6 | basic/utilities/ping | `ping` → empty result | MUST | **impl** on the legacy era only; `2026-07-28` has no `ping`, so a modern `ping` is `404` |
 | LG-7 | transports #listening-for-messages-from-the-server | `GET` stream | MAY | **out**: `405` (SH-42) |
-| LG-8 | (no MRTR in `2025-11-25`) | A handler's `input_required` result cannot be carried to a legacy-era request | (N4) | **refuse**: `400`, `-32601`, message naming `2026-07-28`, `data: {requires: "2026-07-28"}`. The tool name is logged at the audit seam (`legacy-input-required`), and it is never a `500`. The code choice: the `2025-11-25` schema defines only the standard JSON-RPC codes and `-32042`, which is URL-elicitation-specific and which `2026-07-28` forbids emitting; `-32601`'s JSON-RPC meaning includes "is not available". It is also the code `2025-11-25` itself mandates for the same situation: a tool that needs an interaction mode the request does not use (`basic/utilities/tasks` §*Tool-Level Negotiation*, "`taskSupport` is `"required"` … Servers **MUST** return a `-32601`"). The status: the client can correct the request by using `2026-07-28` (D-6). CSR-WO-1005a |
+| LG-8 | (no MRTR in `2025-11-25`) | A handler's `input_required` result cannot be carried to a legacy-era request | (N4) | **refuse**: `200` (the legacy era's convention, ST-2; `400` until CSR-WO-1005b), `-32601`, message naming `2026-07-28`, `data: {requires: "2026-07-28"}`. The tool name is logged at the audit seam (`legacy-input-required`), and it is never a `500`. The code choice: the `2025-11-25` schema defines only the standard JSON-RPC codes and `-32042`, which is URL-elicitation-specific and which `2026-07-28` forbids emitting; `-32601`'s JSON-RPC meaning includes "is not available". It is also the code `2025-11-25` itself mandates for the same situation: a tool that needs an interaction mode the request does not use (`basic/utilities/tasks` §*Tool-Level Negotiation*, "`taskSupport` is `"required"` … Servers **MUST** return a `-32601`"). CSR-WO-1005a; the status, CSR-WO-1005b |
+| LG-9 | transports #sending-messages-to-the-server | "If the input is a JSON-RPC _response_ or _notification_ … If the server cannot accept the input, it **MUST** return an HTTP error status code (e.g., 400 Bad Request)." A _request_ is answered with "`Content-Type: application/json`, to return one JSON object"; the page prescribes no HTTP error status for a JSON-RPC error that answers a request | MUST | **impl** (ST-2, ST-3): a rejected notification or response is `400`; a JSON-RPC error answering a well-formed legacy-era request is that one JSON object, at `200`. The page's other `4xx` cases (`Origin` → `403`, an invalid or unsupported `MCP-Protocol-Version` → `400`, LG-4) stay HTTP-level refusals |
+
+## ST — HTTP status of an error, by era (architecture §5 *Protocol revision*, CSR-WO-1005b)
+
+The status mapping is **era-dependent**. The rule lives in one place, `statusForEra` in
+`dispatch.ts`; every row is measured in both eras by `era-status.test.ts`, whose printed table is the
+evidence (63 rows).
+
+| ID | Source | Rule | Disposition |
+|---|---|---|---|
+| ST-1 | SH #protocol-version-header: a mismatch "MUST reject the request with `400 Bad Request` and a `HeaderMismatch` JSON-RPC error"; an unsupported version "MUST respond with `400 Bad Request`"; an unimplemented method "MUST respond with `404 Not Found` and a JSON-RPC error with code `-32601`". SH #server-validation: `400` and `-32020` for a mirrored-header mismatch | The modern page maps specific refusals to `4xx` explicitly | **impl**: on `2026-07-28` every refusal keeps its own status (the table below). Unchanged by CSR-WO-1005b: the 59 rows with a modern cell have byte-identical bodies and statuses before and after (a one-off measurement, recorded in its FEEDBACK) |
+| ST-2 | LG-9 | A JSON-RPC error answering a well-formed legacy-era request is the request's one JSON object | **impl**: on `2025-11-25`, once the request parsed with an `id` and passed the version and mirrored-header gates, the error goes back at `200`, `application/json`, with the error object byte-identical to the modern era's. The official SDK client (1.30.1, a `2025-11-25` client) throws a bare `StreamableHTTPError` at any non-`2xx` and loses the code and `data`; at `200` it raises `McpError(code, data)` (`sdk-client.test.ts`) |
+| ST-3 | LG-9, LG-4, SH-2…SH-18; SH-24…SH-38 for the mirrored headers, which the legacy page does not define (their `400` on the legacy era is this server's rule, CSR-WO-1005b §1.2) | HTTP-level refusals | **impl**: the same status in both eras: `401`/`403` (verifier, `Host`, `Origin`), `405`, `406`, `415`, `413`, `400` for a body that is not one well-formed JSON-RPC request (malformed, not UTF-8, duplicate key, over-depth, batch, response-shaped, `id: null`, a rejected notification), `400` for the version and mirrored-header gates (`-32022`, `-32020`), `503` for capacity and the verifier deadline, `500` without an `id` for a verifier contract breach. A legacy `initialize` sent without the header whose `_meta` names another version is the `-32020` gate too, so `400` |
+| ST-5 | (N4) | A handler result that cannot be serialized (a `BigInt`, a cycle, a throwing `toJSON`) | **out, recorded**: `500`, `-32603`, **no `id`**, in both eras, as before CSR-WO-1005b. It is thrown as a plain error by the result-size check, not as a refusal, so the server's last-resort handler answers it and no `200` can carry it. Turning it into a refusal with the `id` would be a new refusal, outside that WO's fence; it is a follow-up |
+| ST-4 | (N4) | Only the status changes | **impl**: nothing refused becomes accepted; code, message and `data` are unchanged |
+
+| Error | Code | `2026-07-28` | `2025-11-25` |
+|---|---|---|---|
+| Unknown method | `-32601` | `404` | `200` |
+| Invalid params: `_meta` not an object, a cursor, `params.name` missing, unknown tool, arguments not an object or failing the schema | `-32602` | `400` | `200` |
+| Validation over `validationTimeoutMs` | `-32602` | `400` | `200` |
+| Handler throws, handler over `handlerTimeoutMs`, result over `maxResultBytes`, a result the mapping cannot shape | `-32603` | `500` | `200` |
+| `input_required` on the legacy era (LG-8) | `-32601` | (a result) | `200` |
+| Modern-only MRTR refusals: undeclared capability `-32021`, `inputResponses` or `requestState` refused `-32602` | as named | `400` | (LG-8, or not read) |
+| Version and mirrored-header gates | `-32022` / `-32020` | `400` | `400` |
+| A result that cannot be serialized (ST-5) | `-32603`, no `id` | `500` | `500` |
+| Every HTTP-level refusal (ST-3) | as named | as named | the same |
 
 ## Limits (WO §1.10, architecture §5): all in this layer, all asserted
+
+The **On breach** statuses are the modern era's; on the legacy era a JSON-RPC error answering a
+request is `200` (ST-2). The HTTP-level ones (`413`, `503`, `408`, `431`) are the same in both.
 
 | Limit | Name | Default | On breach |
 |---|---|---|---|
@@ -216,10 +246,11 @@ the same annotation rules at registration (SH-27…SH-29).
 - **D-5**: the legacy path's review date. The spec's deprecated-features registry gives no removal
   date for `2025-11-25`. The date in `config.ts` is set by this WO and named for the architect to
   confirm. **decision-needed.**
-- **D-6**: HTTP status for JSON-RPC errors raised after transport validation. Client-caused
-  refusals (unknown tool, invalid arguments, bad `requestState`) → `400`. Server-side failures
-  (timeout, oversize result, handler error) → `500`. The spec fixes the status only where this map
-  says so.
+- **D-6**: HTTP status for JSON-RPC errors raised after transport validation, **on the modern
+  era**. Client-caused refusals (unknown tool, invalid arguments, bad `requestState`) → `400`.
+  Server-side failures (timeout, oversize result, handler error) → `500`. The spec fixes the status
+  only where this map says so. **Amended by CSR-WO-1005b** (the architect's ruling on `-1005a`'s
+  F7): on the legacy era these errors are `200` (ST-2).
 - **D-7**: the root default is `unevaluatedProperties: false`, where the WO says
   `additionalProperties: false`. The two are identical for a flat schema, but only the first is
   correct under composition at the root (`allOf` with `additionalProperties: false` would reject
