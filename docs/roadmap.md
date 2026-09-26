@@ -143,15 +143,20 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   first manifest (`architecture.md` §5, *Manifest schema*).
 - `CSR-WO-1002` — (built, merged `e95048f` 2026-09-26) containment: `containment_domain` as a sink set or null, `arbitrary_exec` refused
   a domain at construction, the reach harness that records every declared sink a tool touches.
-- `CSR-WO-1002a` — (WO written 2026-09-26) containment corrections from the `-1002` review: a symlink leaf the kernel refuses
+- `CSR-WO-1002a` — (built, merged `809a6b9` 2026-09-26) containment corrections from the `-1002` review: a symlink leaf the kernel refuses
   under `O_NOFOLLOW` (`ELOOP`) is recorded and audited as a containment refusal rather than surfacing
   as a plain handler error; a `read_only` tool's cage admits read modes only (the class and the cage
   agree), each with its red-proof (`architecture.md` §5, *Containment matching*).
-- `CSR-WO-1003` — (WO written 2026-09-26) auth: `401` with resource metadata, JWKS verification, audience equality, issuer
+- `CSR-WO-1003` — (built, merged `c4ee2f0` 2026-09-26; external red-team: nothing critical or high) auth: `401` with resource metadata, JWKS verification, audience equality, issuer
   check, the principal handed downstream and carried on every audit row; an in-process test issuer;
   key-set caching, one refetch on an unknown key id, fail-closed on fetch failure, and a stated
   clock-skew constant, each with its negative test (`architecture.md` §5, *Key-set fetching*).
-- `CSR-WO-1004` — the teaching edition's skeleton and its first tool (`read_only`), its manifest, and
+- `CSR-WO-1003a` — (WO written 2026-09-26) auth corrections from the `-1003` review and red-team: an
+  issuer outage answers `503` with `Retry-After`; a token lifetime horizon; `typ` spellings and an
+  optional strict mode; audit-line escaping of line separators and bidirectional controls; scoped
+  private-CA trust; an audit line when audience and resource URL differ; JSON-RPC errors audited
+  (`architecture.md` §5, *Token acceptance*).
+- `CSR-WO-1004` — (WO written 2026-09-26; owns the supply-boundary and P1 evidence clauses) the teaching edition's skeleton and its first tool (`read_only`), its manifest, and
   the supply-boundary test that fails if an edition exports anything other than tool definitions, a
   manifest, a deploy scaffold, or a registered implementation of a core interface.
 - `CSR-WO-1005b` — era-dependent status mapping: legacy-era JSON-RPC errors at `200` with the
@@ -318,6 +323,13 @@ deciding exec case by case (N7's reason).
   parked pull request.
 - Security-critical work orders — the canonical form, the pin gate, auth, provenance — get
   line-by-line review and are never batched.
+- **External review points.** An outside red-team (the Adversary) runs before merge on the
+  security-critical work orders — auth (`-1003`), the approval gate (`-2001`), provenance
+  (`-2004`) and any successor — and at every phase exit; a second-model code review (the free
+  Copilot tier) is used on large control diffs. Findings are triaged by the architect, reproduced
+  before they are ruled, fixed in the same pull request or deferred to a named work order, and
+  recorded in FEEDBACK and `architecture.md` §10 under the app identity — never posted from the
+  reviewer's own account.
 - **At every phase boundary**, run the wider audit: does the code still match `architecture.md`,
   did any finding change an invariant, is the README's status line still true, has anything fallen
   through the numbering, and does every "these two must agree" sentence in the standard have a

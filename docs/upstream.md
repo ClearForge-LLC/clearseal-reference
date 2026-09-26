@@ -78,3 +78,8 @@ resolved entry gets its resolution appended.
     repaired when malformed; the next version should name a grammar, this one or another.
     *Evidence:* `packages/core/src/containment/domain.ts`; `architecture.md` §5, *Containment matching*.
     *Status:* open, proposal.
+13. **The `fs:` sink grammar the reference proposes (entry 12) is POSIX-only.** A Windows drive path
+    cannot be declared, so the Windows host edition (P4) cannot pin a file root as the grammar
+    stands. Any sink grammar the standard adopts needs a portable spelling for file roots, or a
+    rule that the operating system is part of what is pinned. *Evidence:* `packages/core/src/containment/domain.ts`;
+    `CSR-WO-1004` §1.3. *Status:* open, to be measured at `-1004` and resolved before P4.
