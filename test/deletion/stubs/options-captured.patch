@@ -1,0 +1,17 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -417,11 +417,11 @@
+       const ctx: DispatchContext = {
+         headers: req.headersDistinct,
+         principal,
+-        registry: servedRegistry,
++        registry: options.registry,
+         limits,
+         config,
+-        serverInfo,
+-        requestStateKey,
++        serverInfo: options.serverInfo,
++        requestStateKey: options.requestStateKey,
+         signal: aborter.signal,
+         now,
+         // Every call-scoped event carries the caller (CSR-WO-1003 §1.7), including a containment

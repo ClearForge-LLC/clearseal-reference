@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -310,7 +310,7 @@
+   // `ctx.cage.constructor` builds a cage with another domain and no audit hook (CSR-WO-1006a
+   // adversarial H6).
+   const handler = tool.handler;
+-  const running = Promise.resolve().then(() => Reflect.apply(handler, undefined, [args, { ...callCtx, signal, cage: cageFacade(callCtx.cage) }]));
++  const running = Promise.resolve().then(() => tool.handler(args, { ...callCtx, signal, cage: cageFacade(callCtx.cage) }));
+   ctx.trackHandler(running);
+   // An undeclared reach fails the call even if the handler caught the refusal (N4: refused, never
+   // logged-and-allowed). The audit seam gets the full reach; the response names only its kind.

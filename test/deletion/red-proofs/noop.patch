@@ -1,0 +1,11 @@
+--- a/packages/core/src/pinning/gate.ts
++++ b/packages/core/src/pinning/gate.ts
+@@ -118,7 +118,7 @@
+         refused.push({ name: d.name, reason: "duplicate" });
+         continue;
+       }
+-      // One read of the definition, into its canonical object; a deep-frozen copy of that object is
++      // One read of the definition, into its canonical object; a deep-frozen copy of that object is (a comment edit, and nothing else)
+       // both what is hashed and what is served.
+       let snapshot: Record<string, unknown>;
+       let hash: string;

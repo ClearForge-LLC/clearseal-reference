@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -283,7 +283,7 @@
+     }
+     // The key set is unreachable: no judgement on the token. 503 with Retry-After, no challenge, so
+     // a correct client keeps its token and retries (CSR-WO-1003a §1.1).
+-    if (verdict.unavailable !== undefined) {
++    if (verdict.unavailable !== undefined && verdict.reason === "never") {
+       const after = Number(verdict.unavailable.retryAfterS);
+       const retryAfter = String(Number.isFinite(after) ? Math.min(3600, Math.max(1, Math.ceil(after))) : 1);
+       audit("auth-unavailable", { reason: verdict.reason ?? "unavailable", retryAfterS: Number(retryAfter) });

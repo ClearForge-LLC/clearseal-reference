@@ -1,0 +1,11 @@
+--- a/packages/core/src/containment/cage.ts
++++ b/packages/core/src/containment/cage.ts
+@@ -306,7 +306,7 @@
+     if (normalized !== undefined && process.platform === "win32" && normalized.split("/").some(isWin32DeviceName)) leafType = "character-device";
+     const flags = flagsFor(mode);
+     // A plain comparison, not a Set lookup: no mutable built-in stands between a handler and this.
+-    const modeAllowed = !this.#readOnly || mode === "r";
++    const modeAllowed = true;
+     const permitted = normalized !== undefined && flags !== undefined && modeAllowed && !leafIsLink && this.#inside(resolveReal(normalized));
+     // Permitted by the domain but not a regular file: refused before any open, so nothing waits on
+     // it, and the record names what it is.

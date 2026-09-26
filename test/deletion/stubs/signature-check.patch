@@ -1,0 +1,10 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -152,7 +152,6 @@
+     const keys = found.jwks.filter((j) => keyFits(j, alg as Alg)).map((j) => importKey(j, alg as Alg)).filter((k) => k !== undefined);
+     if (keys.length === 0) return fail("key-mismatch");
+     // K3
+-    if (!keys.some((key) => verifySignature(alg as Alg, key, `${h}.${p}`, signature))) return fail("signature");
+     // C2
+     if (payload["iss"] !== this.issuer) return fail("iss");
+     // C3: string-equal; a one-element array is the same audience; more than one is refused.

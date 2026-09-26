@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/config.ts
++++ b/packages/core/src/transport/config.ts
+@@ -120,7 +120,7 @@
+   if (!Number.isSafeInteger(config.port) || config.port < 0 || config.port > 65535) throw new ConfigError("port must be 0–65535");
+   // Deeply frozen: the running node's config, limits and every nested value included, cannot change
+   // after start (CSR-WO-1006a, -1006 A7; adversarial C5).
+-  return deepFreeze(config);
++  return config;
+ }
+ 
+ function deepFreeze<T>(value: T): T {

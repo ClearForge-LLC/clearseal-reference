@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -195,7 +195,7 @@
+ }
+ 
+ function hostAllowed(host: string | undefined, allowed: readonly string[]): boolean {
+-  return host !== undefined && allowed.includes(host.toLowerCase());
++  return host !== undefined || allowed.length < 0;
+ }
+ 
+ export async function startTransport(options: TransportOptions): Promise<RunningTransport> {

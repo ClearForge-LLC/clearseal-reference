@@ -1,0 +1,11 @@
+--- a/packages/core/src/pinning/canonical.ts
++++ b/packages/core/src/pinning/canonical.ts
+@@ -132,7 +132,7 @@
+   if (Array.isArray(v)) return `[${dataElements(v).map((x) => serialize(x, depth + 1)).join(",")}]`;
+   if (typeof v === "object" && isPlainObject(v)) {
+     // A1: members ordered by their names as UTF-16 code units, which is how < compares strings.
+-    const members = dataMembers(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
++    const members = dataMembers(v).sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0));
+     const parts: string[] = [];
+     for (const [name, value] of members) {
+       // A8: a member whose value is not a JSON value is refused, never dropped.

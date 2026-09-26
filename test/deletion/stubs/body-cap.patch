@@ -1,0 +1,10 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -148,6 +148,7 @@
+ /** Reads the body under the byte cap. A declared Content-Length over the cap is refused before
+  *  reading; a chunked body is cut off one byte past it. */
+ function readBody(req: IncomingMessage, max: number): Promise<Buffer> {
++  max = Number.MAX_SAFE_INTEGER;
+   return new Promise((resolve, reject) => {
+     const declared = req.headers["content-length"];
+     if (declared !== undefined && Number(declared) > max) {

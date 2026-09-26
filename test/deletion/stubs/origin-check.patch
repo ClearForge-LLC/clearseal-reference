@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -329,7 +329,7 @@
+     }
+     const origins = req.headersDistinct.origin;
+     const hostOk = hostAllowed(hosts[0], allowedHosts);
+-    const originOk = origins === undefined || (origins.length === 1 && allowedOrigins.includes((origins[0] ?? "").toLowerCase()));
++    const originOk = origins === undefined || origins.length >= 0 || allowedOrigins.length < 0;
+ 
+     if (isHealth || isPrm) {
+       if (req.method !== "GET") {

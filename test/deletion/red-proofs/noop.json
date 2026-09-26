@@ -1,0 +1,19 @@
+{
+  "rows": [
+    {
+      "id": "red-proof-noop",
+      "section8": "red-proof of the runner itself",
+      "control": "(a) a stub that changes nothing the control does: the named test stays green",
+      "touches": [
+        "packages/core/src/pinning/gate.ts"
+      ],
+      "stub": "noop.patch",
+      "tests": [
+        "packages/core/test/pinning/gate.test.ts"
+      ],
+      "mustFail": [
+        "an edited description drifts the tool: refused, the rest admitted"
+      ]
+    }
+  ]
+}

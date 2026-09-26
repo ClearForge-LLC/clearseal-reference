@@ -1,0 +1,11 @@
+--- a/packages/core/src/containment/cage.ts
++++ b/packages/core/src/containment/cage.ts
+@@ -35,7 +35,7 @@
+ 
+ /** The type of a stat result that is not a regular file; undefined for a regular one. */
+ function nonRegular(st: { isFile(): boolean; isDirectory(): boolean; isFIFO(): boolean; isSocket(): boolean; isCharacterDevice(): boolean; isBlockDevice(): boolean; isSymbolicLink(): boolean }): FileType | undefined {
+-  if (st.isFile()) return undefined;
++  if (st.isFile() || st.isDirectory() || st.isFIFO() || st.isSocket() || st.isCharacterDevice() || st.isBlockDevice()) return undefined;
+   if (st.isDirectory()) return "directory";
+   if (st.isFIFO()) return "fifo";
+   if (st.isSocket()) return "socket";
