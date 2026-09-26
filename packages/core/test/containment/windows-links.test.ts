@@ -5,11 +5,11 @@
 
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { lstatSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { after, it } from "node:test";
 
-import { ContainmentRefusal, RecordingCage } from "../../src/containment/cage.ts";
+import { cagePolicy, ContainmentRefusal, RecordingCage } from "../../src/containment/cage.ts";
 import { parseDomain } from "../../src/containment/domain.ts";
 
 const ID = randomBytes(6).toString("hex");
@@ -97,4 +97,41 @@ void it("a planted symlink, directory symlink, junction or UNC link is refused, 
     lines.push(`LINKS platform=${process.platform} ${label} (${path}): ${outcome}`);
     assert.ok(ok(outcome), `${label}: ${outcome}`);
   }
+});
+
+void it("adversarial A9: a link to a directory whose real path is longer than PATH_MAX is refused before a write open truncates anything outside", async () => {
+  if (process.platform === "win32") {
+    assert.equal(process.platform, "win32", "POSIX PATH_MAX; the Windows cases are above");
+    return;
+  }
+  // Short symlink hops build a real path of about 4.7 KB outside the root, and a link inside the
+  // root points into it. realpath of anything below that link fails with ENAMETOOLONG.
+  const base = `/tmp/clearseal-links-${ID}/long`;
+  const name = "d".repeat(250);
+  mkdirSync(`${base}/h0/${name}`, { recursive: true });
+  let prev = `${base}/h0/${name}`;
+  for (let k = 1; k <= 18; k++) {
+    symlinkSync(prev, `${base}/h${String(k)}`);
+    mkdirSync(`${base}/h${String(k)}/${name}`);
+    prev = `${base}/h${String(k)}/${name}`;
+  }
+  symlinkSync(prev, `${ROOT}/deep`);
+  const victim = `${ROOT}/deep/victim.txt`;
+  writeFileSync(victim, "VICTIM-ORIGINAL");
+  const cage = new RecordingCage(parseDomain([`fs:${ROOT}`]), undefined, undefined, undefined, cagePolicy("state_change"));
+  for (const mode of ["w", "a", "r+", "r"]) {
+    let outcome = "opened";
+    try {
+      const h = await cage.open(victim, mode);
+      await h.close();
+    } catch (err) {
+      outcome = err instanceof ContainmentRefusal ? "refused" : String(err);
+    }
+    const now = readFileSync(victim, "utf8");
+    lines.push(`LINKS platform=${process.platform} A9 mode ${mode} through a link into a real path over PATH_MAX: ${outcome}; outside file ${JSON.stringify(now)}`);
+    assert.equal(outcome, "refused", mode);
+    assert.equal(now, "VICTIM-ORIGINAL", `mode ${mode}: nothing outside the root was truncated or written`);
+  }
+  // Refused at the check: the only record is the refused one, so the open never happened.
+  assert.ok(cage.reached().every((r) => !r.allowed));
 });

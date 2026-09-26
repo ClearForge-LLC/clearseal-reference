@@ -147,7 +147,8 @@ function typeAt(path: string): FileType {
 
 /**
  * The real path of `path` when it exists, else of its deepest existing ancestor with the rest
- * appended, so a link anywhere on the way is resolved before the check.
+ * appended, so a link anywhere on the way is resolved before the check. A path whose resolution
+ * fails for any reason but absence matches no root.
  *
  * On Windows too (CSR-WO-1006 §1.3): realpathSync.native follows symlinks and junctions, and gives
  * one canonical spelling, measured on windows-latest: the drive letter upper-cased, backslashes,
@@ -164,11 +165,23 @@ export function resolveReal(path: string): string {
     try {
       const real = realpathNativeOwn(head);
       return joinOwn(real, ...parts.slice(i));
-    } catch {
-      // Keep walking up until something exists.
+    } catch (err) {
+      // Not there yet: keep walking up until something exists. Anything else (a real path longer
+      // than PATH_MAX, a link loop, no permission) cannot be judged, and walking past it would judge
+      // an ancestor instead: fail closed (CSR-WO-1006 adversarial A9).
+      const code = (err as { code?: unknown } | null)?.code;
+      if (code !== "ENOENT" && code !== "ENOTDIR") return unresolvable();
     }
   }
   return path;
+}
+
+let unresolvableCount = 0;
+/** A spelling no path or root can match: it starts with NUL, which no real path contains, has no
+ *  separator, and is never issued twice, so it is neither equal to nor below anything. */
+function unresolvable(): string {
+  unresolvableCount += 1;
+  return `\u0000unresolvable-${String(unresolvableCount)}`;
 }
 
 /**
@@ -242,9 +255,10 @@ export class RecordingCage implements Cage {
    * Stopping that, like the limits below, is the edition OS cage's job (a read-only mount).
    *
    * Further limits, stated: a hard link inside a root to a file outside it is not a symlink, so
-   * nothing here sees it, and a tool that may write can write through it. A symlink loop in an intermediate directory inside the
-   * root is refused by the kernel with ELOOP and recorded as an escape, a false positive that fails
-   * closed. A link swapped in and out again before the post-failure lstat leaves an EEXIST
+   * nothing here sees it, and a tool that may write can write through it. A path whose real path
+   * cannot be resolved for a reason other than absence (a symlink loop in an intermediate
+   * directory, a real path longer than PATH_MAX) is refused at the check, a false positive that
+   * fails closed. A link swapped in and out again before the post-failure lstat leaves an EEXIST
    * unrecorded; nothing escapes, but the attempt goes unrecorded.
    *
    * The limit, stated plainly: O_NOFOLLOW covers the final component only. If an intermediate
