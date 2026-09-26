@@ -2,7 +2,7 @@
 
 export { DEFAULT_CONFIG, DEFAULT_LIMITS, LEGACY_PATH_REVIEW_BY, LEGACY_VERSION, MODERN_VERSION, resolveConfig, SUPPORTED_VERSIONS } from "./config.ts";
 export type { Limits, TransportConfig } from "./config.ts";
-export { prepareTool, RegistrationError } from "./registry.ts";
+export { RegistrationError } from "./registry.ts";
 export type { CallContext, PinningStatus, RegisteredTool, SchemaCompiler, Tool, ToolDefinition, ToolRegistry, ToolResult } from "./registry.ts";
 export { REQUEST_STATE_KEY_ENV, requestStateKeyFromEnv } from "./request-state.ts";
 export { compileSchema } from "./schema.ts";

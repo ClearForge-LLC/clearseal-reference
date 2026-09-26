@@ -20,7 +20,7 @@ import { toolHash } from "./canonical.ts";
 import { PinGate } from "./gate.ts";
 import { buildManifest, canonicalInput, parseManifest, type PinnableTool, serializeManifest } from "./manifest.ts";
 
-export type DiffStatus = "unchanged" | "drifted" | "new" | "removed";
+export type DiffStatus = "unchanged" | "drifted" | "new" | "removed" | "duplicate";
 export interface DiffLine {
   name: string;
   status: DiffStatus;
@@ -35,14 +35,21 @@ export function diffManifest(manifestText: string | undefined, definitions: read
   const pinned = new Map((manifestText === undefined ? [] : parseManifest(manifestText).tools).map((e) => [e.name, e.tool_hash]));
   const lines: DiffLine[] = [];
   const current = new Map<string, string>();
-  for (const d of definitions) current.set(d.name, toolHash(canonicalInput(d)));
+  const duplicated = new Set<string>();
+  for (const d of definitions) {
+    if (current.has(d.name)) duplicated.add(d.name);
+    current.set(d.name, toolHash(canonicalInput(d)));
+  }
+  // Two definitions with one name are refused by the gate and never approved; diff says so.
+  for (const name of duplicated) current.delete(name);
+  for (const name of duplicated) lines.push({ name, status: "duplicate" });
   for (const [name, hash] of current) {
     const old = pinned.get(name);
     if (old === undefined) lines.push({ name, status: "new", new: hash });
     else if (old === hash) lines.push({ name, status: "unchanged", new: hash });
     else lines.push({ name, status: "drifted", old, new: hash });
   }
-  for (const [name, old] of pinned) if (!current.has(name)) lines.push({ name, status: "removed", old });
+  for (const [name, old] of pinned) if (!current.has(name) && !duplicated.has(name)) lines.push({ name, status: "removed", old });
   return lines.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
@@ -52,6 +59,7 @@ export function formatDiff(lines: readonly DiffLine[]): string {
       if (l.status === "drifted") return `drifted    ${l.name}  ${short(l.old)} → ${short(l.new)}`;
       if (l.status === "new") return `new        ${l.name}  (unpinned) ${short(l.new)}`;
       if (l.status === "removed") return `removed    ${l.name}  ${short(l.old)}`;
+      if (l.status === "duplicate") return `duplicate  ${l.name}  (two definitions, one name: both refused)`;
       return `unchanged  ${l.name}  ${short(l.new)}`;
     })
     .join("\n");

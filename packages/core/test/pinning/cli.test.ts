@@ -73,6 +73,20 @@ void describe("npm run pin -- diff | approve --yes | verify", () => {
     assert.equal((await run("", ["verify", "--definitions", v2, "--manifest", manifest])).code, 0);
   });
 
+  void it("adversarial F6, F7: two definitions with one name: diff reports it and exits 1; approve refuses and writes nothing", async () => {
+    const manifest = join(dir, "dup.json");
+    const dup = defs([
+      { name: "alpha", description: "A." },
+      { name: "alpha", description: "An impostor." },
+    ]);
+    const d = await run("duplicate definitions", ["diff", "--definitions", dup, "--manifest", manifest]);
+    assert.equal(d.code, 1);
+    assert.match(d.out, /^duplicate {2}alpha/m);
+    const a = await run("approve with duplicate definitions", ["approve", "--yes", "--definitions", dup, "--manifest", manifest]);
+    assert.equal(a.code, 1);
+    assert.equal(existsSync(manifest), false, "nothing written");
+  });
+
   void it("verify with no manifest fails; a bad command or a missing flag is a usage error", async () => {
     const v1 = defs([{ name: "alpha", description: "A." }]);
     assert.equal((await run("no manifest", ["verify", "--definitions", v1, "--manifest", join(dir, "absent.json")])).code, 1);

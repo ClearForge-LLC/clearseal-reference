@@ -62,10 +62,12 @@ void describe("SH-27…SH-29 registration refuses every broken x-mcp-header anno
       compileSchema,
       DEFAULT_LIMITS,
     );
-    assert.deepEqual(registry.get("t")?.paramHeaders.map((p) => [p.header, p.path.join("/"), p.type]), [
+    // Order-insensitive: the registry serves the pin gate's canonical snapshot (CSR-WO-1001), whose
+    // members are in JCS order, not the order they were written in.
+    assert.deepEqual(registry.get("t")?.paramHeaders.map((p) => [p.header, p.path.join("/"), p.type]).sort(), [
       ["mcp-param-deep", "a/b", "string"],
-      ["mcp-param-n", "n", "integer"],
       ["mcp-param-f", "f", "boolean"],
+      ["mcp-param-n", "n", "integer"],
     ]);
   });
 });

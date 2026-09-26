@@ -12,7 +12,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-import { CANONICAL_FORM_VERSION, canonicalBytes, toolHash } from "./canonical.ts";
+import { CANONICAL_FORM_VERSION, CanonicalRefusal, canonicalBytes, toolHash } from "./canonical.ts";
 import { JsonParseError, parseJsonStrict } from "../transport/json.ts";
 import type { Tool } from "../transport/registry.ts";
 import { compileSchema } from "../transport/schema.ts";
@@ -39,9 +39,20 @@ export interface PinnableTool extends Omit<Tool, "title" | "annotations" | "desc
   capability: CapabilityTag;
 }
 
-/** The ten-field canonical input of a pinnable tool (A6). */
+const TAG_FIELDS = ["capability_class", "untrusted_input_facing", "scope", "privacy_sensitive", "recoverability_basis", "elevated", "containment_domain"] as const;
+
+/** The ten-field canonical input of a pinnable tool (A6). Each field is read once and picked by
+ *  name. A capability tag carrying any key besides its seven is refused: otherwise a tag named
+ *  `description` could replace the description that is hashed while another is served. */
 export function canonicalInput(tool: PinnableTool): Record<string, unknown> {
-  return { name: tool.name, description: tool.description, input_schema: tool.inputSchema, ...tool.capability };
+  const capability: unknown = tool.capability;
+  if (typeof capability !== "object" || capability === null) throw new CanonicalRefusal("A6", "a capability tag must be an object");
+  const extra = Reflect.ownKeys(capability).filter((k) => !(TAG_FIELDS as readonly PropertyKey[]).includes(k));
+  if (extra.length > 0) throw new CanonicalRefusal("A6", `the capability tag has fields outside its seven: ${extra.map(String).join(", ")}`);
+  const tag = capability as Record<string, unknown>;
+  const input: Record<string, unknown> = { name: tool.name, description: tool.description, input_schema: tool.inputSchema };
+  for (const field of TAG_FIELDS) input[field] = tag[field];
+  return input;
 }
 
 export interface ManifestEntry {

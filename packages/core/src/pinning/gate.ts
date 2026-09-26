@@ -13,7 +13,7 @@
 
 import { timingSafeEqual } from "node:crypto";
 
-import { CanonicalRefusal, toolHash } from "./canonical.ts";
+import { CanonicalRefusal, canonicalJson, canonicalToolObject, toolHash } from "./canonical.ts";
 import { canonicalInput, type ManifestEntry, parseManifest, type PinnableTool } from "./manifest.ts";
 
 export type RefusalReason = "unpinned" | "drifted" | "invalid" | "duplicate" | "removed";
@@ -23,6 +23,25 @@ export interface PinRefusal {
   reason: RefusalReason;
   /** For `invalid`: the canonical-form rule that refused the definition. */
   rule?: string;
+}
+
+/** What the registry serves for an admitted tool: the canonical snapshot the gate hashed, deep-frozen,
+ *  and the handler. Nothing is read from the definition again after admit, so the served name,
+ *  description and schema are exactly the bytes behind tool_hash (the description as A4 normalizes it). */
+export interface AdmittedTool {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: Readonly<Record<string, unknown>>;
+  readonly toolHash: string;
+  readonly handler: PinnableTool["handler"];
+}
+
+function deepFreeze<T>(value: T): T {
+  if (typeof value === "object" && value !== null) {
+    for (const v of Object.values(value)) deepFreeze(v);
+    Object.freeze(value);
+  }
+  return value;
 }
 
 /** Never exported: without it no code outside this module can construct an Admission. */
@@ -35,9 +54,9 @@ const issued = new WeakSet<object>();
  *  looks like an Admission does not type-check either. */
 export class Admission {
   readonly #brand = "admission";
-  readonly admitted: readonly PinnableTool[];
+  readonly admitted: readonly AdmittedTool[];
   readonly refused: readonly PinRefusal[];
-  constructor(token: symbol, admitted: readonly PinnableTool[], refused: readonly PinRefusal[]) {
+  constructor(token: symbol, admitted: readonly AdmittedTool[], refused: readonly PinRefusal[]) {
     if (token !== ISSUE) throw new TypeError("an Admission is issued only by PinGate.admit");
     this.admitted = Object.freeze([...admitted]);
     this.refused = Object.freeze([...refused]);
@@ -83,7 +102,7 @@ export class PinGate {
 
   admit(definitions: readonly PinnableTool[]): Admission {
     const refused: PinRefusal[] = [];
-    const admitted: PinnableTool[] = [];
+    const admitted: AdmittedTool[] = [];
     const counts = new Map<string, number>();
     for (const d of definitions) counts.set(d.name, (counts.get(d.name) ?? 0) + 1);
     const seen = new Set<string>();
@@ -93,9 +112,13 @@ export class PinGate {
         refused.push({ name: d.name, reason: "duplicate" });
         continue;
       }
+      // One read of the definition, into its canonical object; a deep-frozen copy of that object is
+      // both what is hashed and what is served.
+      let snapshot: Record<string, unknown>;
       let hash: string;
       try {
-        hash = toolHash(canonicalInput(d));
+        snapshot = deepFreeze(JSON.parse(canonicalJson(canonicalToolObject(canonicalInput(d)))) as Record<string, unknown>);
+        hash = toolHash(snapshot);
       } catch (err) {
         if (!(err instanceof CanonicalRefusal)) throw err;
         refused.push({ name: d.name, reason: "invalid", rule: err.rule });
@@ -104,7 +127,7 @@ export class PinGate {
       const pinned = this.#entries.get(d.name);
       if (pinned === undefined) refused.push({ name: d.name, reason: "unpinned" });
       else if (!sameHash(hash, pinned)) refused.push({ name: d.name, reason: "drifted" });
-      else admitted.push(d);
+      else admitted.push(Object.freeze({ name: snapshot["name"] as string, description: snapshot["description"] as string, inputSchema: snapshot["input_schema"] as Record<string, unknown>, toolHash: hash, handler: d.handler }));
     }
     for (const name of this.#entries.keys()) {
       if (!seen.has(name)) refused.push({ name, reason: "removed" });

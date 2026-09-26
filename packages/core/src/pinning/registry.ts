@@ -16,10 +16,11 @@ import { prepareTool, type PinningStatus, type RegisteredTool, type SchemaCompil
 export interface PinnedRegistryOptions {
   compile: SchemaCompiler;
   limits: Pick<Limits, "maxSchemaDepth" | "maxSchemaNodes">;
-  /** PIN_STRICT: true (the default) stops the node on any refusal; false serves the admitted tools
-   *  and leaves the refused ones absent. It never excuses a missing manifest: without a manifest
-   *  there is no gate, and without an admission there is no registry. */
-  strict: boolean;
+  /** PIN_STRICT: true stops the node on any refusal; false serves the admitted tools and leaves the
+   *  refused ones absent. Omitted, it is read from the environment, strict unless exactly "false".
+   *  It never excuses a missing manifest: without a manifest there is no gate, and without an
+   *  admission there is no registry. */
+  strict?: boolean;
 }
 
 export class PinnedRegistry implements ToolRegistry {
@@ -27,20 +28,29 @@ export class PinnedRegistry implements ToolRegistry {
   readonly pinning: PinningStatus;
 
   constructor(admission: Admission, options: PinnedRegistryOptions) {
+    // Not extensible by subclassing: a subclass could override get() and serve an unpinned tool.
+    if (new.target !== PinnedRegistry) throw new TypeError("PinnedRegistry cannot be subclassed");
     if (!isIssuedAdmission(admission)) throw new TypeError("a pinned registry is built only from PinGate.admit's Admission");
     const tools = new Map<string, RegisteredTool>();
     for (const tool of admission.admitted) {
-      // Served exactly as hashed: name, description and schema (the tag is pinned, not served).
+      // Served exactly as hashed: the gate's frozen snapshot of name, description and schema.
       tools.set(tool.name, prepareTool({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, handler: tool.handler }, options.compile, options.limits));
     }
     this.#tools = tools;
     const refusedNames = new Set(admission.refused.map((r) => r.name));
     this.pinning = Object.freeze({
-      strict: options.strict,
+      strict: options.strict ?? pinStrictFromEnv(),
       admitted: tools.size,
       refused: admission.refused,
       isRefused: (name: string) => refusedNames.has(name),
     });
+    Object.freeze(this);
+  }
+
+  /** True only for an instance this class constructed: the private field is the brand, and the
+   *  prototype must be this class's own, frozen one. */
+  static isGenuine(value: unknown): value is PinnedRegistry {
+    return typeof value === "object" && value !== null && #tools in value && Object.getPrototypeOf(value) === PinnedRegistry.prototype;
   }
 
   list(): readonly RegisteredTool[] {
@@ -51,6 +61,10 @@ export class PinnedRegistry implements ToolRegistry {
     return this.#tools.get(name);
   }
 }
+
+// A patched prototype could serve an unpinned tool from every instance.
+Object.freeze(PinnedRegistry.prototype);
+Object.freeze(PinnedRegistry);
 
 /** Under the strict default, any refusal stops the node before it binds. */
 export class PinRefusedError extends Error {

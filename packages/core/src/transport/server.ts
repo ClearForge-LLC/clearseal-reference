@@ -169,7 +169,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
   // registry is served; every refusal is logged once at the audit seam; under the strict default
   // any refusal stops the node here.
   const registry: unknown = options.registry;
-  if (!(registry instanceof PinnedRegistry)) {
+  if (!PinnedRegistry.isGenuine(registry)) {
     await options.validationPool?.close();
     throw new TypeError("the transport serves only a PinnedRegistry, built from the pin gate's admission");
   }

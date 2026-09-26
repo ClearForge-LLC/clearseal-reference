@@ -44,7 +44,7 @@ void describe("WO §3.7 the registry cannot be built from anything but the gate'
     const forged = { admitted: definitions, refused: [] };
     // @ts-expect-error -- the Admission type is nominal (a private brand), so a look-alike must not type-check.
     assert.throws(() => new PinnedRegistry(forged, options(true)), TypeError);
-    assert.throws(() => new Admission(Symbol("PinGate.admit"), definitions, []), TypeError);
+    assert.throws(() => new Admission(Symbol("PinGate.admit"), [], []), TypeError);
   });
 
   void it("the transport serves only a PinnedRegistry", async () => {
@@ -55,7 +55,48 @@ void describe("WO §3.7 the registry cannot be built from anything but the gate'
   });
 });
 
+void describe("adversarial F3, F4: the registry cannot be subclassed, forged, patched or re-labelled", () => {
+  const genuine = (): PinnedRegistry => new PinnedRegistry(PinGate.load(manifestText).admit(definitions), options(true));
+
+  void it("a subclass is refused at construction", () => {
+    class Leaky extends PinnedRegistry {}
+    assert.throws(() => new Leaky(PinGate.load(manifestText).admit(definitions), options(true)), /cannot be subclassed/);
+  });
+
+  void it("an object made from the prototype, with no admission behind it, is refused by the transport", async () => {
+    const fake = Object.create(PinnedRegistry.prototype) as PinnedRegistry;
+    assert.equal(PinnedRegistry.isGenuine(fake), false);
+    const err = await startExpectingRefusal({ registry: fake, serverInfo: { name: "x", version: "0" } });
+    assert.match(String(err), /only a PinnedRegistry/);
+    assert.equal(PinnedRegistry.isGenuine(genuine()), true);
+  });
+
+  void it("the prototype and every instance are frozen: get() cannot be patched, pinning cannot be reassigned", () => {
+    assert.throws(() => {
+      (PinnedRegistry.prototype as unknown as Record<string, unknown>)["get"] = () => undefined;
+    }, TypeError);
+    const r = genuine();
+    assert.throws(() => {
+      (r as unknown as Record<string, unknown>)["pinning"] = { strict: false, admitted: 0, refused: [], isRefused: () => false };
+    }, TypeError);
+  });
+});
+
 void describe("WO §1.4, §3.3 strict vs non-strict", () => {
+  void it("adversarial F5: strict omitted is PIN_STRICT from the environment, strict unless exactly false", () => {
+    const saved = process.env["PIN_STRICT"];
+    try {
+      delete process.env["PIN_STRICT"];
+      assert.equal(new PinnedRegistry(PinGate.load(manifestText).admit(definitions), { compile: compileSchema, limits: DEFAULT_LIMITS }).pinning.strict, true);
+      process.env["PIN_STRICT"] = "false";
+      assert.equal(new PinnedRegistry(PinGate.load(manifestText).admit(definitions), { compile: compileSchema, limits: DEFAULT_LIMITS }).pinning.strict, false);
+      assert.throws(() => loadPinnedRegistry(new URL("./no-such-manifest.json", FIXTURE_MANIFEST), definitions, { compile: compileSchema, limits: DEFAULT_LIMITS }), ManifestError, "PIN_STRICT=false never excuses a missing manifest");
+    } finally {
+      if (saved === undefined) delete process.env["PIN_STRICT"];
+      else process.env["PIN_STRICT"] = saved;
+    }
+  });
+
   void it("PIN_STRICT: strict unless exactly false", () => {
     assert.equal(pinStrictFromEnv({}), true);
     assert.equal(pinStrictFromEnv({ PIN_STRICT: "0" }), true);
