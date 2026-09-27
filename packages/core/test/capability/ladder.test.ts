@@ -41,9 +41,11 @@ function refused(label: string, overrides: Partial<CapabilityTag>, rule: RuleId,
   return err.message;
 }
 
+/** "served", or the refusal's text: compared as a string, so a failure's diff carries no stack. */
+const outcome = (err: unknown): string => (err === undefined ? "served" : String(err));
+
 function served(label: string, overrides: Partial<CapabilityTag>): void {
-  const err = construct(overrides);
-  assert.equal(err, undefined, `${label}: expected to be served, refused with ${String(err)}`);
+  assert.equal(outcome(construct(overrides)), "served", label);
 }
 
 const BOOLS = [false, true] as const;
@@ -121,14 +123,14 @@ void describe("enforced at construction, through the real gate and registry", ()
         assert.ok(withBest instanceof ObligationError, `${label} with its best controls must be refused, got ${String(withBest)}`);
         refusedCount++;
       } else {
-        assert.equal(withBest, undefined, `${label} with its best controls must be served, got ${String(withBest)}`);
+        assert.equal(outcome(withBest), "served", `${label} with its best controls`);
       }
       // With no controls at all: refused exactly when the obligation requires something.
       const bare = construct({ ...c, recoverability_basis: null, containment_domain: null });
       if (obligationOf(c).requires.length > 0) {
         assert.ok(bare instanceof ObligationError, `${label} with no controls must be refused, got ${String(bare)}`);
       } else {
-        assert.equal(bare, undefined, `${label} with no controls must be served, got ${String(bare)}`);
+        assert.equal(outcome(bare), "served", `${label} with no controls`);
       }
     }
     assert.equal(refusedCount, 18, "the 16 elevated combinations, and the 2 untrusted arbitrary_exec ones that are not elevated");
