@@ -1,7 +1,11 @@
 // The settings snapshot (CSR-WO-1007b §1.1, §1.2; northstar N2; architecture §4 *Core ↔ edition*).
 //
 // Why a snapshot, and why it is taken first. Every setting that decides what a node serves is read
-// here, once, into a frozen value, and the core reads `process.env` nowhere else. The node's entry
+// here, once, into a frozen value. No node path reads `process.env` after this: the readers below keep a
+// `= process.env` default for a caller outside this step, and what holds that dormant is not the source's
+// shape but two tests — one rewrites the environment after the capture and shows every setting and the
+// running node's own configuration unchanged, the other keeps an inventory of every read in the core's
+// source and fails until a new one is named (test/node/cli.test.ts). The node's entry
 // (`node/cli.ts`) takes this snapshot **before** it imports the edition, so an edition's module-load
 // code cannot change a setting that has already been read. That ordering is the control: `-1007a` made
 // the operator name the manifest, but the read still happened when `startNode` was called, after the
