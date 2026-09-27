@@ -2114,6 +2114,131 @@
         "red-proof H-1: an extensionless package entry is read like any other module",
         "red-proof H-1: an extensionless import is read like any other module"
       ]
+    },
+    {
+      "id": "entry-shebang",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007c §1.1: the entry carries a #!/usr/bin/env node line, so npm's bin link is a command",
+      "touches": [
+        "packages/core/src/node/cli.ts"
+      ],
+      "stub": "stubs/entry-shebang.patch",
+      "tests": [
+        "packages/core/test/node/installed.test.ts"
+      ],
+      "mustFail": [
+        "the built entry's first line is #!/usr/bin/env node, and npm installs it as the command",
+        "run by its npm bin path, it listens"
+      ]
+    },
+    {
+      "id": "entry-main-real-path",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007c §1.1: the main-module check compares real paths on both sides, so it holds through a link",
+      "touches": [
+        "packages/core/src/node/cli.ts"
+      ],
+      "stub": "stubs/entry-main-real-path.patch",
+      "tests": [
+        "packages/core/test/node/installed.test.ts"
+      ],
+      "mustFail": [
+        "run by its npm bin path, it listens",
+        "run as node <a link to it>, it listens"
+      ]
+    },
+    {
+      "id": "entry-refuses-preloads",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007c §1.2: before the snapshot, the entry refuses a process started with a module-loading flag, naming it",
+      "touches": [
+        "packages/core/src/node/cli.ts"
+      ],
+      "stub": "stubs/entry-refuses-preloads.patch",
+      "tests": [
+        "packages/core/test/node/preload.test.ts"
+      ],
+      "mustFail": [
+        "NODE_OPTIONS=--import <file>",
+        "NODE_OPTIONS=-r <file>",
+        "--import on the command line",
+        "--experimental-loader",
+        "a NODE_OPTIONS that --env-file applies is refused by what it carries",
+        "a config file whose nodeOptions import a module is refused by its flag",
+        "the check comes before the settings are read: a preload flag refuses even an empty configuration"
+      ]
+    },
+    {
+      "id": "entry-preloads-from-node-options",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007c §1.2: a module-loading flag in NODE_OPTIONS is refused, not only one on the command line",
+      "touches": [
+        "packages/core/src/node/cli.ts"
+      ],
+      "stub": "stubs/entry-preloads-from-node-options.patch",
+      "tests": [
+        "packages/core/test/node/preload.test.ts"
+      ],
+      "mustFail": [
+        "NODE_OPTIONS=--import <file>",
+        "NODE_OPTIONS=-r <file>",
+        "a NODE_OPTIONS that --env-file applies is refused by what it carries",
+        "--import=<file>"
+      ]
+    },
+    {
+      "id": "boundary-parse-error",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007c §1.3: any syntactic diagnostic for an edition file is a finding naming the file and the diagnostic",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-parse-error.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof M-1: import source m from \"./m.wasm\": the file is a finding, naming it and the diagnostic",
+        "red-proof M-1 in a file with no extension, parsed as the JavaScript Node loads it as: the file is a finding, naming it and the diagnostic",
+        "red-proof an unterminated string: the file is a finding, naming it and the diagnostic"
+      ]
+    },
+    {
+      "id": "boundary-install-scripts",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007c §1.4: a package.json declaring a script npm runs on install is a finding",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-install-scripts.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof an install-time script: scripts.preinstall",
+        "red-proof an install-time script: scripts.install",
+        "red-proof an install-time script: scripts.postinstall",
+        "red-proof an install-time script: scripts.prepublish",
+        "red-proof an install-time script: scripts.preprepare",
+        "red-proof an install-time script: scripts.prepare",
+        "red-proof an install-time script: scripts.postprepare",
+        "red-proof an install-time script: scripts.dependencies"
+      ]
+    },
+    {
+      "id": "boundary-binding-gyp",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007c §1.4: a binding.gyp, which npm runs as node-gyp rebuild on install, is a finding",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-binding-gyp.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof a binding.gyp, which npm runs as node-gyp rebuild on install"
+      ]
     }
   ]
 }

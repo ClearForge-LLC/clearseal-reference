@@ -1,0 +1,7 @@
+--- a/packages/core/src/node/cli.ts
++++ b/packages/core/src/node/cli.ts
+@@ -1,4 +1,3 @@
+-#!/usr/bin/env node
+ // The node's entry (CSR-WO-1007b §1.1): `clearseal-node`, the only way a node starts. The order here is
+ // the control, and it is the whole point of this file:
+ //
