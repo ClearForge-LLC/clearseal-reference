@@ -3,5 +3,5 @@
   "private": true,
   "type": "module",
   "exports": { ".": { "default": "./src/index.ts" } },
-  "clearseal": { "exports": { "start": "deploy-scaffold", "verifier": "deploy-scaffold" } }
+  "clearseal": { "exports": { "start": "configuration-schema", "verifier": "configuration-schema" } }
 }

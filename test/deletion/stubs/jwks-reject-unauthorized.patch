@@ -1,0 +1,11 @@
+--- a/packages/core/src/auth/jwks.ts
++++ b/packages/core/src/auth/jwks.ts
+@@ -55,7 +55,7 @@
+     // rejectUnauthorized is stated, not defaulted: left out, Node reads NODE_TLS_REJECT_UNAUTHORIZED
+     // from the environment, and "0" there would turn off verification of the issuer's certificate
+     // for this request (CSR-WO-1007 §1.5, red-team L2).
+-    const req = request(url, { method: "GET", headers: { accept: "application/json" }, rejectUnauthorized: true, ...(ca === undefined ? {} : { ca }) }, (res) => {
++    const req = request(url, { method: "GET", headers: { accept: "application/json" }, ...(ca === undefined ? {} : { ca }) }, (res) => {
+       if (res.statusCode !== 200) {
+         res.resume();
+         reject(new Error(`status ${String(res.statusCode)}`));

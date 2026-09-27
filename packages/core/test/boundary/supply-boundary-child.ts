@@ -4,9 +4,9 @@
 //
 // Usage: node supply-boundary-child.ts <edition dir>
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { readFileSync, realpathSync } from "node:fs";
+import { join, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { types } from "node:util";
 
 // Captured before any edition code runs.
@@ -66,6 +66,16 @@ const CHECKS: Record<string, (v: unknown) => string | undefined> = {
   },
   "manifest-path": (v) => {
     if (!(v instanceof URL) && typeof v !== "string") return "a path or file URL";
+    // The committed manifest lives in the repository's pins/ (an edition is packages/<name>): any
+    // other file, however valid, is not the approved one (CSR-WO-1007 §1.3).
+    let real: string;
+    try {
+      real = realpathSync(v instanceof URL ? fileURLToPath(v) : v);
+    } catch {
+      return "a manifest that exists";
+    }
+    const pins = `${realpathSync(join(dir, "..", ".."))}${sep}pins${sep}`;
+    if (!real.startsWith(pins) || !real.endsWith(".json")) return "the committed manifest, a .json file in the repository's pins/";
     try {
       core.parseManifest(readFileSync(v, "utf8"));
     } catch (err) {
@@ -76,14 +86,6 @@ const CHECKS: Record<string, (v: unknown) => string | undefined> = {
   "configuration-schema": (v) => {
     if (!isObject(v) || v["type"] !== "object") return "a JSON Schema object with type object";
     if (stringify(parse(stringify(v))) !== stringify(v)) return "plain JSON data";
-    return undefined;
-  },
-  "deploy-scaffold": (v) => {
-    if (typeof v !== "function") return "a function";
-    if (isClass(v)) return "a function, not a class";
-    const proto = (v as { prototype?: unknown }).prototype;
-    if (isObject(proto) && ownKeys(proto).some((k) => k !== "constructor")) return "a function with no prototype methods";
-    if (ownKeys(v).some((k) => !["length", "name", "prototype"].includes(String(k)))) return "a function with no properties of its own";
     return undefined;
   },
   cage: (v) => {

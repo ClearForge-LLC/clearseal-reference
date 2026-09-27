@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -217,7 +217,7 @@
+         }
+       }
+       // (c) a property of a core namespace, read in an expression.
+-      if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression) && namespaces.has(node.expression.text)) add("core-namespace-access", `${node.expression.text}${ts.isPropertyAccessExpression(node) ? `.${node.name.text}` : "[...]"}: an edition reads nothing from the core's namespace`);
++      if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression) && namespaces.has(node.expression.text) && node.pos < 0) add("core-namespace-access", `${node.expression.text}${ts.isPropertyAccessExpression(node) ? `.${node.name.text}` : "[...]"}: an edition reads nothing from the core's namespace`);
+ 
+       if (ts.isIdentifier(node) && isReference(node)) {
+         const t = node.text;

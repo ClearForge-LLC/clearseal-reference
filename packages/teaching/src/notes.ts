@@ -8,7 +8,7 @@
 //   contract, so moving the store is a re-approval (CSR-WO-1004 §1.3).
 // - It reaches outside the process only through `ctx.cage` (architecture §3.1: editions are thin).
 
-import { DEFAULT_LIMITS, type PinnableTool } from "@clearseal/core";
+import type { PinnableTool } from "@clearseal/core";
 
 /** Where the store lives unless the operator moves it (and re-pins). A POSIX path: the `fs:` grammar
  *  is POSIX-only (upstream entry 13). */
@@ -19,12 +19,14 @@ export const DEFAULT_NOTES_ROOT = "/srv/clearseal/teaching/notes";
 export const NOTE_NAME = "^[a-z0-9][a-z0-9_-]{0,63}\\.(md|txt)$";
 const NAME = new RegExp(NOTE_NAME);
 
-/** The largest note returned: the core's result cap. One byte more is read to tell a longer note. */
-const MAX_NOTE = DEFAULT_LIMITS.maxResultBytes;
+/** The largest note returned: 256 KiB, the core's default result cap, stated here because an edition
+ *  imports only types from the core (CSR-WO-1007 §1.3). The core's transport refuses a larger result
+ *  whatever this says. One byte more is read to tell a longer note. */
+const MAX_NOTE = 256 * 1024;
 const UTF8 = new TextDecoder("utf-8", { fatal: true });
 
-/** The edition's tools for a store root: the one list both the exported definitions and the deploy
- *  scaffold use, so what is pinned is what is served. */
+/** The edition's tools for a store root: the one list the exported definitions are built from, so
+ *  what is pinned is what is served. Tests build it for a temporary root and pin that. */
 export function toolsFor(root: string): PinnableTool[] {
   return [notesRead(root)];
 }

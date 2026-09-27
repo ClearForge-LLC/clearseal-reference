@@ -9,3 +9,4 @@ export * from "./pinning/registry.ts";
 export * from "./containment/domain.ts";
 export * from "./containment/cage.ts";
 export * from "./containment/harness.ts";
+export { type Edition, NodeStartError, startNode, type StartNodeOptions } from "./node/start.ts";

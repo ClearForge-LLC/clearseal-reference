@@ -1,22 +1,24 @@
 # @clearseal/teaching
 
 The ClearSeal teaching edition: a notes store as the carrier (architecture §3.3). It is thin by
-rule (N1): it exports tool definitions, the path of its approved manifest, a configuration schema
-and a deploy scaffold, and nothing else. The verifier, the pin gate, the registry, the transport
-and the cage are the core's. The core's supply-boundary test holds this package to that list.
+rule (N1): it exports tool definitions, the path of its approved manifest and a configuration
+schema, and assembles nothing. The core's `startNode` reads the configuration and the committed
+manifest file and builds the pin gate, the registry and the transport (CSR-WO-1007); the verifier and
+the cage are the core's too. The edition imports only types from the core, and `startNode` in
+`bin/`. The core's supply-boundary test holds this package to that.
 
 | Module | What it is | ClearSeal clause |
 |---|---|---|
 | `src/notes.ts` | `notes.read`, a `read_only` tool contained to the notes root | N7 (capability class, containment domain); the cage is the only way out |
-| `src/config.ts` | the configuration schema, validated at start | N4: a configuration outside the schema refuses start |
-| `src/start.ts` | the deploy scaffold: the core's `loadPinnedRegistry`, then `startTransport` | N1, N2: the only registration path is the core's |
-| `src/index.ts` | the public entry, and its declared export kinds (`package.json`, `clearseal.exports`) | N1: the supply boundary |
-| `bin/teaching-node.ts` | starts a node from the environment | — |
+| `src/config.ts` | the configuration schema, read and validated by the core's `startNode` | N4: a configuration outside the schema refuses start |
+| `src/index.ts` | the public entry: `definitions`, `manifestPath`, `configSchema`, each declared by kind (`package.json`, `clearseal.exports`) | N1: the supply boundary |
+| `bin/teaching-node.ts` | the deploy scaffold: `startNode({ definitions, manifestPath, configSchema })` and nothing else | N1, N2: the only path to a serving node is the core's, reading the committed manifest |
 
 **The notes root is part of the pinned contract.** `notes.read`'s containment domain is the root,
-and the domain is hashed. Moving the store (`TEACHING_NOTES_ROOT`) changes the tool's hash, so the
-node refuses to start until the operator re-approves: `npm run pin -- approve --definitions
-<definitions for the new root> --manifest <file> --yes`.
+and the domain is hashed. Moving the store is a code change (the root in `src/notes.ts`) that changes
+the tool's hash, so the node refuses to start until the operator re-approves the committed manifest:
+`npm run pin -- approve --definitions <definitions for the new root> --manifest <file> --yes`. It is
+not a variable: the node reads the committed `pins/teaching.json` and nothing else.
 
 The committed manifest, `pins/teaching.json`, pins the default root. Its drift test fails CI when
 the definitions and the manifest disagree.
