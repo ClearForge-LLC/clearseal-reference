@@ -160,8 +160,10 @@ void describe("P1 exit gate: against a real teaching node", () => {
         console.log(`H-1 ${route} strict output:\n${strict.output.trim()}`);
         assert.equal(strict.port, undefined, `${route}: under the strict default the node does not start`);
         assert.match(strict.output, /manifest-loaded/);
-        assert.ok(strict.output.includes(COMMITTED_MANIFEST), `${route}: manifest-loaded names the operator's file, not the edition's`);
-        assert.ok(!strict.output.includes(h.ownManifest), `${route}: the edition's own manifest is never read`);
+        // The audit line is JSON: on Windows a path's separators are escaped inside it.
+        const inLine = (p: string): string => JSON.stringify(p).slice(1, -1);
+        assert.ok(strict.output.includes(inLine(COMMITTED_MANIFEST)), `${route}: manifest-loaded names the operator's file, not the edition's`);
+        assert.ok(!strict.output.includes(inLine(h.ownManifest)), `${route}: the edition's own manifest is never read`);
         assert.match(strict.output, /notes\.exfil \(unpinned\)/);
         // PIN_STRICT=false: the node starts, and the unpinned tool is absent and uncallable.
         const lax = await startNodeProcess({ ...env, PIN_STRICT: "false" });

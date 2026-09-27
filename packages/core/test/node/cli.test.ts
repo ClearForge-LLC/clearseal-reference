@@ -229,8 +229,10 @@ void describe("CSR-WO-1007b §1.6: what the manifest's audit rows say", () => {
     const refused = rows.filter((r) => r.startsWith("manifest-refused"));
     assert.equal(refused.length, 1, rows.join(" | "));
     assert.ok(!rows.some((r) => r.startsWith("manifest-loaded")), "no manifest-loaded for a manifest that did not parse");
-    assert.ok((refused[0] ?? "").includes(createHash("sha256").update(readFileSync(bad)).digest("hex")), "the hash of the bytes it read");
-    assert.ok((refused[0] ?? "").includes(bad), "the path it read");
+    // The row is JSON, so a Windows path's separators are escaped in it: compare the parsed fields.
+    const fields = JSON.parse((refused[0] ?? "").slice("manifest-refused ".length)) as { path?: unknown; sha256?: unknown };
+    assert.equal(fields.sha256, createHash("sha256").update(readFileSync(bad)).digest("hex"), "the hash of the bytes it read");
+    assert.equal(fields.path, bad, "the path it read");
     pastes.push(`MANIFEST refused: ${(refused[0] ?? "").replace(createHash("sha256").update(readFileSync(bad)).digest("hex"), "<sha256>")}`);
   });
 
