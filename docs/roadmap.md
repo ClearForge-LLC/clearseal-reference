@@ -163,7 +163,11 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   adversarial pass: admitted tools deeply frozen so nothing in the process changes what `tools/list`
   serves (N2); the cage opens without blocking and admits regular files only; the Windows cage
   resolves symlinks and junctions, measured on `windows-latest`.
-- `CSR-WO-1007` — (WO written 2026-09-26; **P1 exits after it** and a targeted re-test of H1) the core
+- `CSR-WO-1007a` — (WO written 2026-09-26; **P1 exits after it** and a clean H1 re-test) the operator
+  names the manifest: `startNode` reads `CLEARSEAL_MANIFEST` from configuration and audits its hash;
+  editions stop exporting a manifest path. From the H1 re-test (F1, F2): `-1007` still let the edition
+  name the manifest that approves it — the architect's design defect, twice in one phase.
+- `CSR-WO-1007` — (built, merged `cc9cd0b` 2026-09-26) the core
   owns node assembly: `startNode` reads the committed manifest file and builds gate, registry and
   transport; editions import only types from the core (and `startNode` in `bin/`); the boundary
   checker's rules hold under aliasing; the P1 evidence test gains containment and audit clauses.
@@ -194,7 +198,7 @@ by deleting the control it guards; a hand-edited description leaves that tool ab
 `tools/list` on restart; `curl -i` unauthenticated returns `401` with a `WWW-Authenticate` header
 carrying `resource_metadata`, and a token with a different audience also returns `401`; the
 enumeration detector goes red when a local copy of the standard's field list is edited; every
-committed cross-language vector hashes identically in the core; the supply-boundary test exists and goes red on each planted edition-side control in its corpus, including the P1 exit red-team's (static reading is best-effort against a hostile author — `architecture.md` §4; the guarantee is that the only assembly path reads the committed manifest); a forged `Origin` and an extra request property are each
+committed cross-language vector hashes identically in the core; the supply-boundary test exists and goes red on each planted edition-side control in its corpus, including the P1 exit red-team's (static reading is best-effort against a hostile author — `architecture.md` §4; the guarantee is that the node serves only tools whose definitions hash to the manifest the operator configured — `-1007a`); a forged `Origin` and an extra request property are each
 refused before any handler runs.
 
 ### P2 · The rest of the core, and a teaching edition a reader can hold
