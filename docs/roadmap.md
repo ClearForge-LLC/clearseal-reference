@@ -163,7 +163,11 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   adversarial pass: admitted tools deeply frozen so nothing in the process changes what `tools/list`
   serves (N2); the cage opens without blocking and admits regular files only; the Windows cage
   resolves symlinks and junctions, measured on `windows-latest`.
-- `CSR-WO-1007a` — (WO written 2026-09-26; **P1 exits after it** and a clean H1 re-test) the operator
+- `CSR-WO-1007b` — (WO written 2026-09-27; **P1 exits after it** and a clean H1 re-test) the core owns
+  the process entry: `clearseal-node` reads every operator setting and the manifest into a frozen
+  snapshot before it imports the edition named by `CLEARSEAL_EDITION`; editions have no `bin/`. From
+  the re-test's H-1 against `31a2bf3`: `startNode` read the environment after edition code had run.
+- `CSR-WO-1007a` — (built, merged `31a2bf3` 2026-09-27; the re-test's third pass found H-1 → `-1007b`) the operator
   names the manifest: `startNode` reads `CLEARSEAL_MANIFEST` from configuration and audits its hash;
   editions stop exporting a manifest path. From the H1 re-test (F1, F2): `-1007` still let the edition
   name the manifest that approves it — the architect's design defect, twice in one phase.
@@ -216,7 +220,7 @@ red-proof, and the teaching edition demonstrates every rung except exec.
   ruled from the operator's client-half findings; a deterministic test backend, a console backend, and the confirm-URL backend with
   a pluggable notifier; the approval route unreachable by the tool-calling principal, proven by a
   test; the transport the spike ruled.
-- `CSR-WO-2002` — (WO written 2026-09-27; fail-closed start, `seam-only` dev mode) audit: the `AuditStore` interface with a JSON-lines backend; argument values
+- `CSR-WO-2002` — (built, merged PR #59 2026-09-27; fail-closed start, `seam-only` dev mode; limits stated in §5) audit: the `AuditStore` interface with a JSON-lines backend; argument values
   replaced by keyed digests with a key-id prefix; hash-chained rows; signed checkpoints to an
   anchor sink; the `audit verify` command. The OS-log backends land with their editions (P3, P4).
 - `CSR-WO-2007` — tripwire and rate limit, as two controls: a read-burst tripwire that emits one
