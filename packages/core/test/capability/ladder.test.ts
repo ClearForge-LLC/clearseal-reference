@@ -165,9 +165,9 @@ void describe("enforced at construction, through the real gate and registry", ()
     refused("owned_state, basis \"   \"", os("   "), "CAP-5", /it is empty or whitespace/);
     refused("owned_state, basis U+3000 only", os("　"), "CAP-5", /it is empty or whitespace/);
     refused(`owned_state, basis ${String(MAX_BASIS + 1)} characters`, os("a".repeat(MAX_BASIS + 1)), "CAP-5", /longer than 120 characters/);
-    refused(`owned_state, basis ${String(MAX_BASIS + 1)} astral characters`, os("\u{1F4D3}".repeat(MAX_BASIS + 1)), "CAP-5", /longer than 120 characters/);
+    refused(`owned_state, basis ${String(MAX_BASIS + 1)} astral characters`, os("\u{1D400}".repeat(MAX_BASIS + 1)), "CAP-5", /longer than 120 characters/);
     served(`owned_state, basis of exactly ${String(MAX_BASIS)} characters`, os("a".repeat(MAX_BASIS)));
-    served(`owned_state, basis of ${String(MAX_BASIS)} astral characters (counted in code points)`, os("\u{1F4D3}".repeat(MAX_BASIS)));
+    served(`owned_state, basis of ${String(MAX_BASIS)} astral characters (counted in code points)`, os("\u{1D400}".repeat(MAX_BASIS)));
   });
 
   void it("owned_state refuses a basis broken by any line terminator or control", () => {
@@ -190,7 +190,29 @@ void describe("enforced at construction, through the real gate and registry", ()
       refused(`owned_state, basis with ${name}`, { capability_class: "owned_state", recoverability_basis: `append-only${ch}rm -rf` }, "CAP-5", /it is not one line/);
     }
     // A lone surrogate never reaches the registry: the canonical form refuses it first (A3).
-    assert.equal(basisProblem("append-only\ud800"), "it is not one line (a line break, control or format character)");
+    assert.equal(basisProblem("append-only\ud800"), "it is not one line (a line break, control, format, invisible or unassigned character)");
+    // What renders as nothing, or as no agreed glyph (the adversarial pass, §5.2).
+    const invisible: [string, string][] = [
+      ["U+3164 Hangul filler", "\u3164"],
+      ["U+115F Hangul choseong filler", "\u115f"],
+      ["U+FFA0 halfwidth Hangul filler", "\uffa0"],
+      ["U+034F grapheme joiner", "\u034f"],
+      ["U+17B4 Khmer vowel inherent", "\u17b4"],
+      ["U+FE0F variation selector", "\ufe0f"],
+      ["U+E000 private use", "\ue000"],
+      ["U+FFFF noncharacter", "\uffff"],
+      ["U+0378 unassigned", "\u0378"],
+    ];
+    for (const [name, ch] of invisible) {
+      refused(`owned_state, basis with ${name}`, { capability_class: "owned_state", recoverability_basis: `append-only${ch}` }, "CAP-5", /it is not one line/);
+    }
+  });
+
+  void it("owned_state refuses a basis with no letter or digit", () => {
+    for (const [name, basis] of [["U+2800 Braille blank", "\u2800"], ["a lone combining acute", "\u0301"], ["punctuation only", "+ / -"], ["Braille blanks", "\u2800".repeat(40)]] as const) {
+      refused(`owned_state, basis ${name}`, { capability_class: "owned_state", recoverability_basis: basis }, "CAP-5", /it has no letter or digit/);
+    }
+    served("owned_state, a basis in another script", { capability_class: "owned_state", recoverability_basis: "仅追加 + 版本化" });
   });
 
   void it("a basis on any other rung is refused", () => {

@@ -94,7 +94,11 @@ it is:
 - over **120 code points**;
 - carrying any character that breaks, hides or controls a line: a C0 or C1 control (tab, `\n`,
   `\r` and U+0085 among them), a format character (Unicode Cf: bidi overrides, zero-width marks),
-  U+2028, U+2029, or a lone surrogate.
+  U+2028, U+2029, or a lone surrogate;
+- carrying a character that renders as nothing, or as no agreed glyph: a default-ignorable code
+  point (Hangul fillers, variation selectors, the grapheme joiner), private use, or unassigned;
+- carrying no letter or digit (a Braille blank, a lone combining mark, punctuation alone). A basis
+  a reviewer cannot read states nothing.
 
 **Why 120.**
 - One line is a line a reviewer reads without wrapping, in the approval diff and in the audit line.
@@ -104,9 +108,18 @@ it is:
 - It is counted in code points, not UTF-16 units, so the count does not depend on the encoding.
 
 **Refusal:** `tool "<name>": owned_state must pin a one-line recoverability_basis (§3): <why>`.
-**Red-proofs:** "owned_state refuses a missing, empty, whitespace or over-long basis" and
-"owned_state refuses a basis broken by any line terminator or control".
-**Rows:** `owned-state-basis-required`, `owned-state-basis-one-line`.
+**Red-proofs:** "owned_state refuses a missing, empty, whitespace or over-long basis",
+"owned_state refuses a basis broken by any line terminator or control" and "owned_state refuses a
+basis with no letter or digit".
+**Rows:** `owned-state-basis-required`, `owned-state-basis-not-blank`, `owned-state-basis-one-line`,
+`owned-state-basis-length`, `owned-state-basis-legible`.
+
+**Not refused, by choice (Low, from the adversarial pass):**
+- A basis within 120 code points can still render wider than one line: combining marks stacked on
+  one letter, or wide glyphs such as U+FDFD.
+- Strong right-to-left text can reorder the neutral characters around it on screen.
+Each can only mislead a reviewer's eye, and whoever writes the tag can already write a false basis.
+The basis is pinned, so what the reviewer approved is what is served.
 
 ## CAP-6 — no other rung carries a basis
 

@@ -59,9 +59,13 @@ export const APPROVAL_BACKEND: ApprovalBackend = "none";
 export const MAX_BASIS = 120;
 
 /** Characters that break, hide or control a line: C0 and C1 controls (tab, LF, CR, NEL among them),
- *  format characters (bidi overrides, zero-width marks), the line and paragraph separators, and
- *  lone surrogates. */
-const NOT_ONE_LINE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cs}]/u;
+ *  format characters (bidi overrides, zero-width marks), the line and paragraph separators, lone
+ *  surrogates, and what renders as nothing or as no agreed glyph: default-ignorable code points
+ *  (Hangul fillers, variation selectors, the grapheme joiner), private-use and unassigned ones. */
+const NOT_ONE_LINE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cs}\p{Co}\p{Cn}\p{Default_Ignorable_Code_Point}]/u;
+
+/** A basis a reviewer can read says something: at least one letter or digit. */
+const LEGIBLE = /[\p{L}\p{N}]/u;
 
 const CLASSES: ReadonlySet<string> = new Set(CAPABILITY_CLASSES);
 
@@ -100,7 +104,8 @@ export function obligationOf(tag: ObligationInput): Obligation {
 export function basisProblem(basis: string | null): string | undefined {
   if (basis === null) return "it is missing";
   if (!/\S/u.test(basis)) return "it is empty or whitespace";
-  if (NOT_ONE_LINE.test(basis)) return "it is not one line (a line break, control or format character)";
+  if (NOT_ONE_LINE.test(basis)) return "it is not one line (a line break, control, format, invisible or unassigned character)";
+  if (!LEGIBLE.test(basis)) return "it has no letter or digit";
   if ([...basis].length > MAX_BASIS) return `it is longer than ${String(MAX_BASIS)} characters`;
   return undefined;
 }
