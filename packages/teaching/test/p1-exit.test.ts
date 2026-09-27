@@ -331,7 +331,7 @@ void describe("keyed, never bare (CSR-WO-2002)", () => {
       const lines = text.trimEnd().split("\n").filter((l) => l !== "");
       rows += lines.length;
       for (const l of lines) assert.equal(typeof (JSON.parse(l) as { principal?: unknown }).principal, "string", "every row carries a principal");
-      let anchor = "";
+      let anchor: string;
       try {
         anchor = readFileSync(kit.anchor, "utf8");
       } catch {
