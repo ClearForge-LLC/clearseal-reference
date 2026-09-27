@@ -80,6 +80,11 @@ void describe("CSR-WO-1007 §1.1: startNode reads the committed manifest file, a
       const link = join(DIR, "link.json");
       symlinkSync(MANIFEST, link);
       cases.push(["a symbolic link to the real manifest (a link is followed by nothing)", link, /cannot be read \(ELOOP\)/]);
+      const realDir = join(DIR, "real");
+      mkdirSync(realDir);
+      writeFileSync(join(realDir, "manifest.json"), serializeManifest(buildManifest(pinned)));
+      symlinkSync(realDir, join(DIR, "linked-dir"));
+      cases.push(["a link on the way, not at the leaf (a symlinked directory)", join(DIR, "linked-dir", "manifest.json"), /passes through a symbolic link/]);
       const fifo = join(DIR, "fifo.json");
       execFileSync("mkfifo", [fifo]);
       cases.push(["a FIFO (never waited on)", fifo, /not a regular file/]);

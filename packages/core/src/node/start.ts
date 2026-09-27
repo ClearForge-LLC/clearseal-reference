@@ -12,8 +12,8 @@
 // ("x-clearseal-setting": "host", "port" or "resource-url"). A value outside the schema, an unknown
 // variable with the edition's prefix included, refuses start (N4).
 
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync } from "node:fs";
+import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { PinGate } from "../pinning/gate.ts";
@@ -61,7 +61,8 @@ type Setting = (typeof SETTINGS)[number];
  * `file:` URL; anything else (a relative path, a data or http URL) refuses start. On POSIX the open
  * carries O_NOFOLLOW (a link at the leaf is refused by the kernel, in the open itself) and
  * O_NONBLOCK (a FIFO cannot make it wait); the descriptor is then fstat-ed, and anything but a
- * regular file refuses start. The text is read from that descriptor, so what was checked is what is
+ * regular file refuses start; and a link anywhere on the way refuses start (on Linux, from the
+ * descriptor's own path, so a swap between the check and the read is caught). The text is read from that descriptor, so what was checked is what is
  * read. On Windows there is no O_NOFOLLOW: a link at the leaf is refused by an lstat before the
  * open, and a link swapped in between the two is followed (the edition's OS cage, and the file's
  * ownership, are the boundary there).
@@ -95,6 +96,18 @@ export function readManifestFile(manifestPath: string | URL): string {
   }
   try {
     if (!fstatSync(fd).isFile()) throw new ManifestError("the manifest is not a regular file: a node reads its committed manifest from a regular file");
+    // No link anywhere on the way, not only at the leaf: the file opened must be the file at the path
+    // named. On Linux the descriptor's own path is read (so a directory swapped for a link between
+    // the name and the open is caught too); on the other POSIX systems the path is resolved.
+    if (!win) {
+      let real: string | undefined;
+      try {
+        real = realpathSync(process.platform === "linux" ? `/proc/self/fd/${String(fd)}` : path);
+      } catch {
+        real = undefined;
+      }
+      if (real !== resolve(path)) throw new ManifestError("the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way");
+    }
     return readFileSync(fd, "utf8");
   } finally {
     closeSync(fd);

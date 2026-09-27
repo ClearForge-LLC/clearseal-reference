@@ -6,14 +6,18 @@
 //   (a) imports from @clearseal/core are type-only, except startNode, in bin/ only, called as
 //       startNode({ definitions, manifestPath, configSchema }) and in no other way;
 //   (b) `process` and `import.meta` are not referenced at all (by name, alias, destructuring,
-//       parentheses or computed access), except the one `new URL(<literal>, import.meta.url)` form;
+//       parentheses or computed access), except the one `new URL(<literal>, import.meta.url)` form,
+//       whose literal must name a .json file in the repository's pins/ (the committed manifest);
 //   (c) no property of a namespace import of the core is read, even a type-only one's;
 //   (d) so process.getBuiltinModule, createRequire, loadEnvFile and every other process member are
 //       unreachable: (b) removes process itself.
 // The kinds and the one allowed value import are data in this one place.
 //
 // What this is and is not. Static reading of JavaScript is best effort against a hostile author, not
-// a sandbox: the boundaries that hold at run time are the core's (the transport serves only a genuine
+// a sandbox. One route is known and deferred to the P2 hardening WO: the Function constructor reached
+// through `.constructor` on any function or array (`(() => 0).constructor`, `[].constructor.constructor`)
+// compiles code the reading cannot see, and so can reach `process`. The boundaries that hold at run
+// time are the core's (the transport serves only a genuine
 // PinnedRegistry, startNode reads only the committed manifest file, a tool reaches out only through
 // its cage). The export rules run in a fresh child process per edition, so an edition cannot patch
 // the checker's own built-ins.
@@ -201,7 +205,17 @@ export function checkSource(dir: string): Finding[] {
     const visit = (node: ts.Node): void => {
       if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) add("dynamic-import", "import(): an edition's imports are static and checked");
       // (b) import.meta, in any form but new URL(<literal>, import.meta.url).
-      if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword && !isManifestUrlForm(node)) add("import-meta", "import.meta: an edition uses it only as new URL(<literal>, import.meta.url)");
+      if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) {
+        if (!isManifestUrlForm(node)) add("import-meta", "import.meta: an edition uses it only as new URL(<literal>, import.meta.url)");
+        else {
+          // The one allowed form names the committed manifest: a .json file in the repository's pins/
+          // (an edition is packages/<name>), never a file anywhere the literal can climb to.
+          const literal = ((node.parent.parent as ts.NewExpression).arguments?.[0] as ts.StringLiteral).text;
+          const target = fileURLToPath(new URL(literal, pathToFileURL(file)));
+          const pins = join(edition, "..", "..", "pins") + sep;
+          if (!target.startsWith(pins) || !target.endsWith(".json") || literal.includes("%")) add("manifest-url", `new URL("${literal}", import.meta.url) names ${relative(edition, target).split(sep).join("/")}: the one URL an edition builds is its committed manifest, a .json file in the repository's pins/`);
+        }
+      }
       // (c) a property of a core namespace, read in an expression.
       if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression) && namespaces.has(node.expression.text)) add("core-namespace-access", `${node.expression.text}${ts.isPropertyAccessExpression(node) ? `.${node.name.text}` : "[...]"}: an edition reads nothing from the core's namespace`);
 
