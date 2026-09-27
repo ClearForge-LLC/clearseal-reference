@@ -20,6 +20,18 @@ manifest: an edition that could would approve itself.
 | `src/index.ts` | the public entry: `definitions` and `configSchema`, each declared by kind (`package.json`, `clearseal.exports`) | N1: the supply boundary |
 | `bin/teaching-node.ts` | the deploy scaffold: `startNode({ definitions, configSchema })`, with both imported from `@clearseal/teaching`, and nothing else | N1, N2: the only path to a serving node is the core's, reading the operator's manifest |
 
+**The operator names the audit store too.** A node records every refusal and every call that
+reaches a handler, in a hash-chained JSON-lines log with signed checkpoints to a separate anchor
+file, or it does not start (CSR-WO-2002; the `AUDIT_*` settings in `.env.example`). Arguments are
+never written, only keyed digests.
+
+- **Deployed:** set `AUDIT_LOG`, `AUDIT_ANCHOR`, `AUDIT_DIGEST_KEY_FILE` and `AUDIT_DIGEST_KEY_ID`,
+  and `AUDIT_SIGNING_KEY_FILE` and `AUDIT_SIGNING_KEY_ID`, with keys you made and hold. Check the
+  log with `npm run audit -- verify --log … --anchor … --keys …`.
+- **Development:** `node scripts/audit-dev-keys.mjs <a directory outside the repository>` prints
+  those settings for throwaway keys (not for production). Or set `AUDIT_STORE=seam-only`, which
+  keeps the stderr line and writes a loud `audit-unanchored` row at start.
+
 **The notes root is part of the pinned contract.** `notes.read`'s containment domain is the root,
 and the domain is hashed. Moving the store is a code change (the root in `src/notes.ts`) that changes
 the tool's hash, so the node refuses to start until the operator re-approves the committed manifest:
