@@ -214,6 +214,21 @@
       ]
     },
     {
+      "id": "startnode-no-link-on-the-way",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "startNode refuses a manifest path that passes through a symbolic link anywhere, not only at the leaf",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "tests": [
+        "packages/core/test/node/start.test.ts"
+      ],
+      "mustFail": [
+        "a manifest that is not an absolute path or file: URL to a regular file refuses start, before the gate"
+      ],
+      "stub": "stubs/startnode-no-link-on-the-way.patch"
+    },
+    {
       "id": "boundary-core-imports",
       "section8": "Verify-before-register; drift and unpinned refused",
       "control": "the supply-boundary checker refuses every value import from the core but startNode",
@@ -323,6 +338,37 @@
       "mustFail": [
         "red-proof H1 variant: a type import used as a value"
       ]
+    },
+    {
+      "id": "boundary-manifest-url",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the supply-boundary checker allows new URL(<literal>, import.meta.url) only when the literal names a .json file in the repository's pins/",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof H1 variant: a manifest URL whose literal climbs out of the edition",
+        "red-proof H1 variant: a manifest URL to another JSON file in the repository"
+      ],
+      "stub": "stubs/boundary-manifest-url.patch"
+    },
+    {
+      "id": "boundary-manifest-export",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the supply-boundary export check accepts a manifest-path export only if it is a .json file in the repository's pins/",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary-child.ts"
+      ],
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof H1 variant: an exported manifest path to a valid manifest outside pins/"
+      ],
+      "stub": "stubs/boundary-manifest-export.patch"
     },
     {
       "id": "canonical-hash",

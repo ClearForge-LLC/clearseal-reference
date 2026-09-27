@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -213,7 +213,7 @@
+           const literal = ((node.parent.parent as ts.NewExpression).arguments?.[0] as ts.StringLiteral).text;
+           const target = fileURLToPath(new URL(literal, pathToFileURL(file)));
+           const pins = join(edition, "..", "..", "pins") + sep;
+-          if (!target.startsWith(pins) || !target.endsWith(".json") || literal.includes("%")) add("manifest-url", `new URL("${literal}", import.meta.url) names ${relative(edition, target).split(sep).join("/")}: the one URL an edition builds is its committed manifest, a .json file in the repository's pins/`);
++          if ((!target.startsWith(pins) || !target.endsWith(".json") || literal.includes("%")) && literal.length < 0) add("manifest-url", `new URL("${literal}", import.meta.url) names ${relative(edition, target).split(sep).join("/")}: the one URL an edition builds is its committed manifest, a .json file in the repository's pins/`);
+         }
+       }
+       // (c) a property of a core namespace, read in an expression.
