@@ -14,7 +14,14 @@
 //       parentheses or computed access);
 //   (d) no property of a namespace import of the core is read, even a type-only one's;
 //   (e) so process.getBuiltinModule, createRequire, loadEnvFile and every other process member are
-//       unreachable: (c) removes process itself.
+//       unreachable: (c) removes process itself;
+//   (f) every file parses: a syntactic diagnostic is a finding, because a statement TypeScript misreads
+//       is one these rules read as something else (`import source m from "X"` parses as an
+//       `import ... =` and a stray string, so "X" escaped every import rule: the re-test's M-1).
+//       CSR-WO-1007c §1.3;
+//   (g) the package declares no script npm runs on install, and ships no binding.gyp, which npm turns
+//       into one: code that runs when an operator installs the edition, before any node exists
+//       (CSR-WO-1007c §1.4).
 // The kinds and the one allowed value import are data in this one place.
 //
 // What this is and is not: DEFENSE IN DEPTH. Static reading of JavaScript is best effort against a
@@ -33,7 +40,7 @@ import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { builtinModules } from "node:module";
-import { join, relative, sep } from "node:path";
+import { basename, join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import ts from "typescript";
@@ -68,6 +75,16 @@ const BUILTINS = new Set([...builtinModules, ...builtinModules.map((m) => `node:
 const FORBIDDEN_GLOBALS = new Set(["eval", "Function", "fetch", "WebSocket", "XMLHttpRequest", "EventSource", "globalThis", "global", "require", "module", "Proxy", "Reflect"]);
 /** The core's controls by name: an edition that names one is building its own. */
 const CONTROL_NAMES = new Set(["PinGate", "PinnedRegistry", "buildManifest", "serializeManifest", "parseManifest", "Admission", "loadPinnedRegistry", "startTransport", "startNode", "startNodeFromEnv", "captureSettings", "PreparedNode", "runNode"]);
+
+/**
+ * The package scripts npm runs when a package is installed (CSR-WO-1007c §1.4). From npm 11's own
+ * documentation (docs/content/using-npm/scripts.md, *Life Cycle Operation Order*): `npm install` and
+ * `npm ci` run preinstall, install, postinstall, prepublish, preprepare, prepare and postprepare;
+ * `npm rebuild` runs preinstall, install, postinstall and prepare; `dependencies` runs after any command
+ * that changes node_modules. A `binding.gyp` at the package root makes npm run `node-gyp rebuild` as the
+ * install script when none is declared, so it is refused alongside them.
+ */
+export const INSTALL_SCRIPTS: readonly string[] = ["preinstall", "install", "postinstall", "prepublish", "preprepare", "prepare", "postprepare", "dependencies"];
 
 /** Not read: dependencies and the edition's own tests. dist/ IS read (CSR-WO-1007a adversarial pass,
  *  F3): the package entry an edition's bin/ loads is usually dist/index.js, and code the checker never
@@ -138,7 +155,13 @@ export function checkSource(dir: string): Finding[] {
     const add = (rule: string, detail: string): void => {
       findings.push({ file: rel, rule, detail });
     };
-    const src = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+    // A file with no extension is JavaScript to Node, so it is parsed as JavaScript here.
+    const src = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, basename(file).includes(".") ? undefined : ts.ScriptKind.JS);
+    // (f) A file these rules cannot read as written is a finding, whatever else they find in it.
+    for (const d of syntaxErrors(src)) {
+      const { line } = d.start === undefined ? { line: -1 } : src.getLineAndCharacterOfPosition(d.start);
+      add("parse-error", `line ${String(line + 1)}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}: a statement these rules cannot parse can hide an import from every one of them`);
+    }
     /** Local names bound to a type-only core import, and to a core namespace. */
     const typeOnly = new Set<string>();
     const namespaces = new Set<string>();
@@ -240,7 +263,38 @@ export function checkSource(dir: string): Finding[] {
     };
     visit(src);
   }
+  installScripts(dir, findings);
   return findings;
+}
+
+/**
+ * TypeScript's syntactic diagnostics for one file, through the public Program API: the parse's own
+ * errors, and for a JavaScript file the TypeScript-only syntax Node would refuse. Nothing is resolved or
+ * type-checked; the program holds this one file.
+ */
+function syntaxErrors(src: ts.SourceFile): readonly ts.Diagnostic[] {
+  const host = ts.createCompilerHost({});
+  host.getSourceFile = (name) => (name === src.fileName ? src : undefined);
+  host.fileExists = (name) => name === src.fileName;
+  host.readFile = () => undefined;
+  const program = ts.createProgram({ rootNames: [src.fileName], options: { noResolve: true, noLib: true, allowJs: true, types: [] }, host });
+  return program.getSyntacticDiagnostics(src);
+}
+
+/** (g) Install-time code: a lifecycle script npm runs on install, or a binding.gyp it turns into one. */
+function installScripts(dir: string, findings: Finding[]): void {
+  let scripts: unknown;
+  try {
+    scripts = (JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { scripts?: unknown }).scripts;
+  } catch {
+    return; // A missing or unreadable package.json is the export check's finding, not this one's.
+  }
+  if (typeof scripts === "object" && scripts !== null) {
+    for (const name of INSTALL_SCRIPTS) {
+      if (Object.hasOwn(scripts, name)) findings.push({ file: "package.json", rule: "install-script", detail: `scripts.${name}: npm runs it when the edition is installed, before any node exists; an edition ships no install-time code` });
+    }
+  }
+  if (readdirSync(dir).some((name) => name.toLowerCase() === "binding.gyp")) findings.push({ file: "binding.gyp", rule: "install-script", detail: "npm runs node-gyp rebuild on install when a package ships binding.gyp and declares no install script; an edition ships no install-time code" });
 }
 
 const CHILD = fileURLToPath(new URL("./supply-boundary-child.ts", import.meta.url));

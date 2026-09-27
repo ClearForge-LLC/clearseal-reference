@@ -5,15 +5,16 @@
 // scratch directory here (so `@clearseal/core` resolves, and the core's typecheck, which runs before
 // the build, never sees them), and removed afterwards. They include every bypass the adversarial pass
 // found, as regression cases, the P1 exit red-team's H1 plant with each of its aliasing variants
-// (CSR-WO-1007 §1.3), and the H1 re-test's F1 and F2 with their variants (CSR-WO-1007a §1.4).
+// (CSR-WO-1007 §1.3), and the H1 re-test's F1 and F2 with their variants (CSR-WO-1007a §1.4). The
+// CSR-WO-1007c cases (a file that does not parse; an install-time script) are the last describe.
 
 import assert from "node:assert/strict";
-import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, describe, it } from "node:test";
 
-import { checkEdition, checkSource, editions, type Finding, KINDS, parseReport, REPORT_MARKER } from "./supply-boundary.ts";
+import { checkEdition, checkSource, editions, type Finding, INSTALL_SCRIPTS, KINDS, parseReport, REPORT_MARKER } from "./supply-boundary.ts";
 
 const PACKAGES = fileURLToPath(new URL("../../../", import.meta.url));
 const FIXTURES = fileURLToPath(new URL("./fixtures/", import.meta.url));
@@ -185,5 +186,62 @@ export async function h1() {
     const poison = plant("poison", START, { "src/index.ts": "Object.getOwnPropertyNames = () => [];\nObject.keys = () => [];\nexport function start() { return 1; }\n" });
     checkEdition(poison);
     assert.match(show(checkEdition(join(FIXTURES, "planted-verifier"))), /control-exported: export verifier: carries a verifier/);
+  });
+});
+
+/** Adds `scripts` to a planted edition's package.json. */
+function withScripts(dir: string, scripts: Record<string, string>): string {
+  const file = join(dir, "package.json");
+  writeFileSync(file, JSON.stringify({ ...(JSON.parse(readFileSync(file, "utf8")) as object), scripts }));
+  return dir;
+}
+
+void describe("CSR-WO-1007c §1.3, §1.4: what the checker cannot parse, and what npm runs on install", () => {
+  const DEFS = { definitions: "tool-definitions" };
+  const parse: [string, string, Record<string, string>, string, RegExp][] = [
+    // The H1 re-test #2's M-1: TypeScript reads this as `import source = ...` and a stray string, so
+    // "./m.wasm" reached no import rule.
+    ['M-1: import source m from "./m.wasm"', "m1", { "src/index.ts": `export const definitions = [${TOOL}];\n`, "dist/index.js": `import source m from "./m.wasm";\nexport const definitions = [${TOOL}];\n` }, "./dist/index.js", /dist\/index\.js: parse-error: line 1: '=' expected\.: a statement these rules cannot parse can hide an import from every one of them/],
+    ["M-1 in a file with no extension, parsed as the JavaScript Node loads it as", "m1-extless", { "src/index.ts": `import "./helper";\nexport const definitions = [${TOOL}];\n`, "src/helper": `import source m from "./m.wasm";\n` }, "./src/index.ts", /src\/helper: parse-error: line 1: '=' expected\./],
+    ["an unterminated string", "unterminated", { "src/index.ts": `export const definitions = [${TOOL}];\nexport const s = "unterminated;\n` }, "./src/index.ts", /src\/index\.ts: parse-error: line 2: Unterminated string literal\./],
+  ];
+  for (const [label, name, files, entry, rule] of parse) {
+    void it(`red-proof ${label}: the file is a finding, naming it and the diagnostic`, () => {
+      const findings = checkSource(plant(name, DEFS, files, { ".": { default: entry } }));
+      console.log(`PARSE ${label}\n${show(findings)}`);
+      assert.match(show(findings), rule);
+    });
+  }
+
+  void it("a file that parses cleanly is no finding", () => {
+    const findings = checkSource(plant("parses", DEFS, { "src/index.ts": `import type { PinnableTool } from "@clearseal/core";\nexport const definitions: PinnableTool[] = [${TOOL}];\n`, "dist/index.js": `export const definitions = [${TOOL}];\n` }));
+    console.log(`PARSE a file that parses cleanly: ${findings.length === 0 ? "no finding" : show(findings)}`);
+    assert.deepEqual(findings, [], show(findings));
+  });
+
+  for (const script of INSTALL_SCRIPTS) {
+    void it(`red-proof an install-time script: scripts.${script}`, () => {
+      const findings = checkSource(withScripts(plant(`script-${script}`, DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n` }), { [script]: "node -e 0" }));
+      console.log(`INSTALL scripts.${script}: ${show(findings)}`);
+      assert.match(show(findings), new RegExp(`package\\.json: install-script: scripts\\.${script}: npm runs it when the edition is installed, before any node exists`));
+    });
+  }
+
+  void it("the lifecycle list holds the five the WO names, and npm's others that run on install", () => {
+    assert.deepEqual([...INSTALL_SCRIPTS].sort(), ["dependencies", "install", "postinstall", "postprepare", "preinstall", "prepare", "preprepare", "prepublish"]);
+  });
+
+  void it("red-proof a binding.gyp, which npm runs as node-gyp rebuild on install", () => {
+    const findings = checkSource(plant("gyp", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n`, "binding.gyp": "{}\n" }));
+    console.log(`INSTALL binding.gyp: ${show(findings)}`);
+    assert.match(show(findings), /binding\.gyp: install-script: npm runs node-gyp rebuild on install/);
+  });
+
+  void it("scripts npm does not run on install are no finding, and the teaching edition passes", () => {
+    const findings = checkSource(withScripts(plant("dev-scripts", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n` }), { build: "tsc", test: "node --test", typecheck: "tsc --noEmit" }));
+    assert.deepEqual(findings, [], show(findings));
+    const teaching = checkSource(join(PACKAGES, "teaching")).filter((f) => f.rule === "install-script" || f.rule === "parse-error");
+    console.log(`INSTALL the teaching edition: ${teaching.length === 0 ? "no install-script or parse-error finding" : show(teaching)}`);
+    assert.deepEqual(teaching, [], show(teaching));
   });
 });
