@@ -14,6 +14,7 @@ import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 
 import { buildManifest, type PinnableTool, type RunningTransport, serializeManifest, startNode as coreStartNode } from "@clearseal/core";
 
+import { type AuditKit, auditKit } from "../../core/test/audit/keys.ts";
 import { AUDIENCE, ISSUER, TestIssuer } from "../../core/test/auth/issuer.ts";
 import { configSchema } from "../src/index.ts";
 import { toolsFor } from "../src/notes.ts";
@@ -37,6 +38,8 @@ export function pin(definitions: PinnableTool[], root: string, name = "teaching-
 export interface Node {
   t: RunningTransport;
   lines: string[];
+  /** The node's own audit store: a real JSON-lines log and file anchor (CSR-WO-2002). */
+  kit: AuditKit;
   close(): Promise<void>;
 }
 
@@ -59,7 +62,12 @@ export function restoreEnv(): void {
 
 /** Starts a teaching node through the core's startNode, configured only by the environment, as a
  *  deployment is: the edition's definitions for this root, and the manifest pinned for them. */
+/** Every audit kit a started (or refused) node was given, in order: the canary scans all of them. */
+export const kits: AuditKit[] = [];
+
 export async function startNode(issuer: TestIssuer, root: string, manifest: string, extra: Record<string, string | undefined> = {}): Promise<Node> {
+  // Each node its own store: two nodes appending one log would interleave two chains.
+  const kit = auditKit();
   const caFile = join(mkdtempSync(join(tmpdir(), "clearseal-teaching-ca-")), "issuer-ca.pem");
   writeFileSync(caFile, issuer.ca);
   setEnv({
@@ -72,11 +80,14 @@ export async function startNode(issuer: TestIssuer, root: string, manifest: stri
     AUTH_JWKS_CA_FILE: caFile,
     CLEARSEAL_MANIFEST: manifest,
     PIN_STRICT: undefined,
+    AUDIT_STORE: undefined,
+    ...kit.env,
     ...extra,
   });
   const lines: string[] = [];
+  kits.push(kit);
   const t = await coreStartNode({ definitions: toolsFor(root), configSchema }, { audit: (e, f) => lines.push(`${e} ${JSON.stringify(f)}`) });
-  return { t, lines, close: () => t.close() };
+  return { t, lines, kit, close: () => t.close() };
 }
 
 export function cleanup(root: string): void {

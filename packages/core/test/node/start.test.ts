@@ -45,7 +45,8 @@ before(async () => {
   issuer = await TestIssuer.start();
   const ca = join(DIR, "ca.pem");
   writeFileSync(ca, issuer.ca);
-  Object.assign(process.env, { CLEARSEAL_MANIFEST: MANIFEST, SNT_RESOURCE_URL: AUDIENCE, AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: ca });
+  // The audit store's own start tests are in test/audit/; these run with the development seam.
+  Object.assign(process.env, { AUDIT_STORE: "seam-only", CLEARSEAL_MANIFEST: MANIFEST, SNT_RESOURCE_URL: AUDIENCE, AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: ca });
 });
 after(async () => {
   await issuer.close();
@@ -164,7 +165,9 @@ void describe("CSR-WO-1007a §1.1: startNode reads the manifest the operator nam
     try {
       const loaded = audits.filter(([e]) => e === "manifest-loaded");
       assert.equal(loaded.length, 1, "one manifest-loaded line");
-      assert.equal(audits[0]?.[0], "manifest-loaded", "written first, before anything is admitted");
+      // Seam-only (these tests' mode): the loud unanchored row, then manifest-loaded, before anything
+      // is admitted. With a store, manifest-loaded is the run's first row (test/audit/start.test.ts).
+      assert.deepEqual(audits.slice(0, 2).map(([e]) => e), ["audit-unanchored", "manifest-loaded"], "written first, before anything is admitted");
       const fields = loaded[0]?.[1] ?? {};
       assert.equal(fields["path"], MANIFEST);
       assert.equal(fields["sha256"], createHash("sha256").update(readFileSync(MANIFEST)).digest("hex"));

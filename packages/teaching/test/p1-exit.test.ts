@@ -144,7 +144,7 @@ void describe("P1 exit gate: against a real teaching node", () => {
     const scratch = scratchTree();
     const caFile = join(mkdtempSync(join(tmpdir(), "clearseal-p1-ca-")), "issuer-ca.pem");
     writeFileSync(caFile, issuer.ca);
-    const env = { TEACHING_RESOURCE_URL: AUDIENCE, TEACHING_HOST: "127.0.0.1", TEACHING_PORT: "0", AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: caFile, CLEARSEAL_MANIFEST: COMMITTED_MANIFEST };
+    const env = { TEACHING_RESOURCE_URL: AUDIENCE, TEACHING_HOST: "127.0.0.1", TEACHING_PORT: "0", AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: caFile, CLEARSEAL_MANIFEST: COMMITTED_MANIFEST, AUDIT_STORE: "seam-only" };
     const rows: string[] = [];
     try {
       for (const route of ["f1", "f2"] as const) {

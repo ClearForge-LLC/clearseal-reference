@@ -344,19 +344,23 @@ void describe("§1.7 a JSON-RPC error writes one rpc-refused line, never two", (
     const s = await start();
     try {
       const rows: string[] = [];
-      const one = async (label: string, send: () => Promise<Reply>, expected: string[]): Promise<void> => {
+      const one = async (label: string, send: () => Promise<Reply>, expected: (string | RegExp)[]): Promise<void> => {
         const before = s.lines.length;
         const r = await send();
         const written = s.lines.slice(before);
         rows.push(`| ${label} | ${String(r.status)} | ${written.join(" ; ")} |`);
-        assert.deepEqual(written, expected, label);
+        assert.equal(written.length, expected.length, `${label}: ${written.join(" ; ")}`);
+        expected.forEach((e, i) => {
+          if (typeof e === "string") assert.equal(written[i], e, label);
+          else assert.match(written[i] ?? "", e, label);
+        });
       };
       await one("method not found", () => modern(s.t, "nope/nope"), ['rpc-refused {"code":-32601,"method":"nope/nope","principal":"test-principal"}']);
       await one("invalid params (a cursor)", () => modern(s.t, "tools/list", { cursor: "x" }), ['rpc-refused {"code":-32602,"method":"tools/list","principal":"test-principal"}']);
       await one("a header that disagrees with the body", () => modern(s.t, "tools/call", { arguments: {} }), ['rpc-refused {"code":-32020,"method":"tools/call","principal":"test-principal"}']);
       await one("unknown tool, legacy era (answered 200)", () => raw(s.t, { headers: legacyHeaders({ "mcp-protocol-version": "2025-11-25" }), body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "nope", arguments: {} } }) }), ['rpc-refused {"code":-32602,"method":"tools/call","principal":"test-principal"}']);
-      await one("a handler error (already audited)", () => modern(s.t, "tools/call", { name: "throws_refusal", arguments: {} }), ['handler-error {"tool":"throws_refusal","principal":"test-principal"}']);
-      await one("a handler error on the legacy era (already audited, mapped to 200)", () => raw(s.t, { headers: legacyHeaders({ "mcp-protocol-version": "2025-11-25" }), body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "throws_refusal", arguments: {} } }) }), ['handler-error {"tool":"throws_refusal","principal":"test-principal"}']);
+      await one("a handler error (already audited)", () => modern(s.t, "tools/call", { name: "throws_refusal", arguments: {} }), ['handler-error {"tool":"throws_refusal","principal":"test-principal"}', /^tool-call \{"tool":"throws_refusal","outcome":"error","args":"hmac-sha256:ephemeral:[A-Za-z0-9_-]{43}","principal":"test-principal"\}$/]);
+      await one("a handler error on the legacy era (already audited, mapped to 200)", () => raw(s.t, { headers: legacyHeaders({ "mcp-protocol-version": "2025-11-25" }), body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "throws_refusal", arguments: {} } }) }), ['handler-error {"tool":"throws_refusal","principal":"test-principal"}', /^tool-call \{"tool":"throws_refusal","outcome":"error","args":"hmac-sha256:ephemeral:[A-Za-z0-9_-]{43}","principal":"test-principal"\}$/]);
       console.log(`RPC-REFUSED\n| case | status | audit line(s) |\n|---|---|---|\n${rows.join("\n")}`);
     } finally {
       await s.close();
