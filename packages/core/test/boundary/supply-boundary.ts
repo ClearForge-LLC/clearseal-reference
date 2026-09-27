@@ -68,10 +68,13 @@ const FORBIDDEN_GLOBALS = new Set(["eval", "Function", "fetch", "WebSocket", "XM
 /** The core's controls by name: an edition that names one is building its own. */
 const CONTROL_NAMES = new Set(["PinGate", "PinnedRegistry", "buildManifest", "serializeManifest", "parseManifest", "Admission", "loadPinnedRegistry", "startTransport"]);
 
-const SKIP_TOP = new Set(["node_modules", "dist", "test"]);
+/** Not read: dependencies and the edition's own tests. dist/ IS read (CSR-WO-1007a adversarial pass,
+ *  F3): the package entry an edition's bin/ loads is usually dist/index.js, and code the checker never
+ *  reads is code that runs unchecked, before startNode, in the node's process. */
+const SKIP_TOP = new Set(["node_modules", "test"]);
 
-/** The edition's source files: everything under its directory except the top-level test/, dist/
- *  and node_modules/. A symbolic link anywhere in the tree is itself a finding. */
+/** The edition's source files: everything under its directory except the top-level test/ and
+ *  node_modules/, dist/ included. A symbolic link anywhere in the tree is itself a finding. */
 function sourceFiles(dir: string, findings: Finding[]): string[] {
   const out: string[] = [];
   const walk = (d: string, top: boolean): void => {

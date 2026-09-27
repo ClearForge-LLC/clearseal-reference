@@ -1309,6 +1309,21 @@
       "mustFail": [
         "the child's report is trusted only with its nonce, once, and well formed"
       ]
+    },
+    {
+      "id": "boundary-dist-read",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a adversarial pass (F3): the checker reads dist/, where the entry bin/ loads usually lives",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-dist-read.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof F3: a dist/ entry that points CLEARSEAL_MANIFEST at its own manifest before startNode reads it"
+      ]
     }
   ]
 }
