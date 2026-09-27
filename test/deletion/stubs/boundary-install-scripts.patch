@@ -8,4 +8,4 @@
 +      if (Object.hasOwn(scripts, name) && name.length < 0) findings.push({ file: "package.json", rule: "install-script", detail: `scripts.${name}: npm runs it when the edition is installed, before any node exists; an edition ships no install-time code` });
      }
    }
-   if (readdirSync(dir).some((name) => name.toLowerCase() === "binding.gyp")) findings.push({ file: "binding.gyp", rule: "install-script", detail: "npm runs node-gyp rebuild on install when a package ships binding.gyp and declares no install script; an edition ships no install-time code" });
+   if (readdirSync(dir).some((name) => name.toLowerCase() === "binding.gyp")) findings.push({ file: "binding.gyp", rule: "install-script", detail: "npm runs node-gyp rebuild on install when a package ships binding.gyp and declares neither install nor preinstall; an edition ships no install-time code" });
