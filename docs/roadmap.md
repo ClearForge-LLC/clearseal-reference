@@ -121,6 +121,7 @@ provenance attestation; the dependency-update configuration exists and has opene
 pull request; `main` shows the `test` and `leak-gate` checks as required in its protection.
 
 ### P1 · Pinning, reach, and auth — *the controls that are the project*
+**Status:** **exited 2026-09-27 at `9421cce`** — the H1 re-test #2 and its gap pass came back with no High (`architecture.md` §10).
 **Goal:** the load-bearing controls exist, are proven able to refuse, and serve one tool in the
 teaching edition through the only registration path there will ever be.
 **Depends on:** P0.
@@ -163,7 +164,12 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   adversarial pass: admitted tools deeply frozen so nothing in the process changes what `tools/list`
   serves (N2); the cage opens without blocking and admits regular files only; the Windows cage
   resolves symlinks and junctions, measured on `windows-latest`.
-- `CSR-WO-1007b` — (built, merged `9421cce` 2026-09-27; **P1 exits after** a clean H1 re-test of it) the core owns
+- `CSR-WO-1007c` — (WO written 2026-09-27; after the exit, not an exit clause) from the re-test #2 report: the installed
+  `clearseal-node` runs (a `#!` line and a main-module check that holds through the npm bin symlink);
+  start refused when `NODE_OPTIONS` or the process's own flags preload a module (`--import`, `--require`,
+  `--loader`); the checker treats any parse error as a finding (M-1, `import source`); an edition that
+  ships an install-time lifecycle script is a finding.
+- `CSR-WO-1007b` — (built, merged `9421cce` 2026-09-27; **P1 exited** on its clean H1 re-test #2) the core owns
   the process entry: `clearseal-node` reads every operator setting and the manifest into a frozen
   snapshot before it imports the edition named by `CLEARSEAL_EDITION`; editions have no `bin/`. From
   the re-test's H-1 against `31a2bf3`: `startNode` read the environment after edition code had run.
@@ -177,7 +183,7 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   checker's rules hold under aliasing; the P1 evidence test gains containment and audit clauses.
   From the P1 exit red-team's H1 — a planted edition built its own gate — whose root was the
   architect's `-1004` WO putting assembly in the edition.
-- `CSR-WO-1006a` — (WO written 2026-09-26) two transport corrections from `-1006` FEEDBACK before the
+- `CSR-WO-1006a` — (built, merged `b5e1f92` 2026-09-26) two transport corrections from `-1006` FEEDBACK before the
   P1 exit red-team: a handler is called with no `this` (A5: an unaudited cage); the running config is
   deeply frozen (A7).
 - `CSR-WO-1005b` — era-dependent status mapping: legacy-era JSON-RPC errors at `200` with the
