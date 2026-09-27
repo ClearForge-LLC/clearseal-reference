@@ -45,6 +45,9 @@ export interface DispatchContext {
   signal: AbortSignal;
   now: () => number;
   audit: (event: string, fields: Record<string, string | number>) => void;
+  /** The keyed digest of a call's arguments, for the tool-call row (CSR-WO-2002 §1.2): arguments
+   *  never reach the audit seam, only this digest. */
+  digestArgs: (args: unknown) => string;
   /** Keeps the in-flight slot until a started handler settles, even after the response (F3). */
   trackHandler: (running: Promise<unknown>) => void;
 }
@@ -290,7 +293,23 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
   return shapeResult(era, binding, result, caps, ctx);
 }
 
+/**
+ * Runs a handler and writes its one tool-call row (CSR-WO-2002 §1.2; audit/RULES.md AU-5): every call
+ * that reaches a handler is recorded, with its outcome, the tool and a keyed digest of its arguments,
+ * after whatever else the call audited. The call's refusals are unchanged: the row only records them.
+ */
 async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, callCtx: Omit<CallContext, "signal">, ctx: DispatchContext): Promise<ToolResult> {
+  const outcome = { value: "error" };
+  try {
+    const result = await runHandlerOnce(tool, args, callCtx, ctx, outcome);
+    outcome.value = isPlainObject(result) && (result as Record<string, unknown>)["isError"] === true ? "tool-error" : "ok";
+    return result;
+  } finally {
+    ctx.audit("tool-call", { tool: tool.definition.name, outcome: outcome.value, args: ctx.digestArgs(args) });
+  }
+}
+
+async function runHandlerOnce(tool: RegisteredTool, args: Record<string, unknown>, callCtx: Omit<CallContext, "signal">, ctx: DispatchContext, outcome: { value: string }): Promise<ToolResult> {
   const timeout = new AbortController();
   const signal = AbortSignal.any([ctx.signal, timeout.signal]);
   let timer: NodeJS.Timeout | undefined;
@@ -328,10 +347,14 @@ async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, c
     result = await Promise.race([running, deadline]);
   } catch (err) {
     const refusal = containment();
-    if (refusal !== undefined) throw refusal;
+    if (refusal !== undefined) {
+      outcome.value = "containment-refused";
+      throw refusal;
+    }
     if (err instanceof HandlerTimeout) {
       timeout.abort(new Error("handler timeout"));
       const disconnected = ctx.signal.aborted;
+      outcome.value = disconnected ? "client-disconnect" : "handler-timeout";
       ctx.audit(disconnected ? "client-disconnect" : "handler-timeout", { tool: tool.definition.name, limitMs: ctx.limits.handlerTimeoutMs });
       throw audited(new Refusal(500, INTERNAL_ERROR, disconnected ? "The client disconnected" : "The tool call timed out"));
     }
@@ -343,7 +366,10 @@ async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, c
     clearTimeout(timer);
   }
   const refusal = containment();
-  if (refusal !== undefined) throw refusal;
+  if (refusal !== undefined) {
+    outcome.value = "containment-refused";
+    throw refusal;
+  }
   return result;
 }
 
