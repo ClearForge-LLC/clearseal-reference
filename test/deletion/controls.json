@@ -1978,6 +1978,189 @@
         "a resumed store records the unanchored rows it adopts",
         "a restarted store continues seq and prev from the last row"
       ]
+    },
+    {
+      "id": "entry-captures-before-edition",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.1: the entry captures every setting and reads the manifest before it imports the edition",
+      "touches": [
+        "packages/core/src/node/cli.ts"
+      ],
+      "stub": "stubs/entry-captures-before-edition.patch",
+      "tests": [
+        "packages/teaching/test/p1-exit.test.ts"
+      ],
+      "mustFail": [
+        "the H1 re-test's H-1, end to end: each of the four variants, started by clearseal-node against the operator's manifest, is refused"
+      ]
+    },
+    {
+      "id": "entry-edition-is-a-name",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.1: CLEARSEAL_EDITION is a package name, never a path the edition could choose",
+      "touches": [
+        "packages/core/src/node/settings.ts"
+      ],
+      "stub": "stubs/entry-edition-is-a-name.patch",
+      "tests": [
+        "packages/core/test/node/cli.test.ts"
+      ],
+      "mustFail": [
+        "CLEARSEAL_EDITION is a package name: a path, a URL or nothing refuses start"
+      ]
+    },
+    {
+      "id": "entry-exports-checked",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.1: the entry refuses an edition that exports anything beyond its definitions and configSchema",
+      "touches": [
+        "packages/core/src/node/cli.ts"
+      ],
+      "stub": "stubs/entry-exports-checked.patch",
+      "tests": [
+        "packages/core/test/node/cli.test.ts"
+      ],
+      "mustFail": [
+        "an edition that exports more or less than its two values refuses start, and one that exports them serves"
+      ]
+    },
+    {
+      "id": "settings-env-is-a-copy",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.2: the snapshot's environment is a frozen copy, so a later write to process.env changes nothing",
+      "touches": [
+        "packages/core/src/node/settings.ts"
+      ],
+      "stub": "stubs/settings-env-is-a-copy.patch",
+      "tests": [
+        "packages/core/test/node/cli.test.ts"
+      ],
+      "mustFail": [
+        "every setting survives the environment being rewritten after capture"
+      ]
+    },
+    {
+      "id": "startnode-reads-the-snapshot",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.2: startNode reads the edition's variables from the snapshot, never from process.env",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/startnode-reads-the-snapshot.patch",
+      "tests": [
+        "packages/core/test/node/cli.test.ts"
+      ],
+      "mustFail": [
+        "every setting survives the environment being rewritten after capture",
+        "the inventory: every process.env read in the core's source is named, and each is the capture step or a reader's documented fallback"
+      ]
+    },
+    {
+      "id": "manifest-loaded-after-parse",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.6: manifest-loaded is written only after the manifest parses",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/manifest-loaded-after-parse.patch",
+      "tests": [
+        "packages/core/test/node/cli.test.ts"
+      ],
+      "mustFail": [
+        "a manifest that is read but does not parse writes manifest-refused with its path and hash, and no manifest-loaded"
+      ]
+    },
+    {
+      "id": "manifest-refused-row",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.6: a manifest read but refused writes manifest-refused with its path and hash",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/manifest-refused-row.patch",
+      "tests": [
+        "packages/core/test/node/cli.test.ts"
+      ],
+      "mustFail": [
+        "a manifest that is read but does not parse writes manifest-refused with its path and hash, and no manifest-loaded"
+      ]
+    },
+    {
+      "id": "manifest-rename-told-apart",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.6: a renamed or replaced manifest says the file changed, not that it is a link",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/manifest-rename-told-apart.patch",
+      "tests": [
+        "packages/core/test/node/cli.test.ts"
+      ],
+      "mustFail": [
+        "a manifest renamed between the open and the check says the file changed, not that it is a link"
+      ]
+    },
+    {
+      "id": "boundary-import-unshipped",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.5: shipped code may not import into the edition's test/ or node_modules/",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-import-unshipped.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof H-1: shipped code imports a file under the edition's own test/",
+        "red-proof H-1: shipped code imports a nested dependency under the edition's own node_modules/"
+      ]
+    },
+    {
+      "id": "boundary-import-unread",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.5: an import that resolves to a file the rules did not read is a finding",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-import-unread.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof 1007b: an import that resolves to a file the rules did not read"
+      ]
+    },
+    {
+      "id": "boundary-entry-unread",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.5: a package entry the rules did not read is a finding",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-entry-unread.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof 1007b: a package entry the rules did not read"
+      ]
+    },
+    {
+      "id": "boundary-reads-extensionless",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007b §1.5: a file with no extension is read as a module, like any other",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-reads-extensionless.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof H-1: an extensionless package entry is read like any other module",
+        "red-proof H-1: an extensionless import is read like any other module"
+      ]
     }
   ]
 }
