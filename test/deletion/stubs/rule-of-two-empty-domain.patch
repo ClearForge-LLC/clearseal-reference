@@ -1,0 +1,11 @@
+--- a/packages/core/src/capability/ladder.ts
++++ b/packages/core/src/capability/ladder.ts
+@@ -109,7 +109,7 @@ export function basisProblem(basis: string | null): string | undefined {
+ function present(control: Control, tag: CapabilityTag, backend: ApprovalBackend): boolean {
+   switch (control) {
+     case "containment":
+-      return tag.containment_domain !== null && tag.containment_domain.length > 0;
++      return tag.containment_domain !== null;
+     case "approval":
+       return tag.elevated && backend === "configured";
+     case "recoverability_basis":

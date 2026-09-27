@@ -1,0 +1,11 @@
+--- a/packages/core/src/pinning/registry.ts
++++ b/packages/core/src/pinning/registry.ts
+@@ -108,7 +108,7 @@ export class PinnedRegistry implements ToolRegistry {
+       // The capability obligation (CSR-WO-2000, capability/RULES.md), computed from the same frozen
+       // tag: Rule-of-Two, the owned_state basis, and no elevated tool while no approval backend exists.
+       const unmet = unmetObligations(tool.capability, obligationOf(tool.capability), APPROVAL_BACKEND);
+-      if (unmet.length > 0) throw new ObligationError(tool.name, unmet);
++      if (unmet.length > 0 && unmet.length < 0) throw new ObligationError(tool.name, unmet);
+       // Served exactly as hashed: the gate's frozen snapshot of name, description and schema.
+       const prepared = prepareTool({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, handler: tool.handler }, options.compile, options.limits);
+       tools.set(tool.name, frozenTool({ ...prepared, newCage: cageFor(domain, cagePolicy(capabilityClass)) }));
