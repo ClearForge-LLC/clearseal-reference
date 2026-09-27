@@ -1,214 +1,274 @@
-# FEEDBACK: CSR-WO-1007a (the operator names the manifest)
+# FEEDBACK: CSR-WO-2002 (the audit store behind the audit seam)
 
-Branch `wo/CSR-WO-1007a`, cut from `main` at `4478a35` (`-2000` merged; the WO on `main` since
-`98c2fda`). Parked as one unmerged pull request. Built on Node v24.21.0.
+Branch `wo/CSR-WO-2002`, cut from `main` at `4a0bfa2`, where the WO lives (`-1007a` merged at
+`31a2bf3`). Parked as one unmerged pull request. Built on Node v24.21.0. The gate was asleep, so every
+choice the WO leaves open is made here, each with its reason. None of the §7 flag-and-stop
+conditions arose.
 
 ## Read this first
 
-- **F1 and F2 were reproduced end to end on `4478a35` before anything changed** (pastes below). Each
-  hostile edition passed the checker with no findings. Its own `bin/`, run as a node, listed and
-  served `notes.exfil`, a tool the committed manifest does not pin.
-- **All five items are built.**
-  - `startNode({ definitions, configSchema })` reads the manifest only from `CLEARSEAL_MANIFEST`,
-    requires it, and writes `manifest-loaded` with the file's path and SHA-256.
-  - Editions export definitions and a configuration schema only.
-  - F1 and F2 now run as real nodes in the P1 evidence and are refused at start.
-  - `bin/` imports only `startNode` and its own entry.
-  - The export check trusts its child only through a nonce.
-  - Every item has a red-proof and a control-deletion row.
-- **The adversarial pass found a third High route, F3. It is closed at the checker, and stated at
-  the runtime layer.**
-  - A `dist/index.js` entry sets `process.env.CLEARSEAL_MANIFEST` to its own manifest before
-    `startNode` reads it. The node, started against the operator's `pins/teaching.json`, served
-    `notes.exfil`. `manifest-loaded` named the hostile file, which is the operator-visible signal.
-  - The lever was that the checker never read `dist/`, where the entry `bin/` loads usually lives.
-    It reads `dist/` now, like `src/`, so F3 is refused (`dist/index.js: process-referenced`). The
-    teaching edition's built `dist/` stays clean. The plant is in the suite with its own row.
-  - **Stated plainly: at run time, code an edition runs in the node's process defeats the §1.1
-    guarantee.** It can rewrite the environment, or assemble its own node from the core's public
-    exports, as H1 did. The WO scopes that out ("NOT an in-process sandbox", §4). The checker is
-    the layer that stops such code from shipping, and it is best effort (the `.constructor` route
-    stays with P2). So the guarantee is exact for a node whose editions' code the checker accepted,
-    or the operator reviewed. The operator's check is the `manifest-loaded` line, compared with the
-    manifest they approved.
-- **Two choices beyond the letter of §1.1, both refusals:**
-  - An edition that passes any key beyond `definitions` and `configSchema` is refused, with a
-    manifest path named. Silently ignoring one would hide a stale or hostile `bin/`.
-  - An edition's configuration may not use the core's variable prefixes (`CLEARSEAL_`, `AUTH_`,
-    `PIN_`, `EXEC_`). Its schema could otherwise declare a `CLEARSEAL_MANIFEST` property. The core
-    never reads schema defaults into the environment, so that would be inert, but it would mislead.
-- **Two existing control-deletion rows now guard their tests through the rule that replaced theirs.**
-  `controls.json` is protected except for added rows, so the rows are unchanged and their stubs were
-  regenerated:
-  - `boundary-manifest-url`: the pins-only manifest-URL rule is gone, because `import.meta` is
-    banned outright. The row's two plants now go red on `import-meta`, and its stub deletes that
-    rule.
-  - `boundary-manifest-export`: the `manifest-path` kind is gone. The exported manifest path now
-    goes red as `kind-unknown`, and its stub deletes that report.
-  - Their `control` text still describes the old rule. Rewording it is an edit to a protected row,
-    so it is the architect's call.
-  - Six more stubs went stale on context and were regenerated with the same change:
-    `supply-boundary-control-exported`, `startnode-file-scheme`, `startnode-no-link-on-the-way`,
-    `boundary-process`, `boundary-import-meta` and `boundary-namespace-access`.
+- **Built, spec first.** `packages/core/src/audit/RULES.md` was written before the module: 25 rules
+  (AU-1 to AU-25), each with its red-proof and its control-deletion row, plus the event/field table.
+  The module is in `packages/core/src/audit/`:
+  - `chain.ts`: the row and checkpoint formats;
+  - `policy.ts`: the event table;
+  - `digest.ts`: keyed digests;
+  - `signer.ts`: the `Signer` and the allowlist;
+  - `store.ts`: `AuditStore`, `AnchorSink`, the JSON-lines store, the file anchor and the in-memory
+    anchor;
+  - `verify.ts`: the verifier;
+  - `config.ts`: `AUDIT_*` configuration;
+  - `files.ts`: the operator-file checks;
+  - `cli.ts`: `npm run audit -- verify`.
+- **Wiring.** `node/start.ts` reads the audit configuration before the manifest, opens the store, and
+  writes `manifest-loaded` as the run's first row. It closes the store after the transport, with a
+  final checkpoint.
+  - `transport/dispatch.ts` gains the one `tool-call` row, in a wrapper around the existing
+    `runHandler`. Each exit point sets an outcome; no refusal's status, message or order changes.
+  - `transport/server.ts` gains one option, `argumentDigest`, captured at start.
+- **No protected surface changed.** `pinning/**`, `capability/**`, `containment/**`, `auth/**` and
+  `test/boundary/**` diff to empty.
+  - The canonical argument form is reused without touching any file. The digest is an HMAC over
+    `argumentsDigest(args)`, the SHA-256 of the canonical argument JSON that the request-state
+    binding already computes.
+  - It is keyed, and equal arguments give equal digests. HMAC over a collision-resistant hash of the
+    canonical form is as binding as HMAC over the form itself.
+- **The adversarial pass found real gaps, and each one either became a rule or corrected RULES.md.**
+  See the table below. The most important correction is to AU-12, the honest limit. The rows after
+  the last checkpoint can be **rewritten, not only truncated**: the chain is a plain SHA-256, so
+  anyone can recompute it. A restart then adopts those rows, and the next checkpoint covers them.
+  - The adoption is now recorded: `audit-resumed` gives the count of unanchored rows adopted (AU-25).
+  - The limit itself is the WO's design, and I did not change it. A keyed chain would not help
+    against an attacker who already holds the service's keys.
+  - RULES.md now says it plainly: an attacker who can **truncate** the anchor reopens what the lost
+    checkpoints covered, and an attacker with the service's privilege can read the signing key and
+    sign anything. The anchor's value is that someone else owns it.
+- **One process slip, stated.** The control-deletion stub generator restores each file with
+  `git checkout`, and I ran it before committing the hardening. That reverted four modules. I
+  re-applied the same edits from their scripts and verified them: typecheck, lint, and every audit
+  test green. I committed, and only then regenerated the stubs. The generator now refuses a dirty
+  tree.
 
-## §3.2 F1 and F2, end to end
+## Choices the WO left to me, with reasons
 
-**Before the fix, on `4478a35`:** each plant's own `bin/` was run as a node against the test issuer.
+**§1.1, the row serialization.**
+- A row is the core's canonical JSON: `pinning/canonical.ts`, JCS with sorted keys, no whitespace and
+  one spelling per value. One row per line; `prev` is the SHA-256 of the previous line's exact UTF-8
+  bytes; the first row's `prev` is sixty-four zeros.
+- **Why:**
+  - That form is already pinned and cross-language tested for the manifest, so a second
+    implementation needs no new spec.
+  - `audit verify` can prove that a line is the one serialization of its own content. It parses
+    the line, refusing duplicate keys, re-serializes it, and treats any difference as a finding.
+- The adversarial pass then showed that reading files as text let a byte-level respelling through
+  (invalid UTF-8 became U+FFFD). Logs and anchors are now read as bytes and decoded strictly, so
+  that case is a finding too.
+
+**§1.4, the torn final line.**
+- A missing final newline is `torn-final-line`, and `audit verify` exits 3 when it is the only
+  finding: 0 is clean, 1 is tampering, 2 is a usage error.
+- **Why:** the store writes each row in one write, line and newline together, so a crash can only
+  cut the last line, while an edit in the middle shows as a chain or checkpoint break.
+- After the adversarial pass: a tail that parses as a complete line is still checked. So removing
+  a newline can never turn tampering into exit 3.
+- The store refuses to start on a torn log, so the operator looks before the log grows.
+
+**Also chosen here:**
+- Checkpoints default to every 100 rows or 300 seconds, and on close.
+- A checkpoint's `seq` counts checkpoints, and `count` is the rows covered.
+- The signature covers a domain label plus the canonical checkpoint, so no other signed object
+  can pass for a checkpoint.
+- The allowlist is a JSON array of `{ kid, key, notBefore, notAfter }`, with the key as a raw
+  Ed25519 public key in base64url.
+- The row's principal is always present:
+  - the caller's id, for call-scoped rows;
+  - `unauthenticated`, before auth;
+  - `node`, for the node's own rows;
+  - `unattributed`, for an event the table doesn't know.
+- A field the table does not list is never written under its own name, because a name could carry
+  a value. Such fields go into one keyed-digest field, `unlisted`.
+- `seam-only` uses a per-process key that is never stored, so even there no argument is written.
+
+## The event/field table (RULES.md)
+
+Every event and each of its fields is listed, with the kind a value must have to be written bare.
+Anything else is a keyed digest. Full table: `packages/core/src/audit/RULES.md`.
+- **Node rows** (principal `node`):
+  - `manifest-loaded`: path, sha256.
+  - `audit-unanchored`: mode.
+  - `audit-resumed`: fromSeq, unanchored.
+  - `pin-refused`: tool, reason, rule.
+  - `pin-non-strict`: admitted, refused.
+  - `auth-audience-differs`: the audience and resource from the operator's configuration.
+- **Request rows** (the caller, or `unauthenticated`):
+  - `verifier-timeout`, `verifier-contract`, `auth-unavailable` and `auth-refused`: fixed reason
+    codes and integers.
+  - `http-refused`: status, reason.
+  - `rpc-refused`: code, and method. The method is bare only if the transport knows it.
+  - `transport-error`: reason, bare only as one of the platform's error names.
+- **Call rows** (the caller):
+  - `result-over-cap`: method, limit.
+  - `validation-timeout` and `validation-error`, `handler-timeout` and `client-disconnect`,
+    `handler-error`, `legacy-input-required` and `request-state-unsealable`: tool, and limitMs where
+    listed.
+  - `containment-refused`: tool, kind, fileType, and sink. **The sink is always a keyed digest**:
+    `notes.read` builds it from its argument.
+  - `tool-call`: tool, outcome, and args as `hmac-sha256:<kid>:<base64url>`.
+- **Any other event** is written as `unlisted`, its name and fields in one keyed digest.
+- **No row** carries a token, a header value or a JSON-RPC id. The transport never passes one to the
+  seam, and the policy would digest one that it did.
+
+Examples from the tests (hashes shortened):
+```
+AUDIT ROW {"event":"http-refused","fields":{"reason":"origin-not-allowed","status":403},"prev":"53f1e8eb67c3…","principal":"unauthenticated","seq":1,"time":"2026-09-27T08:19:21.972Z"}
+AUDIT RESUMED {"event":"audit-resumed","fields":{"fromSeq":3,"unanchored":3},"prev":"752bbb7083a3…","principal":"node","seq":3,"time":"2026-09-27T08:19:21.991Z"}
+AUDIT DIGEST hmac-sha256:test-digest-1:v7ju2ygJkTOiYviU8P2ij3z41DE0hQ48pakKN0IeXTE
+AUDIT POLICY {"event":"http-refused","fields":{"reason":"hmac-sha256:test-digest-1:zxPBnYSJBDes8J9F7cMsX3W74o9IVxCiyyPsw5qd7qE","status":401,"unlisted":"hmac-sha256:test-digest-1:Y8Z4wlWDj_Xtpgj7blcxVh14c_I9Bih9je7XCmAnwEU"},"prev":"000000000000…","principal":"unauthenticated","seq":0,"time":"2026-09-27T08:19:22.002Z"}
+AUDIT CHECKPOINT {"count":2,"head":"763013ce496a…","kid":"test-ckpt-1","seq":0,"sig":"ACl3ggj5NrmBG1yQY6vOVHuV_9QvM_JMWpEluGCrocv0VbmZ7pSRtaJSxA3CdfTaxFWl70QuX4lFxASckSSCDQ","time":"2026-09-27T08:19:22.359Z"}
+```
+
+## §3.2 The canary, over the P1 evidence suite
 
 ```
-REPRO f1 checker findings: []
-REPRO f1 node output: listening on http://127.0.0.1:40267/mcp
-REPRO f1 tools/list: ["notes.exfil"]
-REPRO f1 tools/call notes.exfil: 200 {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"SERVED BY AN UNPINNED TOOL"}],...}}
-REPRO f2 checker findings: []
-REPRO f2 node output: listening on http://127.0.0.1:33253/mcp
-REPRO f2 tools/list: ["notes.exfil"]
-REPRO f2 tools/call notes.exfil: 200 {"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"SERVED BY AN UNPINNED TOOL"}],...}}
+CANARY requests: an argument reaching the handler → 200; a refused extra argument → 400; a forged Origin → 403; a planted token → 401; an unknown tool name → 400; an unknown method → 404
+EXIT | keyed, never bare: no audit row carries a planted argument, id, header, token, tool name or method (CSR-WO-2002) | 7 planted values; 4 logs, 26 rows scanned: none carries one; every row has a principal; every log verifies
 ```
+The planted values were: an argument that reaches the handler (a note name), an extra argument
+that is refused, a JSON-RPC id, a forged `Origin` value, a bearer token, an unknown tool name (in
+params and `mcp-name`), and an unknown method. Every log the suite's nodes wrote was scanned, and
+each one was verified.
 
-**After:** each is started by its own `bin/`, with `CLEARSEAL_MANIFEST` at the committed
-`pins/teaching.json`. Paths are shortened to the repository, and hashes to 12 characters, here.
+## §3.3 `audit verify`: each tamper, named
 
 ```
-F1F2 f1 strict output:
-[audit-seam] manifest-loaded {"path":"<repo>/pins/teaching.json","sha256":"27206075fb62…"}
-[audit-seam] pin-refused {"tool":"notes.exfil","reason":"unpinned"}
-[audit-seam] pin-refused {"tool":"notes.read","reason":"removed"}
-PinRefusedError: the pin gate refused 2 tool(s): notes.exfil (unpinned), notes.read (removed); PIN_STRICT is on, so the node does not start
-F1F2 f1 PIN_STRICT=false: tools/list []; tools/call notes.exfil → 400 {"jsonrpc":"2.0","id":8,"error":{"code":-32602,"message":"The tool \"notes.exfil\" is refused by the pin gate"}}
-F1F2 f2 (the same manifest-loaded line and refusal)
-F1F2 f2 PIN_STRICT=false: tools/list []; tools/call notes.exfil → 400 {"jsonrpc":"2.0","id":10,"error":{"code":-32602,"message":"The tool \"notes.exfil\" is refused by the pin gate"}}
+VERIFY clean → exit 0; 8 rows, 3 checkpoints, 0 unanchored
+VERIFY an edited row (seq 4) → exit 1; first: edited-row at log line 5: the row at seq 4 was edited: seq 5's prev does not match its bytes
+VERIFY a removed row (seq 4) → exit 1; first: removed-rows at log line 5: seq 5 follows seq 3: 1 row(s) removed
+VERIFY two rows swapped (seq 2 and 3) → exit 1; first: reordered-rows at log line 3: seq 3 at position 2, after seq 1: rows were reordered
+VERIFY two valid logs spliced → exit 1; first: inserted-rows at log line 5: seq 0 follows seq 3 and appears twice: rows were inserted or spliced
+VERIFY a row with a space added (same content, another spelling) → exit 1; first: non-canonical-row at log line 4: the line is not the canonical serialization of its own content
+VERIFY a row with a duplicate key → exit 1; first: malformed-row at log line 4: A1: a duplicate key
+VERIFY the last three rows removed (behind the close checkpoint) → exit 1; first: truncated-behind-checkpoint at anchor line 2: checkpoint 1 covers 6 rows; the log has 5: the log was truncated behind it
+VERIFY the last row edited (no successor to notice) → exit 1; first: head-mismatch at anchor line 3: checkpoint 2's head is not the hash of row 7: the log was edited or re-chained behind it
+VERIFY a row edited and every later prev recomputed (re-chained) → exit 1; first: head-mismatch at anchor line 1: checkpoint 0's head is not the hash of row 2: the log was edited or re-chained behind it
+VERIFY a checkpoint whose count matches but whose head does not → exit 1; first: head-mismatch at anchor line 1: checkpoint 0's head is not the hash of row 2: the log was edited or re-chained behind it
+VERIFY a checkpoint key not in the allowlist → exit 1; first: unknown-kid at anchor line 1: kid test-ckpt-1 is not in the key allowlist
+VERIFY a checkpoint time after its key's notAfter → exit 1; first: key-out-of-window at anchor line 1: checkpoint time 2026-09-27T08:19:22.523Z is outside kid test-ckpt-1's window 2020-01-01T00:00:00Z to 2021-01-01T00:00:00Z
+VERIFY a checkpoint time before its key's notBefore → exit 1; first: key-out-of-window at anchor line 1: checkpoint time 2026-09-27T08:19:22.523Z is outside kid test-ckpt-1's window 2099-01-01T00:00:00Z to 2100-01-01T00:00:00Z
+VERIFY a checkpoint's count changed after signing → exit 1; first: bad-signature at anchor line 1: the signature does not verify under kid test-ckpt-1
+VERIFY a checkpoint signed by another key under the same kid → exit 1; first: bad-signature at anchor line 1: the signature does not verify under kid test-ckpt-1
+VERIFY the first checkpoint appended again → exit 1; first: checkpoint-replayed at anchor line 4: checkpoint seq 0 (count 3) where seq 3 (count at least 8) was expected: a checkpoint was replayed, removed or reordered
+VERIFY a checkpoint removed from the anchor → exit 1; first: checkpoint-replayed at anchor line 2: checkpoint seq 2 (count 8) where seq 1 (count at least 3) was expected: a checkpoint was replayed, removed or reordered
+VERIFY the last row cut mid-write (no final newline) → exit 3; first: torn-final-line at log line 8: the log does not end with a newline: its last line is incomplete (a crash mid-write), and is not part of the chain
+```
+And the command (`npm run audit -- verify`): exit 0 on a clean log, 1 on tampering (first failure
+named, then every one), 2 on a usage error, 3 on a torn tail alone. These are exercised in
+`verify.test.ts`, "the command: …".
+
+## §3.4 Start refused for each missing or invalid setting; seam-only
+
+```
+AUDIT START no AUDIT_* at all: AuditConfigError: the audit store is not configured (AUDIT_LOG, AUDIT_ANCHOR, AUDIT_DIGEST_KEY_FILE, AUDIT_DIGEST_KEY_ID, AUDIT_SIGNING_KEY_FILE, AUDIT_SIGNING_KEY_ID missing): a node records every refusal and call, or does not start; AUDIT_STORE=seam-only is for development only
+AUDIT START AUDIT_LOG missing: AuditConfigError: the audit store is not configured (AUDIT_LOG missing): a node records every refusal and call, or does not start; AUDIT_STORE=seam-only is for development only
+AUDIT START AUDIT_ANCHOR missing: AuditConfigError: the audit store is not configured (AUDIT_ANCHOR missing): a node records every refusal and call, or does not start; AUDIT_STORE=seam-only is for development only
+AUDIT START AUDIT_DIGEST_KEY_FILE missing: AuditConfigError: the audit store is not configured (AUDIT_DIGEST_KEY_FILE missing): a node records every refusal and call, or does not start; AUDIT_STORE=seam-only is for development only
+AUDIT START AUDIT_DIGEST_KEY_ID missing: AuditConfigError: the audit store is not configured (AUDIT_DIGEST_KEY_ID missing): a node records every refusal and call, or does not start; AUDIT_STORE=seam-only is for development only
+AUDIT START AUDIT_SIGNING_KEY_FILE missing: AuditConfigError: the audit store is not configured (AUDIT_SIGNING_KEY_FILE missing): a node records every refusal and call, or does not start; AUDIT_STORE=seam-only is for development only
+AUDIT START AUDIT_SIGNING_KEY_ID missing: AuditConfigError: the audit store is not configured (AUDIT_SIGNING_KEY_ID missing): a node records every refusal and call, or does not start; AUDIT_STORE=seam-only is for development only
+AUDIT START AUDIT_STORE neither jsonl nor seam-only: AuditConfigError: AUDIT_STORE is "jsonl" (the default) or "seam-only" (development), not "off"
+AUDIT START AUDIT_LOG relative: AuditConfigError: AUDIT_LOG must be an absolute path
+AUDIT START AUDIT_LOG a directory: AuditConfigError: AUDIT_LOG cannot be opened (EISDIR)
+AUDIT START AUDIT_ANCHOR the same file as AUDIT_LOG: AuditConfigError: AUDIT_LOG and AUDIT_ANCHOR name the same file: the anchor is a separate file
+AUDIT START AUDIT_DIGEST_KEY_FILE missing on disk: AuditConfigError: AUDIT_DIGEST_KEY_FILE cannot be opened (ENOENT)
+AUDIT START AUDIT_DIGEST_KEY_FILE under 32 bytes: AuditConfigError: AUDIT_DIGEST_KEY_FILE must hold at least 32 bytes (base64url)
+AUDIT START AUDIT_DIGEST_KEY_ID malformed: AuditConfigError: AUDIT_DIGEST_KEY_ID must match [A-Za-z0-9._-]{1,64}
+AUDIT START AUDIT_SIGNING_KEY_FILE an RSA key: AuditConfigError: AUDIT_SIGNING_KEY_FILE: the signing key is rsa, not Ed25519
+AUDIT START AUDIT_SIGNING_KEY_FILE not a key: AuditConfigError: AUDIT_SIGNING_KEY_FILE: the signing key is not a PEM private key
+AUDIT START AUDIT_LOG the digest key file: AuditConfigError: AUDIT_LOG is the same file as AUDIT_DIGEST_KEY_FILE: the log is its own file
+AUDIT START AUDIT_LOG the signing key file: AuditConfigError: AUDIT_LOG is the same file as AUDIT_SIGNING_KEY_FILE: the log is its own file
+AUDIT START AUDIT_ANCHOR the manifest: AuditConfigError: AUDIT_ANCHOR is the same file as CLEARSEAL_MANIFEST: the anchor is its own file
+AUDIT START AUDIT_LOG the manifest: AuditConfigError: AUDIT_LOG is the same file as CLEARSEAL_MANIFEST: the log is its own file
+AUDIT START AUDIT_STORE=seam-only with the store configured: AuditConfigError: AUDIT_STORE=seam-only while the store is configured (AUDIT_LOG, AUDIT_ANCHOR, AUDIT_DIGEST_KEY_FILE, AUDIT_DIGEST_KEY_ID, AUDIT_SIGNING_KEY_FILE, AUDIT_SIGNING_KEY_ID): choose one; a configured store is never silently ignored
+AUDIT START the same id for both keys: AuditConfigError: AUDIT_DIGEST_KEY_ID and AUDIT_SIGNING_KEY_ID are the same: each key has its own id
+AUDIT START an all-zero digest key: AuditConfigError: AUDIT_DIGEST_KEY_FILE holds a patterned key (fewer than 8 distinct byte values): generate it from a random source
+AUDIT START two PEM blocks in the signing key file: AuditConfigError: AUDIT_SIGNING_KEY_FILE: the signing key file holds more than one PEM block: one key per file
+AUDIT START an AUDIT_ANCHOR whose last line is not a checkpoint (named, never quoted): AuditConfigError: AUDIT_ANCHOR's last line is not a checkpoint
+AUDIT START AUDIT_CHECKPOINT_ROWS zero: AuditConfigError: AUDIT_CHECKPOINT_ROWS must be an integer from 1 to 100000
+AUDIT START AUDIT_CHECKPOINT_SECONDS too large: AuditConfigError: AUDIT_CHECKPOINT_SECONDS must be an integer from 1 to 86400
+AUDIT START AUDIT_DIGEST_KEY_FILE a symbolic link: AuditConfigError: AUDIT_DIGEST_KEY_FILE cannot be opened (ELOOP)
+AUDIT START AUDIT_LOG through a linked directory: AuditConfigError: AUDIT_LOG passes through a symbolic link: the audit uses paths with no link on the way
+AUDIT START seam-only: audit-unanchored {"mode":"seam-only"} | manifest-loaded {"path":"<tmp>/manifest.json","sha256":"a4f2ba688d53…"}
+AUDIT START tool-call row: {"event":"tool-call","fields":{"args":"hmac-sha256:test-digest-1:z_YlkA2JcqmK7f6N7A-XcFoHhKE47UgVEEcLqygG96o","outcome":"ok","tool":"echo"},"prev":"b958e7d4c57c…","principal":"user-42","seq":1,"time":"2026-09-27T08:19:21.842Z"}
 ```
 
-**The P1 EXIT line for the clause.** It names the gate sentence it proves, from the roadmap's P1
-exit gate as `-1007a`'s docs reworded it:
+## §3.5 Red-proofs and control-deletion rows
 
-```
-EXIT | the node serves only tools whose definitions hash to the manifest the operator configured (the H1 re-test's F1 and F2, end to end) | F1: checker ["bin/node.ts: bin-import","bin/node.ts: bin-import"]; strict: start refused (notes.exfil unpinned), after manifest-loaded pins/teaching.json; PIN_STRICT=false: tools/list [], notes.exfil not served; F2: checker ["package.json: check-failed"]; strict: start refused (notes.exfil unpinned), after manifest-loaded pins/teaching.json; PIN_STRICT=false: tools/list [], notes.exfil not served
-```
+Every rule's red-proof is a named test in `packages/core/test/audit/` (`store`, `verify`, `start`,
+`adversarial`), or the canary clause in `packages/teaching/test/p1-exit.test.ts`. There are 43 new
+control-deletion rows (`audit-*`). Each names its rule, and each goes red by the test's own assertion
+(the gates line gives the full run). Some existing stubs were
+regenerated against the wiring with their changes unchanged:
+- the `-1007a` `startnode-*` stubs;
+- `startnode-committed-file`, now in its try block.
 
-With `dist/` now read, F2 also gets `dist/index.js: process-referenced` from the static rules.
-
-## §3.3 `startNode`'s refusals (`packages/core/test/node/start.test.ts`)
-
-```
-CLEARSEAL_MANIFEST unset: NodeStartError: CLEARSEAL_MANIFEST is required: the operator names the approved manifest (an absolute path or a file: URL); a node without one does not start
-CLEARSEAL_MANIFEST empty: NodeStartError: (the same)
-an edition naming its manifest: NodeStartError: startNode takes an edition's definitions and configSchema, nothing else (not manifestPath): the operator names the manifest in CLEARSEAL_MANIFEST
-CLEARSEAL_MANIFEST a relative path: ManifestError: the manifest path must be absolute, or a file: URL
-CLEARSEAL_MANIFEST a dot-relative path: ManifestError: the manifest path must be absolute, or a file: URL
-CLEARSEAL_MANIFEST a data: URL: ManifestError: the manifest path must be absolute, or a file: URL
-CLEARSEAL_MANIFEST an https: URL: ManifestError: the manifest path is a https: URL: a node reads its committed manifest from a file
-CLEARSEAL_MANIFEST a directory: ManifestError: the manifest is not a regular file: a node reads its committed manifest from a regular file
-CLEARSEAL_MANIFEST a missing file: ManifestError: the manifest cannot be read (ENOENT): a node without a manifest does not start
-CLEARSEAL_MANIFEST a symbolic link to the real manifest: ManifestError: the manifest cannot be read (ELOOP): a node without a manifest does not start
-CLEARSEAL_MANIFEST a link on the way (a symlinked directory): ManifestError: the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way
-CLEARSEAL_MANIFEST a FIFO (never waited on): ManifestError: the manifest is not a regular file: a node reads its committed manifest from a regular file
-an unpinned tool: PinRefusedError: the pin gate refused 1 tool(s): extra (unpinned); PIN_STRICT is on, so the node does not start
-a drifted tool: PinRefusedError: the pin gate refused 1 tool(s): echo (drifted); PIN_STRICT is on, so the node does not start
-an edition's prefix CLEARSEAL_ / AUTH_ / PIN_ / EXEC_: NodeStartError: the configuration prefix <prefix> is the core's own: an edition's variables carry its own prefix
-manifest-loaded {"path":"<tmp>/manifest.json","sha256":"f4fc7609b513…"}  (the SHA-256 of the file's bytes, asserted; written before anything is admitted)
-```
-
-**Read once (§7).** `readManifestFile` returns the bytes it read from its one descriptor.
-`startNode` hashes that buffer for `manifest-loaded` and hands the same buffer to `PinGate.load`, so
-the logged hash and the parsed bytes cannot differ, and §7's flag condition does not arise.
-
-## §1.4(b) The choice: an authenticated report, and why
-
-- The parent sends a 32-byte random nonce on the child's stdin. The child reads stdin to its end
-  before it imports anything of the edition's, keeps the nonce in its own module scope, and writes
-  one report line: `clearseal-supply-boundary-report {"nonce": …, "findings": […]}`.
-- The parent accepts exactly one line carrying its nonce, with a well-formed findings array. Every
-  finding must have exactly `file`, `rule` and `detail`, all strings. Anything else is a
-  `check-failed` finding, never a clean result: no line, two lines, a wrong nonce, a malformed
-  array, a non-zero exit, or an early exit.
-- Why a nonce, and not a separate descriptor: the loaded entry runs in the same process as the child
-  and can write to any descriptor the child can. What it cannot do is produce a secret it never saw.
-  By the time it loads, stdin is drained and the nonce lives only in the child's module scope. A
-  nonce also works on both runners the same way; an extra pipe descriptor is less certain on
-  Windows.
-- Its limit, stated in the checker's header: an entry with arbitrary code could, in principle, find
-  the nonce in its own process's memory. That is in-process code again, and now the static rules,
-  which read `dist/`, stand in front of it.
-- Proven:
-  - F2, which prints `[]` and exits, gives `check-failed: 0 authenticated report lines`.
-  - A forged report line with a guessed nonce gives `0 authenticated report lines (1 report-looking
-    lines)`.
-  - An entry that reads stdin for the nonce finds it empty and is refused the same way.
-  - The parser refuses each malformed form directly.
-
-## §3.4 Red-proofs and control-deletion rows (N5)
-
-Eleven new rows, all red by the test's own assertion:
-
-| Row | Control | Named tests red |
-|---|---|---|
-| `startnode-operator-manifest-required` | §1.1 `CLEARSEAL_MANIFEST` required, no default (stub: `?? "/"`) | without CLEARSEAL_MANIFEST, or with it empty … |
-| `startnode-edition-names-no-manifest` | §1.1 an edition's extra key, `manifestPath` above all, refused | an edition that passes a manifest path … |
-| `startnode-manifest-loaded` | §1.1 the `manifest-loaded` line | started, the node writes manifest-loaded …; the P1 F1/F2 clause |
-| `startnode-manifest-hash-of-bytes` | §1.1 the SHA-256 is of the bytes read | started, the node writes manifest-loaded … |
-| `startnode-core-prefixes` | §1.1 no edition prefix is the core's | an edition's schema may not claim the core's own variables' prefix |
-| `boundary-bin-imports` | §1.4(a) bin/ imports only startNode and its own entry | F1; F1 variant: a built-in; F1 variant: another package |
-| `boundary-bin-no-reexport` | §1.4(a) bin/ re-exports nothing | F1 variant: bin/ re-exports from dist/ |
-| `boundary-report-nonce` | §1.4(b) only the nonce authenticates | F2 variant: a guessed nonce; the child's report is trusted only with its nonce … |
-| `boundary-report-required` | §1.4(b) short of one authenticated report is a failure | F2; F2 variant: a guessed nonce; F2 variant: reads stdin |
-| `boundary-report-well-formed` | §1.4(b) the findings must be well-formed | the child's report is trusted only with its nonce … |
-| `boundary-dist-read` | F3: the checker reads dist/ | F3: a dist/ entry that points CLEARSEAL_MANIFEST at its own manifest … |
-
-Plus the eight regenerated stubs above, each red again. The `import-meta` ban is proven by
-`boundary-import-meta` (and by `boundary-manifest-url`, whose plants it now catches), and by the new
-plant "the formerly allowed form, new URL(<pins literal>, import.meta.url), is refused too".
+Three existing tests' expectations now include the new row, since the refusals themselves are
+unchanged:
+- `auth/corrections.test.ts`: a handler error is followed by its `tool-call` row;
+- `transport/limits.test.ts`: the timeout's line, then `tool-call`;
+- `node/start.test.ts`: in seam-only mode, `audit-unanchored` comes before `manifest-loaded`.
 
 ## Adversarial pass (WO §5)
 
-The fresh subagent was stopped by a safety classifier before it ran any attempt, as happened in
-`-2008` and `-1007`. Its notes from reading the code, checked against the code before I adopted them:
-- the hash and the parse use one buffer;
-- `startNode` never reads a `manifestPath` key;
-- schema defaults never reach the environment.
+A fresh subagent, working in its own worktree, ran every §5 attempt through the real store, verifier
+and `startNode`. I checked its causes against the code before acting. Each finding was either closed
+with a red-proof and a row, or written into RULES.md as a limit.
 
-It also raised the open question that became F3. I ran every §5 attempt myself, through real nodes
-started by an edition's own `bin/`, or through real `startNode` calls:
+| # | Finding | Severity (subagent) | Disposition |
+|---|---|---|---|
+| X1 | Edit, delete, insert, reorder or truncate inside a covered range; splice two logs; replay a checkpoint | none | all named |
+| X2 | The unanchored window can be **rewritten**, not only truncated (the chain is plain SHA-256), and a restart adopts it under the next signed checkpoint | High | **the WO's design limit; restated in AU-12.** The adoption is now recorded: `audit-resumed` gives the count of unanchored rows (AU-25) [audit-resumed] |
+| X3 | Truncating the anchor, not only rewriting it, reopens covered ranges | High if the attacker can write the anchor | **stated in AU-12**: the anchor's ownership is the protection |
+| X4 | Removing the anchor's final newline turned tampering into exit 3 | Medium | **fixed** (AU-20): a tail that parses is still checked [audit-torn-checked] |
+| X5 | Invalid UTF-8 bytes were read as U+FFFD, so one row had several byte spellings that verified | Medium | **fixed** (AU-1, AU-16): strict UTF-8 in `verify` and at start [audit-utf8-strict] |
+| X6 | `transport-error`'s reason is `err.name`, and tool code can set it from arguments (a canary reached a row through a real node) | High by the rubric | **fixed**: kind `errname`, bare only for the platform's error names [audit-errname] |
+| X7 | An unknown event's name was bare; `__proto__` was dropped; a BigInt threw; NaN, undefined and -0 digested alike | Medium, Low | **fixed** (AU-6) [audit-event-unlisted] |
+| X8 | The log could be pointed at a key file or the manifest, and the node served, writing rows into it | Medium | **fixed** (AU-21) [audit-log-not-a-key] |
+| X9 | A bad anchor failed with a raw SyntaxError quoting the file (the first characters of a key) | Low–Medium | **fixed**: named, never quoted |
+| X10 | `seam-only` with a store configured silently ignored the store | Low–Medium | **fixed**: refused (AU-22) |
+| X11 | The start-time anchor check did not verify the checkpoint's signature | Low | **fixed** (AU-24) for the store's own kid [audit-start-anchor-signature] |
+| X12 | Several spellings of one signature verified; the allowlist accepted duplicate members, extra members, a padded key, 30 February, hour 24, and `[]`; a `count = 0` checkpoint passed | Low | **fixed** (AU-19) [audit-checkpoint-form], [audit-allowlist-strict] |
+| X13 | Weak keys: an all-zero digest key; two PEMs in one file; one id for both keys | Low | **fixed** (AU-21) [audit-strong-digest-key] |
+| X14 | A leaked retired key can backdate checkpoints into its window, because the window is checked against the signed time | Medium | **stated in AU-19**: remove the entry, and keep windows short |
+| X15 | A code-shaped value passed directly to `append` is written bare in a code field; the principal (the token's `sub`) is bare by design | Medium (direct append only) | **kept, stated**: every code field is filled from the core's own constants, and no request value reaches one. The subagent's own canary run over a real node confirmed that everything except X6 stayed out |
 
-| # | Attempt | Result | Severity | Disposition |
-|---|---|---|---|---|
-| X1 | §5.1 an edition export or an extra key: `manifestPath`, a symbol key, a Proxy hiding `manifestPath` from `ownKeys`, an inherited `manifestPath` | extra and symbol keys refused (NodeStartError). The Proxy and inherited forms get past the key check, but `startNode` never reads the key: `manifest-loaded` shows `pins/teaching.json`, and the unpinned definitions are refused | none | — |
-| X2 | §5.1 a default; a relative path; odd `file:` forms | no default (required). Relative, `./` and leading-whitespace paths refused. `file://host/…` and an encoded `/` throw. `file:pins/teaching.json` resolves to `/pins/teaching.json`, which does not exist. A query, fragment or dot segments resolve to the operator's own file | none | — |
-| X3 | §5.1 a schema claiming `CLEARSEAL_`, or a `CLEARSEAL_MANIFEST` default | prefix refused. Property names must carry the edition's prefix. Defaults are never written to the environment | none | — |
-| X4 | §5.1 an environment read the edition influences before startNode (**F3**): a `dist/index.js` entry setting `process.env.CLEARSEAL_MANIFEST` | **served** on the branch before the fix: tools/list `["notes.exfil"]`, call 200, `manifest-loaded` naming the plant's own file; the checker flagged only an incidental undeclared export | **High** | **closed at the checker**: `dist/` is read (`boundary-dist-read`), giving `dist/index.js: process-referenced`. **At run time it is the in-process limit**, stated above and in the checker's header |
-| X5 | §5.2 F1 and variants: bin/ into `dist/`, a built-in, another package, a re-export | all `bin-import`. At run time, refused against the operator's manifest | none | — |
-| X6 | §5.2 F2 and variants: `[]` and exit; a forged line with a guessed nonce; reading stdin for the nonce | all `check-failed`; F2 now also `process-referenced` (dist/ read). At run time, refused | none | — |
-| X7 | §5.3 change the file between the hash and the parse | one read, one buffer, hashed and parsed; the hash cannot differ from the parsed bytes | none | — |
+Where the subagent said RULES.md claimed more than the code did, the rule was corrected or the code
+was fixed: AU-1, AU-6, AU-12, AU-16, AU-19, AU-20, AU-21 and AU-24, as above.
 
 ## Gates
 
-- `npm run check` exits 0 from a clean state (every `dist/` removed first): 655 core and teaching tests (640 before), spike 0102 69, spike 0101 8,
-  `test:subset` 4. The supply-boundary suite has 48 tests, 14 of them H1 plants.
-- `control-deletion`: 85 rows (74 before, 11 new), all red by assertion, on the final code;
+- `npm run check` exits 0: 693 core and teaching tests (655 before; 38 new, in four audit test files
+  and the canary clause), spike 0102 69, spike 0101 8, `test:subset` 4.
+- `control-deletion`: 128 rows (85 before, 43 new), all red by assertion on the final code;
   `--self-test` passes.
-- `node scripts/leak-gate.mjs --tree` exit 0; `--history` exit 0, run unpiped before every push
-  with the exit code checked directly.
-- CI: the pull request's checks, on both runners, with `control-deletion`. The first CI run failed
-  on the Windows test job, and I had run the check locally with `dist/` already built. `npm run
-  check` typechecks before it builds, and `bin/`'s import of `@clearseal/teaching` resolved to a
-  `dist/index.d.ts` that did not exist yet. The teaching tsconfig now maps the name to `src/` for
-  typecheck only, as it already did for `@clearseal/core`. At run time and in the build, the name
-  resolves through the package's exports.
-- Protected surfaces diff to empty against `4478a35`: the steering documents, `LICENSE`, `NOTICE`,
-  `spikes/**`, `docs/canonical-form.md`, and everything under `packages/core/src/**` except
-  `node/start.ts`. `index.ts` is unchanged. `test/deletion/controls.json` has only added rows
-  (172 lines added, 0 removed).
+- `node scripts/leak-gate.mjs --tree` exit 0; `--history` exit 0, run unpiped before every push with
+  the exit code checked directly. Hashes in these pastes are shortened, and every key the tests use
+  is generated at run time.
+- CI: the pull request's checks, on both runners, with `control-deletion`.
+- Protected surfaces diff to empty against `4a0bfa2`: the steering documents, `LICENSE`, `NOTICE`,
+  `spikes/**`, `docs/canonical-form.md`, `pinning/**`, `capability/**`, `containment/**`, `auth/**` and
+  `packages/core/test/boundary/**`.
 - The minted token lived in a mode-0600 scratch file, was never written to git config or a remote
   URL, and was deleted after the pull request was opened.
 
 ## What was not built
 
-- An in-process sandbox for editions (§4), and the P2 supply-side hardening: C7, H7, the `Function`
-  constructor through `.constructor`, SIGINT shutdown, and the X10 and X7 rulings from `-2000`. F3's
-  run-time half is in that class.
-- Manifest signing (`-2004`): the operator names the file, and `manifest-loaded` gives its hash to
-  compare.
-- No change to the gate, the registry, the transport or auth. The one source file changed under
-  `packages/core/src` is `node/start.ts`. `index.ts` needed no change: `Edition` keeps its name.
-- The wording of the two retargeted rows' `control` text (protected).
+- OS-log stores: journal and Event Log (P3, P4). A remote anchor sink, which the `AnchorSink`
+  interface admits. Key-rotation tooling: the allowlist carries windows, and there is no rotate
+  command.
+- The approval gate (`-2001`, which will write through this store), provenance (`-2004`, which
+  reuses `Signer`), and the tripwire and rate limit (`-2007`).
+- A keyed chain, or anything else that protects the unanchored window against an attacker who holds
+  the service's keys. That is the WO's design limit, stated in AU-12.
+- Log rotation. A log grows until the operator moves it and points `AUDIT_LOG` and `AUDIT_ANCHOR` at
+  a fresh pair.
+- The §8 row's *built* marking, in the protected architecture document.
