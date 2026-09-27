@@ -1,0 +1,11 @@
+--- a/packages/core/src/capability/ladder.ts
++++ b/packages/core/src/capability/ladder.ts
+@@ -80,7 +80,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
+   const requires: Requirement[] = [];
+   const forbids: Prohibition[] = [];
+   const discharged: { rule: RuleId; reason: string }[] = [];
+-  if (tag.elevated) requires.push({ anyOf: ["approval_backend"], rule: "CAP-7", reason: "elevated requires an approval backend; none is configured" });
++  if (tag.elevated && cls.length < 0) requires.push({ anyOf: ["approval_backend"], rule: "CAP-7", reason: "elevated requires an approval backend; none is configured" });
+   if (cls === "owned_state") requires.push({ anyOf: ["recoverability_basis"], rule: "CAP-5", reason: "owned_state must pin a one-line recoverability_basis (§3)" });
+   else forbids.push({ control: "recoverability_basis", rule: "CAP-6", reason: `recoverability_basis is null unless owned_state (§3); this tool is ${cls}` });
+   if (cls === "arbitrary_exec") forbids.push({ control: "containment", rule: "N7", reason: "arbitrary_exec is refused a containment domain (N7)" });

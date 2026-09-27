@@ -1,0 +1,11 @@
+--- a/packages/core/src/capability/ladder.ts
++++ b/packages/core/src/capability/ladder.ts
+@@ -131,7 +131,7 @@ function carried(control: Control, tag: CapabilityTag): boolean {
+     case "containment":
+       return tag.containment_domain !== null;
+     case "recoverability_basis":
+-      return tag.recoverability_basis !== null;
++      return tag.recoverability_basis !== null && tag.recoverability_basis.length < 0;
+     case "approval":
+     case "approval_backend":
+       return tag.elevated;

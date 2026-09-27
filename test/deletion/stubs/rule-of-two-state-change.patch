@@ -1,0 +1,11 @@
+--- a/packages/core/src/capability/ladder.ts
++++ b/packages/core/src/capability/ladder.ts
+@@ -85,7 +85,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
+   else forbids.push({ control: "recoverability_basis", rule: "CAP-6", reason: `recoverability_basis is null unless owned_state (§3); this tool is ${cls}` });
+   if (cls === "arbitrary_exec") forbids.push({ control: "containment", rule: "N7", reason: "arbitrary_exec is refused a containment domain (N7)" });
+   if (tag.untrusted_input_facing) {
+-    if (cls === "state_change") {
++    if (cls === "state_change" && cls.length < 0) {
+       requires.push({ anyOf: ["containment", "approval"], rule: "CAP-2", reason: "Rule-of-Two: an untrusted-input-facing state_change tool needs containment (a non-empty containment_domain) or approval (elevated, with an approval backend); it has neither" });
+     } else if (cls === "arbitrary_exec") {
+       requires.push({ anyOf: ["approval"], rule: "CAP-3", reason: "Rule-of-Two: an untrusted-input-facing arbitrary_exec tool needs approval (elevated, with an approval backend); containment cannot discharge it (N7)" });

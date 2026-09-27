@@ -949,6 +949,209 @@
       "mustFail": [
         "a forged Origin and an extra request property are each refused before any handler runs"
       ]
+    },
+    {
+      "id": "obligation-enforced-at-construction",
+      "section8": "Four-rung ladder, orthogonal untrusted flag, Rule-of-Two",
+      "control": "CAP-1: the pinned registry checks every admitted tool's frozen tag against its obligation and refuses construction when one is unmet",
+      "touches": [
+        "packages/core/src/pinning/registry.ts"
+      ],
+      "stub": "stubs/obligation-enforced-at-construction.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "every combination the table refuses is refused at construction, and every other is served",
+        "Rule-of-Two refuses an untrusted state_change tool with no containment"
+      ]
+    },
+    {
+      "id": "rule-of-two-state-change",
+      "section8": "Four-rung ladder, orthogonal untrusted flag, Rule-of-Two",
+      "control": "CAP-2: an untrusted-facing state_change tool needs containment or approval (Rule-of-Two)",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/rule-of-two-state-change.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "the full table: every combination gets exactly RULES.md's obligation, frozen, and the same twice",
+        "Rule-of-Two refuses an untrusted state_change tool with no containment"
+      ]
+    },
+    {
+      "id": "rule-of-two-empty-domain",
+      "section8": "Four-rung ladder, orthogonal untrusted flag, Rule-of-Two",
+      "control": "CAP-8: an empty containment set is the same bound as null and does not discharge Rule-of-Two",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/rule-of-two-empty-domain.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "an empty containment set does not discharge Rule-of-Two"
+      ]
+    },
+    {
+      "id": "rule-of-two-arbitrary-exec",
+      "section8": "Four-rung ladder, orthogonal untrusted flag, Rule-of-Two",
+      "control": "CAP-3: an untrusted-facing arbitrary_exec tool needs approval; containment cannot discharge it",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/rule-of-two-arbitrary-exec.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "the full table: every combination gets exactly RULES.md's obligation, frozen, and the same twice",
+        "Rule-of-Two refuses an untrusted arbitrary_exec tool, flag off, no approval"
+      ]
+    },
+    {
+      "id": "owned-state-auto-discharge",
+      "section8": "Four-rung ladder, orthogonal untrusted flag, Rule-of-Two",
+      "control": "CAP-4: owned_state auto-discharges Rule-of-Two (an untrusted owned_state tool is not refused for want of containment)",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/owned-state-auto-discharge.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "the full table: every combination gets exactly RULES.md's obligation, frozen, and the same twice",
+        "owned_state auto-discharges Rule-of-Two: untrusted, no containment, admitted"
+      ]
+    },
+    {
+      "id": "owned-state-basis-required",
+      "section8": "`owned_state` with pinned recoverability basis",
+      "control": "CAP-5: owned_state must pin a recoverability_basis",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/owned-state-basis-required.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "the full table: every combination gets exactly RULES.md's obligation, frozen, and the same twice",
+        "owned_state refuses a missing, empty, whitespace or over-long basis",
+        "owned_state refuses a basis broken by any line terminator or control"
+      ]
+    },
+    {
+      "id": "owned-state-basis-not-blank",
+      "section8": "`owned_state` with pinned recoverability basis",
+      "control": "CAP-5: an empty or whitespace-only basis is refused",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/owned-state-basis-not-blank.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "owned_state refuses a missing, empty, whitespace or over-long basis"
+      ]
+    },
+    {
+      "id": "owned-state-basis-one-line",
+      "section8": "`owned_state` with pinned recoverability basis",
+      "control": "CAP-5: a basis broken by any line terminator, control or format character is refused",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/owned-state-basis-one-line.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "owned_state refuses a basis broken by any line terminator or control"
+      ]
+    },
+    {
+      "id": "owned-state-basis-legible",
+      "section8": "`owned_state` with pinned recoverability basis",
+      "control": "CAP-5: a basis with no letter or digit is refused",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/owned-state-basis-legible.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "owned_state refuses a basis with no letter or digit"
+      ]
+    },
+    {
+      "id": "owned-state-basis-length",
+      "section8": "`owned_state` with pinned recoverability basis",
+      "control": "CAP-5: a basis over 120 code points is refused",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/owned-state-basis-length.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "owned_state refuses a missing, empty, whitespace or over-long basis"
+      ]
+    },
+    {
+      "id": "basis-only-on-owned-state",
+      "section8": "`owned_state` with pinned recoverability basis",
+      "control": "CAP-6: any rung but owned_state with a non-null recoverability_basis is refused",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/basis-only-on-owned-state.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "a basis on any other rung is refused"
+      ]
+    },
+    {
+      "id": "elevated-needs-approval-backend",
+      "section8": "Four-rung ladder, orthogonal untrusted flag, Rule-of-Two",
+      "control": "CAP-7: any elevated tool is refused while no approval backend is configured",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/elevated-needs-approval-backend.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "the full table: every combination gets exactly RULES.md's obligation, frozen, and the same twice",
+        "any elevated tool is refused while no approval backend exists",
+        "every combination the table refuses is refused at construction, and every other is served"
+      ]
+    },
+    {
+      "id": "approval-backend-none",
+      "section8": "Four-rung ladder, orthogonal untrusted flag, Rule-of-Two",
+      "control": "CAP-7: the approval backend is the constant \"none\" until CSR-WO-2001, so elevated cannot discharge Rule-of-Two",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/approval-backend-none.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "any elevated tool is refused while no approval backend exists"
+      ]
     }
   ]
 }
