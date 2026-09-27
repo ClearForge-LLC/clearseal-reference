@@ -1152,6 +1152,178 @@
       "mustFail": [
         "any elevated tool is refused while no approval backend exists"
       ]
+    },
+    {
+      "id": "startnode-operator-manifest-required",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a §1.1: CLEARSEAL_MANIFEST is required; no default stands in for the operator's manifest",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/startnode-operator-manifest-required.patch",
+      "tests": [
+        "packages/core/test/node/start.test.ts"
+      ],
+      "mustFail": [
+        "without CLEARSEAL_MANIFEST, or with it empty, the node refuses to start"
+      ]
+    },
+    {
+      "id": "startnode-edition-names-no-manifest",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a §1.1: an edition that passes a manifest path (or any key beyond definitions and configSchema) is refused",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/startnode-edition-names-no-manifest.patch",
+      "tests": [
+        "packages/core/test/node/start.test.ts"
+      ],
+      "mustFail": [
+        "an edition that passes a manifest path, or anything beyond its two values, is refused"
+      ]
+    },
+    {
+      "id": "startnode-manifest-loaded",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a §1.1: at start the node writes manifest-loaded with the operator's file's path and SHA-256",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/startnode-manifest-loaded.patch",
+      "tests": [
+        "packages/core/test/node/start.test.ts",
+        "packages/teaching/test/p1-exit.test.ts"
+      ],
+      "mustFail": [
+        "started, the node writes manifest-loaded with the file's path and the SHA-256 of the bytes it admitted from, and serves exactly what that file pins",
+        "the H1 re-test's F1 and F2, end to end: each hostile edition's own bin/, started against the operator's manifest, is refused at start"
+      ]
+    },
+    {
+      "id": "startnode-manifest-hash-of-bytes",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a §1.1: manifest-loaded's SHA-256 is of the bytes the gate parses, read once",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/startnode-manifest-hash-of-bytes.patch",
+      "tests": [
+        "packages/core/test/node/start.test.ts"
+      ],
+      "mustFail": [
+        "started, the node writes manifest-loaded with the file's path and the SHA-256 of the bytes it admitted from, and serves exactly what that file pins"
+      ]
+    },
+    {
+      "id": "startnode-core-prefixes",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a §1.1: an edition's configuration schema may not claim the core's own variable prefixes (CLEARSEAL_, AUTH_, PIN_, EXEC_)",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/startnode-core-prefixes.patch",
+      "tests": [
+        "packages/core/test/node/start.test.ts"
+      ],
+      "mustFail": [
+        "an edition's schema may not claim the core's own variables' prefix"
+      ]
+    },
+    {
+      "id": "boundary-bin-imports",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a §1.4(a): bin/ imports only the core's startNode and the edition's own package entry by name",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-bin-imports.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof F1: bin/ imports its definitions and its own manifest from dist/, which the checker never reads",
+        "red-proof F1 variant: bin/ imports a built-in",
+        "red-proof F1 variant: bin/ imports another package"
+      ]
+    },
+    {
+      "id": "boundary-bin-no-reexport",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a §1.4(a): bin/ re-exports nothing",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-bin-no-reexport.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof F1 variant: bin/ re-exports from dist/"
+      ]
+    },
+    {
+      "id": "boundary-report-nonce",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a §1.4(b): the export check trusts only a report line carrying the nonce the child read on stdin",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-report-nonce.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof F2 variant: an entry that prints a report line of its own, with a nonce it guessed",
+        "the child's report is trusted only with its nonce, once, and well formed"
+      ]
+    },
+    {
+      "id": "boundary-report-required",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a §1.4(b): anything short of one authenticated, well-formed report is a check-failed finding, never a clean result",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-report-required.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof F2: an entry that prints [] and exits when the checker's child loads it",
+        "red-proof F2 variant: an entry that prints a report line of its own, with a nonce it guessed",
+        "red-proof F2 variant: an entry that reads stdin for the nonce, and echoes a report with what it found"
+      ]
+    },
+    {
+      "id": "boundary-report-well-formed",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a §1.4(b): the authenticated report's findings must be well-formed",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-report-well-formed.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "the child's report is trusted only with its nonce, once, and well formed"
+      ]
+    },
+    {
+      "id": "boundary-dist-read",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-1007a adversarial pass (F3): the checker reads dist/, where the entry bin/ loads usually lives",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-dist-read.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof F3: a dist/ entry that points CLEARSEAL_MANIFEST at its own manifest before startNode reads it"
+      ]
     }
   ]
 }

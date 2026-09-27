@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -276,7 +276,7 @@ export function parseReport(stdout: string, nonce: string): Finding[] | string {
+     } catch {
+       continue;
+     }
+-    if (typeof value === "object" && value !== null && (value as { nonce?: unknown }).nonce === nonce) ours.push((value as { findings?: unknown }).findings);
++    if (typeof value === "object" && value !== null && ((value as { nonce?: unknown }).nonce === nonce || nonce.length > 0)) ours.push((value as { findings?: unknown }).findings);
+   }
+   if (ours.length !== 1) return `${String(ours.length)} authenticated report lines (${String(lines.length)} report-looking lines): the child's own report is missing or doubled`;
+   const findings = ours[0];

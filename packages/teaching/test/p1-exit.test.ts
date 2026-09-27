@@ -11,16 +11,23 @@
 // refusal also writes its audit line; a containment clause refuses a planted link and a FIFO in the
 // notes root at the cage; and the supply-boundary suite carries the red-team's H1 plant and its
 // aliasing variants.
+//
+// CSR-WO-1007a §1.3: the H1 re-test's F1 and F2 run end to end as real nodes, each started by its own
+// bin/ with CLEARSEAL_MANIFEST at the committed pins/teaching.json, and each is refused at start.
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, describe, it } from "node:test";
 
 import { DEFAULT_LIMITS, loadPinnedRegistry, type PinnableTool, startTransport, ValidationPool } from "@clearseal/core";
 
-import { AUDIENCE, cleanup, definitionsFor, mcp, type Node, notesRoot, pin, restoreEnv, startNode, TestIssuer } from "./node.ts";
+import { checkEdition } from "../../core/test/boundary/supply-boundary.ts";
+import { COMMITTED_MANIFEST, plant, removeTree, scratchTree, startBin } from "./hostile.ts";
+import { AUDIENCE, cleanup, definitionsFor, ISSUER, mcp, type Node, notesRoot, pin, restoreEnv, startNode, TestIssuer } from "./node.ts";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
 const exit: string[] = [];
@@ -131,6 +138,48 @@ void describe("P1 exit gate: against a real teaching node", () => {
     const unpinned = await refusedStart({}, other);
     assert.match(String(unpinned), /PinRefusedError|unpinned/);
     record("N4: a missing manifest or an unpinned tool refuses to start", `missing: ${String((missing as Error).name)}; unpinned: ${String((unpinned as Error).name)}`);
+  });
+
+  void it("the H1 re-test's F1 and F2, end to end: each hostile edition's own bin/, started against the operator's manifest, is refused at start", { timeout: 120_000 }, async () => {
+    const scratch = scratchTree();
+    const caFile = join(mkdtempSync(join(tmpdir(), "clearseal-p1-ca-")), "issuer-ca.pem");
+    writeFileSync(caFile, issuer.ca);
+    const env = { TEACHING_RESOURCE_URL: AUDIENCE, TEACHING_HOST: "127.0.0.1", TEACHING_PORT: "0", AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: caFile, CLEARSEAL_MANIFEST: COMMITTED_MANIFEST };
+    const rows: string[] = [];
+    try {
+      for (const route of ["f1", "f2"] as const) {
+        const p = await plant(scratch, route, "definitions, configSchema");
+        // Defense in depth: the checker now refuses both. The guarantee below does not depend on it.
+        const findings = checkEdition(p.dir).map((f) => `${f.file}: ${f.rule}`);
+        assert.ok(findings.length > 0, `${route}: the checker refuses it`);
+        // The strict default: the node refuses to start, after logging the manifest it read.
+        const strict = await startBin(p.dir, env);
+        strict.stop();
+        console.log(`F1F2 ${route} strict output:\n${strict.output.trim()}`);
+        assert.equal(strict.port, undefined, `${route}: under the strict default the node does not start`);
+        assert.match(strict.output, /manifest-loaded/);
+        assert.ok(strict.output.includes(COMMITTED_MANIFEST.replace(/\\/g, "\\\\")), `${route}: manifest-loaded names the operator's file`);
+        assert.match(strict.output, /notes\.exfil \(unpinned\)/);
+        // PIN_STRICT=false: the node starts, and the unpinned tool is absent and uncallable.
+        const lax = await startBin(p.dir, { ...env, PIN_STRICT: "false" });
+        try {
+          assert.ok(lax.port !== undefined, `${route}: with PIN_STRICT=false the node starts: ${lax.output}`);
+          const t = { port: lax.port } as Parameters<typeof mcp>[0];
+          const list = await mcp(t, "tools/list", {}, { token: token() });
+          const names = ((list.json as { result?: { tools?: { name: string }[] } }).result?.tools ?? []).map((x) => x.name);
+          const exfil = await mcp(t, "tools/call", { name: "notes.exfil", arguments: {} }, { token: token(), name: "notes.exfil" });
+          console.log(`F1F2 ${route} PIN_STRICT=false: tools/list ${JSON.stringify(names)}; tools/call notes.exfil → ${String(exfil.status)} ${exfil.text}`);
+          assert.ok(!names.includes("notes.exfil"), `${route}: the unpinned tool is absent`);
+          assert.ok(!exfil.text.includes("SERVED BY AN UNPINNED TOOL"), `${route}: the unpinned tool never runs`);
+          rows.push(`${route.toUpperCase()}: checker ${JSON.stringify(findings)}; strict: start refused (notes.exfil unpinned), after manifest-loaded ${COMMITTED_MANIFEST.slice(REPO.length)}; PIN_STRICT=false: tools/list ${JSON.stringify(names)}, notes.exfil not served`);
+        } finally {
+          lax.stop();
+        }
+      }
+    } finally {
+      removeTree(scratch);
+    }
+    record("the node serves only tools whose definitions hash to the manifest the operator configured (the H1 re-test's F1 and F2, end to end)", rows.join("; "));
   });
 
   void it("a forged Origin and an extra request property are each refused before any handler runs", async () => {

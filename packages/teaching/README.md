@@ -1,24 +1,30 @@
 # @clearseal/teaching
 
 The ClearSeal teaching edition: a notes store as the carrier (architecture §3.3). It is thin by
-rule (N1): it exports tool definitions, the path of its approved manifest and a configuration
-schema, and assembles nothing. The core's `startNode` reads the configuration and the committed
-manifest file and builds the pin gate, the registry and the transport (CSR-WO-1007); the verifier and
-the cage are the core's too. The edition imports only types from the core, and `startNode` in
-`bin/`. The core's supply-boundary test holds this package to that.
+rule (N1): it exports tool definitions and a configuration schema, and assembles nothing. The core's
+`startNode` reads the configuration and the manifest the operator names, and builds the pin gate, the
+registry and the transport (CSR-WO-1007, CSR-WO-1007a); the verifier and the cage are the core's too.
+The edition imports only types from the core; `bin/` imports only `startNode` and this package's own
+entry, by name. The core's supply-boundary test holds this package to that.
+
+**The operator names the manifest.** Set `CLEARSEAL_MANIFEST` to the approved manifest, an absolute
+path or a `file:` URL; for these definitions that is `pins/teaching.json` at the repository root. The
+node refuses to start without it, and at start writes one `manifest-loaded` audit line with the
+file's path and SHA-256, to compare with the manifest you approved. The edition cannot name its own
+manifest: an edition that could would approve itself.
 
 | Module | What it is | ClearSeal clause |
 |---|---|---|
 | `src/notes.ts` | `notes.read`, a `read_only` tool contained to the notes root | N7 (capability class, containment domain); the cage is the only way out |
 | `src/config.ts` | the configuration schema, read and validated by the core's `startNode` | N4: a configuration outside the schema refuses start |
-| `src/index.ts` | the public entry: `definitions`, `manifestPath`, `configSchema`, each declared by kind (`package.json`, `clearseal.exports`) | N1: the supply boundary |
-| `bin/teaching-node.ts` | the deploy scaffold: `startNode({ definitions, manifestPath, configSchema })` and nothing else | N1, N2: the only path to a serving node is the core's, reading the committed manifest |
+| `src/index.ts` | the public entry: `definitions` and `configSchema`, each declared by kind (`package.json`, `clearseal.exports`) | N1: the supply boundary |
+| `bin/teaching-node.ts` | the deploy scaffold: `startNode({ definitions, configSchema })`, with both imported from `@clearseal/teaching`, and nothing else | N1, N2: the only path to a serving node is the core's, reading the operator's manifest |
 
 **The notes root is part of the pinned contract.** `notes.read`'s containment domain is the root,
 and the domain is hashed. Moving the store is a code change (the root in `src/notes.ts`) that changes
 the tool's hash, so the node refuses to start until the operator re-approves the committed manifest:
-`npm run pin -- approve --definitions <definitions for the new root> --manifest <file> --yes`. It is
-not a variable: the node reads the committed `pins/teaching.json` and nothing else.
+`npm run pin -- approve --definitions <definitions for the new root> --manifest <file> --yes`. The
+root is not a variable, and the manifest is the operator's to name, never the edition's.
 
 The committed manifest, `pins/teaching.json`, pins the default root. Its drift test fails CI when
 the definitions and the manifest disagree.

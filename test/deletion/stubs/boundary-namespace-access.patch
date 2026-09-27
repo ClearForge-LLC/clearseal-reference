@@ -1,9 +1,9 @@
 --- a/packages/core/test/boundary/supply-boundary.ts
 +++ b/packages/core/test/boundary/supply-boundary.ts
-@@ -217,7 +217,7 @@
-         }
-       }
-       // (c) a property of a core namespace, read in an expression.
+@@ -211,7 +211,7 @@ export function checkSource(dir: string): Finding[] {
+       // (c) import.meta, in any form: an edition names no file of its own, its manifest least of all.
+       if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) add("import-meta", "import.meta: an edition refers to no file by its own location; the operator names the manifest (CLEARSEAL_MANIFEST)");
+       // (d) a property of a core namespace, read in an expression.
 -      if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression) && namespaces.has(node.expression.text)) add("core-namespace-access", `${node.expression.text}${ts.isPropertyAccessExpression(node) ? `.${node.name.text}` : "[...]"}: an edition reads nothing from the core's namespace`);
 +      if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression) && namespaces.has(node.expression.text) && node.pos < 0) add("core-namespace-access", `${node.expression.text}${ts.isPropertyAccessExpression(node) ? `.${node.name.text}` : "[...]"}: an edition reads nothing from the core's namespace`);
  

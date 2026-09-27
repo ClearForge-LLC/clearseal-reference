@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -299,7 +299,7 @@ function checkExports(dir: string): Finding[] {
+     return failed((e.stderr ?? e.message ?? "").trim().split("\n")[0] ?? "");
+   }
+   const report = parseReport(out, nonce);
+-  return typeof report === "string" ? failed(report) : report;
++  return typeof report === "string" ? [] : report;
+ }
+ 
+ /** Every finding for the edition in `dir`; none means it keeps to the boundary. */

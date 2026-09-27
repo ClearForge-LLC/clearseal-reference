@@ -17,3 +17,4 @@ coverage/
 .idea/
 *.swp
 packages/core/test/boundary/.planted/
+packages/teaching/test/.planted/

@@ -70,11 +70,12 @@ export async function startNode(issuer: TestIssuer, root: string, manifest: stri
     AUTH_JWKS_URL: issuer.jwksUrl,
     AUTH_AUDIENCE: AUDIENCE,
     AUTH_JWKS_CA_FILE: caFile,
+    CLEARSEAL_MANIFEST: manifest,
     PIN_STRICT: undefined,
     ...extra,
   });
   const lines: string[] = [];
-  const t = await coreStartNode({ definitions: toolsFor(root), manifestPath: manifest, configSchema }, { audit: (e, f) => lines.push(`${e} ${JSON.stringify(f)}`) });
+  const t = await coreStartNode({ definitions: toolsFor(root), configSchema }, { audit: (e, f) => lines.push(`${e} ${JSON.stringify(f)}`) });
   return { t, lines, close: () => t.close() };
 }
 

@@ -1,9 +1,15 @@
 // The core owns node assembly (CSR-WO-1007 §1.1; northstar N1, N2). startNode is the only public
-// path from an edition's definitions to a serving node: it reads the edition's committed manifest
-// file, builds the pin gate, the admission and the PinnedRegistry itself, and starts the transport.
-// An edition hands it three values (its definitions, its manifest's path and its configuration
-// schema) and assembles nothing: the gate, the registry, the verifier, the validation pool and the
-// transport are the core's (architecture §4 *Core ↔ edition*).
+// path from an edition's definitions to a serving node: it reads the approved manifest file, builds
+// the pin gate, the admission and the PinnedRegistry itself, and starts the transport. An edition
+// hands it two values (its definitions and its configuration schema) and assembles nothing: the gate,
+// the registry, the verifier, the validation pool and the transport are the core's (architecture §4
+// *Core ↔ edition*).
+//
+// The operator names the manifest (CSR-WO-1007a §1.1): CLEARSEAL_MANIFEST, from the environment, is
+// the only source of the manifest's path. The trust root for "what is approved" is the operator, never
+// the edition being approved, so nothing an edition exports can choose it; a hostile edition's
+// definitions fail to hash against the operator's manifest and are refused at start. The file is read
+// once, and the SHA-256 in the manifest-loaded audit line is of the same bytes the gate parses.
 //
 // Configuration is read here, from the environment, as data with a schema (architecture §3.1): the
 // core's own settings (PIN_STRICT, EXEC_TOOLS_FORBIDDEN, AUTH_*, CLEARSEAL_REQUEST_STATE_KEY) by their
@@ -12,6 +18,7 @@
 // ("x-clearseal-setting": "host", "port" or "resource-url"). A value outside the schema, an unknown
 // variable with the edition's prefix included, refuses start (N4).
 
+import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,17 +30,21 @@ import { DEFAULT_LIMITS } from "../transport/config.ts";
 import { requestStateKeyFromEnv } from "../transport/request-state.ts";
 import { compileSchema } from "../transport/schema.ts";
 import { ValidationPool } from "../transport/schema-pool.ts";
-import { type RunningTransport, startTransport } from "../transport/server.ts";
+import { renderAuditLine, type RunningTransport, startTransport } from "../transport/server.ts";
 
-/** What an edition hands the core: nothing else. */
+/** What an edition hands the core: nothing else. Not the manifest: the operator names it. */
 export interface Edition {
-  /** The edition's tools, each admitted only if the committed manifest pins it. */
+  /** The edition's tools, each admitted only if the operator's manifest pins it. */
   readonly definitions: readonly PinnableTool[];
-  /** The committed manifest: an absolute path, or a `file:` URL, to a regular file. */
-  readonly manifestPath: string | URL;
   /** The edition's configuration schema (JSON Schema 2020-12), with the annotations above. */
   readonly configSchema: Readonly<Record<string, unknown>>;
 }
+
+/** The two keys an edition passes. Any other key, a manifest path above all, refuses start. */
+const EDITION_KEYS: readonly string[] = ["definitions", "configSchema"];
+
+/** Environment-variable prefixes that are the core's own: an edition's schema may not claim them. */
+const CORE_PREFIXES: readonly string[] = ["CLEARSEAL_", "AUTH_", "PIN_", "EXEC_"];
 
 export interface StartNodeOptions {
   /** The audit seam; defaults to the core's line on stderr. For the core's callers and tests: an
@@ -56,8 +67,14 @@ const SERVER_INFO: Readonly<{ name: string; version: string }> = Object.freeze({
 const SETTINGS = ["host", "port", "resource-url"] as const;
 type Setting = (typeof SETTINGS)[number];
 
+/** The manifest as read: the path opened, and its bytes, read once from one descriptor. */
+export interface ManifestFile {
+  readonly path: string;
+  readonly bytes: Buffer;
+}
+
 /**
- * The committed manifest's text: read once, from a regular file. The path must be absolute, or a
+ * The approved manifest's bytes: read once, from a regular file. The path must be absolute, or a
  * `file:` URL; anything else (a relative path, a data or http URL) refuses start. On POSIX the open
  * carries O_NOFOLLOW (a link at the leaf is refused by the kernel, in the open itself) and
  * O_NONBLOCK (a FIFO cannot make it wait); the descriptor is then fstat-ed, and anything but a
@@ -67,7 +84,7 @@ type Setting = (typeof SETTINGS)[number];
  * open, and a link swapped in between the two is followed (the edition's OS cage, and the file's
  * ownership, are the boundary there).
  */
-export function readManifestFile(manifestPath: string | URL): string {
+export function readManifestFile(manifestPath: string | URL): ManifestFile {
   let path: string;
   if (manifestPath instanceof URL) {
     if (manifestPath.protocol !== "file:") throw new ManifestError(`the manifest path is a ${manifestPath.protocol} URL: a node reads its committed manifest from a file`);
@@ -108,7 +125,7 @@ export function readManifestFile(manifestPath: string | URL): string {
       }
       if (real !== resolve(path)) throw new ManifestError("the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way");
     }
-    return readFileSync(fd, "utf8");
+    return { path: resolve(path), bytes: readFileSync(fd) };
   } finally {
     closeSync(fd);
   }
@@ -118,6 +135,7 @@ export function readManifestFile(manifestPath: string | URL): string {
 export function readEditionConfig(schema: Readonly<Record<string, unknown>>, env: NodeJS.ProcessEnv): { host: string; port: number; resourceUrl: string } {
   const prefix = schema["x-clearseal-env-prefix"];
   if (typeof prefix !== "string" || !/^[A-Z][A-Z0-9]*_$/.test(prefix)) throw new NodeStartError('the configuration schema names its variables\' prefix in "x-clearseal-env-prefix" (upper case, ending in _)');
+  if (CORE_PREFIXES.includes(prefix)) throw new NodeStartError(`the configuration prefix ${prefix} is the core's own: an edition's variables carry its own prefix`);
   const properties = schema["properties"];
   if (typeof properties !== "object" || properties === null || Array.isArray(properties)) throw new NodeStartError("the configuration schema has no properties");
   const roles = new Map<Setting, string>();
@@ -147,20 +165,42 @@ export function readEditionConfig(schema: Readonly<Record<string, unknown>>, env
   return { host: value("host") ?? "127.0.0.1", port, resourceUrl: value("resource-url") ?? "" };
 }
 
+/** CLEARSEAL_MANIFEST: the operator's manifest, an absolute path or a `file:` URL. Required. */
+export function manifestPathFromEnv(env: NodeJS.ProcessEnv): string | URL {
+  const value = env["CLEARSEAL_MANIFEST"];
+  if (value === undefined || value === "") throw new NodeStartError("CLEARSEAL_MANIFEST is required: the operator names the approved manifest (an absolute path or a file: URL); a node without one does not start");
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) || value.startsWith("file:")) {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      throw new NodeStartError("CLEARSEAL_MANIFEST is not a valid URL");
+    }
+    return url;
+  }
+  return value;
+}
+
 /**
- * Starts a node for an edition: its configuration from the environment, its committed manifest
- * from the file it names, the gate and the registry built here, the transport started. Refuses to
- * start (throws) on a configuration outside the schema, a manifest that is not a regular file or
- * does not parse, a drifted, unpinned or removed tool under the strict default, or missing AUTH_*
- * settings.
+ * Starts a node for an edition: its configuration from the environment, the manifest the operator
+ * names in CLEARSEAL_MANIFEST, the gate and the registry built here, the transport started. Refuses to
+ * start (throws) on a configuration outside the schema, a missing CLEARSEAL_MANIFEST, a manifest that
+ * is not a regular file or does not parse, a drifted, unpinned or removed tool under the strict
+ * default, or missing AUTH_* settings. Writes one manifest-loaded audit line, with the file's path and
+ * SHA-256, before the gate admits anything.
  */
 export async function startNode(edition: Edition, options: StartNodeOptions = {}): Promise<RunningTransport> {
   if (typeof edition !== "object" || edition === null || !Array.isArray(edition.definitions) || typeof edition.configSchema !== "object" || edition.configSchema === null) {
-    throw new NodeStartError("startNode takes an edition's definitions, manifestPath and configSchema");
+    throw new NodeStartError("startNode takes an edition's definitions and configSchema");
   }
+  const extra = Reflect.ownKeys(edition).filter((k) => typeof k !== "string" || !EDITION_KEYS.includes(k));
+  if (extra.length > 0) throw new NodeStartError(`startNode takes an edition's definitions and configSchema, nothing else (not ${extra.map(String).join(", ")}): the operator names the manifest in CLEARSEAL_MANIFEST`);
   const config = readEditionConfig(edition.configSchema, process.env);
-  const text = readManifestFile(edition.manifestPath);
-  const gate = PinGate.load(text);
+  const file = readManifestFile(manifestPathFromEnv(process.env));
+  const sha256 = createHash("sha256").update(file.bytes).digest("hex");
+  const audit = options.audit ?? ((event: string, fields: Record<string, string | number>) => console.error(renderAuditLine(event, fields)));
+  audit("manifest-loaded", { path: file.path, sha256 });
+  const gate = PinGate.load(file.bytes.toString("utf8"));
   const key = requestStateKeyFromEnv();
   const limits = DEFAULT_LIMITS;
   const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
@@ -177,6 +217,6 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
     config: { host: config.host, port: config.port, resourceUrl: config.resourceUrl },
     validationPool: pool,
     ...(key === undefined ? {} : { requestStateKey: key }),
-    ...(options.audit === undefined ? {} : { audit: options.audit }),
+    audit,
   });
 }

@@ -6,9 +6,9 @@
 // PIN_STRICT are the core's own. ClearSeal: configuration is data with a schema, never code
 // (architecture §3.1).
 //
-// The notes root and the manifest are not configuration: the root is part of the pinned contract,
-// fixed in the definitions (pins/teaching.json pins it), and the manifest is the committed file the
-// edition names. Moving either is a code change and a re-approved manifest, never a variable.
+// The notes root is not configuration: it is part of the pinned contract, fixed in the definitions
+// (pins/teaching.json pins it), and moving it is a code change and a re-approved manifest. The
+// manifest is the core's setting, CLEARSEAL_MANIFEST, named by the operator (CSR-WO-1007a §1.1).
 
 export const configSchema = {
   title: "ClearSeal teaching edition configuration",

@@ -3,8 +3,9 @@
   "compilerOptions": {
     // Typecheck and lint only: `npm run check` typechecks before it builds, so the core's package
     // entry (dist/) may not exist yet. At run time and in the build the edition resolves the core
-    // through its package exports alone; the boundary test enforces that for the source.
-    "paths": { "@clearseal/core": ["../core/src/index.ts"] }
+    // through its package exports alone; the boundary test enforces that for the source. The same
+    // holds for bin/'s import of this edition's own entry by name (CSR-WO-1007a §1.4a).
+    "paths": { "@clearseal/core": ["../core/src/index.ts"], "@clearseal/teaching": ["./src/index.ts"] }
   },
   "include": ["src/**/*.ts", "bin/**/*.ts", "test/**/*.ts"]
 }

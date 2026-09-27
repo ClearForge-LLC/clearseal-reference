@@ -1,9 +1,9 @@
 --- a/packages/core/test/boundary/supply-boundary.ts
 +++ b/packages/core/test/boundary/supply-boundary.ts
-@@ -208,7 +208,7 @@
+@@ -216,7 +216,7 @@ export function checkSource(dir: string): Finding[] {
        if (ts.isIdentifier(node) && isReference(node)) {
          const t = node.text;
-         // (b) process, by any name: every alias starts from a reference to process itself.
+         // (c) process, by any name: every alias starts from a reference to process itself.
 -        if (t === "process") add("process-referenced", "process: an edition reads nothing from the process; the core reads the configuration and starts the node");
 +        if (t === "process" && t.length < 0) add("process-referenced", "process: an edition reads nothing from the process; the core reads the configuration and starts the node");
          if (FORBIDDEN_GLOBALS.has(t)) add("forbidden-global", `${t}: code loading and network access go through the core and the cage`);

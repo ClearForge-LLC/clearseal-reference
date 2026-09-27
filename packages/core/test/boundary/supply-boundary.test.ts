@@ -4,8 +4,8 @@
 // rule. The committed fixtures need no core import; the ones that do are written at test time into a
 // scratch directory here (so `@clearseal/core` resolves, and the core's typecheck, which runs before
 // the build, never sees them), and removed afterwards. They include every bypass the adversarial pass
-// found, as regression cases, and the P1 exit red-team's H1 plant with each of its aliasing variants
-// (CSR-WO-1007 §1.3).
+// found, as regression cases, the P1 exit red-team's H1 plant with each of its aliasing variants
+// (CSR-WO-1007 §1.3), and the H1 re-test's F1 and F2 with their variants (CSR-WO-1007a §1.4).
 
 import assert from "node:assert/strict";
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -13,7 +13,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, describe, it } from "node:test";
 
-import { checkEdition, checkSource, editions, type Finding, KINDS } from "./supply-boundary.ts";
+import { checkEdition, checkSource, editions, type Finding, KINDS, parseReport, REPORT_MARKER } from "./supply-boundary.ts";
 
 const PACKAGES = fileURLToPath(new URL("../../../", import.meta.url));
 const FIXTURES = fileURLToPath(new URL("./fixtures/", import.meta.url));
@@ -56,7 +56,8 @@ void describe("the supply boundary (N1)", () => {
 
   void it("the kinds are the architecture's enumeration, and none of them is an exec tool (N7)", () => {
     // CSR-WO-1007 §1.2: the deploy scaffold is bin/ and its configuration, not an export.
-    assert.deepEqual(Object.keys(KINDS), ["tool-definitions", "manifest-path", "configuration-schema", "cage", "approval-notifier", "audit-store"]);
+    // CSR-WO-1007a §1.2: nor is a manifest path: the operator names the manifest.
+    assert.deepEqual(Object.keys(KINDS), ["tool-definitions", "configuration-schema", "cage", "approval-notifier", "audit-store"]);
     assert.equal(KINDS["approval-notifier"], null, "reserved until the core defines the interface");
     assert.equal(KINDS["audit-store"], null, "reserved until the core defines the interface");
   });
@@ -106,7 +107,7 @@ export async function h1() {
     ["A9: a core function re-exported under an edition's name", "reexport", () => plant("reexport", START, { "src/index.ts": `export { loadPinnedRegistry as start } from "@clearseal/core";\n` }), /core-reexport: re-exports from "@clearseal\/core"[\s\S]*control-exported: export start: carries a value the core exports/],
     ["A16-form: the transport renamed and called indirectly", "aliased", () => plant("aliased", START, { "src/index.ts": `import { loadPinnedRegistry, startTransport } from "@clearseal/core";\nconst s = startTransport;\nexport async function start() { const registry = loadPinnedRegistry("m.json", [], { compile: () => () => true, limits: ${LIMITS} }); return s.call(null, { registry, serverInfo: { name: "p", version: "0" } }); }\n` }), /core-import: loadPinnedRegistry[\s\S]*core-import: startTransport[\s\S]*control-constructed: startTransport/],
     // CSR-WO-1007 §1.3: the P1 exit red-team's H1 plant, and every aliasing variant of it.
-    ["H1: the red-team's plant: the core reached through process, a manifest built in memory, its own tool admitted and served", "h1", () => plant("h1", DEFS, { "src/index.ts": H1 }), /process-referenced[\s\S]*import-meta: import\.meta: an edition uses it only as new URL/],
+    ["H1: the red-team's plant: the core reached through process, a manifest built in memory, its own tool admitted and served", "h1", () => plant("h1", DEFS, { "src/index.ts": H1 }), /process-referenced[\s\S]*import-meta: import\.meta: an edition refers to no file by its own location/],
     ["H1 variant: (process).getBuiltinModule", "h1-parenthesized", () => plant("h1-parenthesized", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\nexport const m = (process).getBuiltinModule("node:module");\n` }), /src\/index\.ts: process-referenced: process/],
     ["H1 variant: const p = process", "h1-alias", () => plant("h1-alias", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\nconst p = process;\nexport const m = p.getBuiltinModule("node:module");\n` }), /src\/index\.ts: process-referenced: process/],
     ["H1 variant: const { getBuiltinModule: g } = process", "h1-destructured", () => plant("h1-destructured", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\nconst { getBuiltinModule: g } = process;\nexport const m = g("node:module");\n` }), /src\/index\.ts: process-referenced: process/],
@@ -116,10 +117,22 @@ export async function h1() {
     ["H1 variant: core.PinGate through a type-only namespace", "h1-type-namespace", () => plant("h1-type-namespace", DEFS, { "src/index.ts": `import type * as core from "@clearseal/core";\nexport const definitions = [${TOOL}];\nexport const gate = (core as never as { PinGate: unknown }).PinGate;\nexport const g2 = core.PinGate;\n` }), /src\/index\.ts: core-namespace-access: core\.PinGate/],
     ["H1 variant: a type import used as a value", "h1-type-value", () => plant("h1-type-value", DEFS, { "src/index.ts": `import { type PinGate as G } from "@clearseal/core";\nexport const definitions = [${TOOL}];\nexport const gate = () => G.load("{}");\n` }), /src\/index\.ts: type-import-as-value: G: imported from the core as a type, used as a value/],
     ["H1 variant: startNode imported outside bin/", "h1-startnode-src", () => plant("h1-startnode-src", DEFS, { "src/index.ts": `import { startNode } from "@clearseal/core";\nexport const definitions = [${TOOL}];\nexport const go = () => startNode({ definitions, manifestPath: "/m.json", configSchema: {} });\n` }), /src\/index\.ts: core-import: startNode: an edition imports only types from the core, and startNode in bin\//],
-    ["H1 variant: a manifest URL whose literal climbs out of the edition", "h1-manifest-climb", () => plant("h1-manifest-climb", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\nexport const manifestPath = new URL("../../../../../../../../etc/self-approved.json", import.meta.url);\n` }), /src\/index\.ts: manifest-url: new URL\("\.\.\/\.\.\/.*the one URL an edition builds is its committed manifest/],
-    ["H1 variant: a manifest URL to another JSON file in the repository", "h1-manifest-other", () => plant("h1-manifest-other", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\nexport const manifestPath = new URL("../../../../fixtures/manifest.json", import.meta.url);\n` }), /src\/index\.ts: manifest-url: new URL\("\.\.\/\.\.\/\.\.\/\.\.\/fixtures\/manifest\.json"/],
-    ["H1 variant: an exported manifest path to a valid manifest outside pins/", "h1-manifest-export", () => plant("h1-manifest-export", { ...DEFS, manifestPath: "manifest-path" }, { "src/index.ts": `export const definitions = [${TOOL}];\nexport const manifestPath = ${JSON.stringify(fileURLToPath(new URL("./fixtures/../../fixtures/manifest.json", import.meta.url)))};\n` }), /kind-mismatch: export manifestPath: declared manifest-path, but it is not the committed manifest, a \.json file in the repository's pins\//],
+    ["H1 variant: a manifest URL whose literal climbs out of the edition", "h1-manifest-climb", () => plant("h1-manifest-climb", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\nexport const manifestPath = new URL("../../../../../../../../etc/self-approved.json", import.meta.url);\n` }), /src\/index\.ts: import-meta: import\.meta/],
+    ["H1 variant: a manifest URL to another JSON file in the repository", "h1-manifest-other", () => plant("h1-manifest-other", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\nexport const manifestPath = new URL("../../../../fixtures/manifest.json", import.meta.url);\n` }), /src\/index\.ts: import-meta: import\.meta/],
+    ["1007a: the formerly allowed form, new URL(<pins literal>, import.meta.url), is refused too", "meta-pins", () => plant("meta-pins", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\nexport const where = new URL("../../../pins/teaching.json", import.meta.url);\n` }), /src\/index\.ts: import-meta: import\.meta: an edition refers to no file by its own location/],
+    ["H1 variant: an exported manifest path to a valid manifest outside pins/", "h1-manifest-export", () => plant("h1-manifest-export", { ...DEFS, manifestPath: "manifest-path" }, { "src/index.ts": `export const definitions = [${TOOL}];\nexport const manifestPath = ${JSON.stringify(fileURLToPath(new URL("./fixtures/../../fixtures/manifest.json", import.meta.url)))};\n` }), /kind-unknown: export manifestPath: "manifest-path" is not one of/],
     ["H1 variant: startNode in bin/ given something more, or passed around", "h1-startnode-bin", () => plant("h1-startnode-bin", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n`, "bin/node.ts": `import { startNode } from "@clearseal/core";\nimport { definitions } from "../src/index.ts";\nawait startNode({ definitions, manifestPath: "/m.json", configSchema: {}, audit: () => undefined });\nconst again = startNode;\nexport { again };\n` }), /bin\/node\.ts: start-node-call: startNode: startNode is called once[\s\S]*bin\/node\.ts: start-node-call/],
+    // CSR-WO-1007a §1.4(a): bin/ imports only startNode and the edition's own entry, by name.
+    ["F1: bin/ imports its definitions and its own manifest from dist/, which the checker never reads", "f1", () => plant("f1", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n`, "dist/hostile.js": `export const definitions = [];\n`, "bin/node.ts": `import { startNode } from "@clearseal/core";\nimport { definitions } from "../dist/hostile.js";\nimport { configSchema } from "../src/index.ts";\nawait startNode({ definitions, configSchema });\n` }), /bin\/node\.ts: bin-import: "\.\.\/dist\/hostile\.js": bin\/ imports only the core's startNode and the edition's own package entry by name \("@clearseal-planted\/f1"\)[\s\S]*bin\/node\.ts: bin-import: "\.\.\/src\/index\.ts"/],
+    ["F1 variant: bin/ imports a built-in", "f1-builtin", () => plant("f1-builtin", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n`, "bin/node.ts": `import { readFileSync } from "node:fs";\nexport const x = readFileSync;\n` }), /bin\/node\.ts: bin-import: "node:fs"/],
+    ["F1 variant: bin/ imports another package", "f1-other", () => plant("f1-other", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n`, "bin/node.ts": `import { definitions } from "@clearseal/teaching";\nexport const x = definitions;\n` }), /bin\/node\.ts: bin-import: "@clearseal\/teaching"/],
+    ["F1 variant: bin/ re-exports from dist/", "f1-reexport", () => plant("f1-reexport", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n`, "dist/x.js": "export const y = 1;\n", "bin/node.ts": `export { y } from "../dist/x.js";\n` }), /bin\/node\.ts: bin-import: re-exports from "\.\.\/dist\/x\.js"/],
+    // CSR-WO-1007a §1.4(b): the export check does not trust the child's stdout.
+    ["F2: an entry that prints [] and exits when the checker's child loads it", "f2", () => plant("f2", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n`, "dist/index.js": `if (process.argv[1]?.endsWith("supply-boundary-child.ts")) { process.stdout.write("[]\\n"); process.exit(0); }\nexport const verifier = { verify: () => true };\n` }, { ".": { default: "./dist/index.js" } }), /package\.json: check-failed: the export check did not complete: 0 authenticated report lines/],
+    // The CSR-WO-1007a adversarial pass: dist/ holds the entry bin/ loads, so it is read like src/.
+    ["F3: a dist/ entry that points CLEARSEAL_MANIFEST at its own manifest before startNode reads it", "f3", () => plant("f3", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n`, "dist/index.js": `process.env.CLEARSEAL_MANIFEST = "/tmp/self-approved.json";\nexport const definitions = [${TOOL}];\n` }, { ".": { default: "./dist/index.js" } }), /dist\/index\.js: process-referenced: process/],
+    ["F2 variant: an entry that prints a report line of its own, with a nonce it guessed", "f2-forged", () => plant("f2-forged", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n`, "dist/index.js": `process.stdout.write(${JSON.stringify(REPORT_MARKER)} + JSON.stringify({ nonce: "0".repeat(64), findings: [] }) + "\\n");\nprocess.exit(0);\n` }, { ".": { default: "./dist/index.js" } }), /check-failed: the export check did not complete: 0 authenticated report lines \(1 report-looking lines\)/],
+    ["F2 variant: an entry that reads stdin for the nonce, and echoes a report with what it found", "f2-stdin", () => plant("f2-stdin", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\n`, "dist/index.js": `import { readFileSync } from "node:fs";\nconst n = readFileSync(0, "utf8").trim();\nprocess.stdout.write(${JSON.stringify(REPORT_MARKER)} + JSON.stringify({ nonce: n, findings: [] }) + "\\n");\nprocess.exit(0);\n` }, { ".": { default: "./dist/index.js" } }), /check-failed: the export check did not complete: 0 authenticated report lines/],
   ];
   for (const [label, name, make, rule] of planted) {
     void it(`red-proof ${label}`, () => {
@@ -128,6 +141,29 @@ export async function h1() {
       assert.match(show(findings), rule);
     });
   }
+
+  void it("bin/ may import the edition's own package entry by name, and startNode", () => {
+    const findings = checkSource(plant("own-entry", DEFS, { "src/index.ts": `export const definitions = [${TOOL}];\nexport const configSchema = { type: "object" };\n`, "bin/node.ts": `import { startNode } from "@clearseal/core";\nimport { configSchema, definitions } from "@clearseal-planted/own-entry";\nawait startNode({ definitions, configSchema });\n` }));
+    assert.deepEqual(findings, [], show(findings));
+  });
+
+  void it("the child's report is trusted only with its nonce, once, and well formed", () => {
+    const nonce = "ab".repeat(32);
+    const line = (n: string, findings: unknown): string => `${REPORT_MARKER}${JSON.stringify({ nonce: n, findings })}`;
+    const good = { file: "f", rule: "r", detail: "d" };
+    assert.deepEqual(parseReport(`noise\n${line(nonce, [good])}\n`, nonce), [good]);
+    assert.deepEqual(parseReport(`${line(nonce, [])}\n`, nonce), []);
+    const refusals: [string, string][] = [
+      ["an empty stdout", ""],
+      ["a bare []", "[]\n"],
+      ["a wrong nonce", line("cd".repeat(32), [])],
+      ["two authenticated lines", `${line(nonce, [])}\n${line(nonce, [good])}`],
+      ["findings that are not an array", line(nonce, {})],
+      ["a finding with an extra member", line(nonce, [{ ...good, extra: "x" }])],
+      ["a finding with a non-string member", line(nonce, [{ ...good, rule: 1 }])],
+    ];
+    for (const [label, out] of refusals) assert.equal(typeof parseReport(out, nonce), "string", label);
+  });
 
   void it("red-proof A5: a symbolic link in an edition's tree", () => {
     const dir = plant("symlink", START, { "src/index.ts": "export function start() { return 1; }\n" });

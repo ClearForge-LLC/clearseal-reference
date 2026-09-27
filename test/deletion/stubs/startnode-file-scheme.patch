@@ -1,7 +1,7 @@
 --- a/packages/core/src/node/start.ts
 +++ b/packages/core/src/node/start.ts
-@@ -69,7 +69,7 @@
- export function readManifestFile(manifestPath: string | URL): string {
+@@ -87,7 +87,7 @@ export interface ManifestFile {
+ export function readManifestFile(manifestPath: string | URL): ManifestFile {
    let path: string;
    if (manifestPath instanceof URL) {
 -    if (manifestPath.protocol !== "file:") throw new ManifestError(`the manifest path is a ${manifestPath.protocol} URL: a node reads its committed manifest from a file`);

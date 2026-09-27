@@ -1,13 +1,23 @@
 // The supply boundary's runtime rules, run in a fresh process for one edition (supply-boundary.ts
 // starts it): the edition's own code cannot have patched this process's built-ins before the checks
-// below captured them. Prints one line: a JSON array of findings.
+// below captured them. Its report is authenticated (CSR-WO-1007a §1.4b): the parent writes a nonce
+// on stdin, read here to its end before anything of the edition's loads, and the one report line
+// carries it. The loaded entry can print, or exit early, but cannot write a line the parent accepts.
 //
-// Usage: node supply-boundary-child.ts <edition dir>
+// Usage: node supply-boundary-child.ts <edition dir>   (the nonce on stdin)
 
-import { readFileSync, realpathSync } from "node:fs";
-import { join, sep } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { types } from "node:util";
+
+// Before any edition code runs: the nonce, from stdin, read to its end, so nothing is left there.
+const nonce = readFileSync(0, "utf8").trim();
+if (!/^[0-9a-f]{64}$/.test(nonce)) {
+  process.stderr.write("supply-boundary-child: no nonce on stdin\n");
+  process.exit(2);
+}
+const REPORT_MARKER = "clearseal-supply-boundary-report ";
 
 // Captured before any edition code runs.
 const ownKeys = Reflect.ownKeys;
@@ -40,7 +50,6 @@ const CORE_ENTRY = "@clearseal/core";
 const core = (await import(CORE_ENTRY)) as Record<string, unknown> & {
   PinGate: abstract new (...args: never[]) => object;
   PinnedRegistry: { isGenuine: (value: unknown) => boolean };
-  parseManifest: (text: string) => unknown;
 };
 const coreValues = new Set<unknown>(Object.values(core).filter((v) => typeof v === "function" || (typeof v === "object" && v !== null)));
 const isGenuine = core.PinnedRegistry.isGenuine;
@@ -61,25 +70,6 @@ const CHECKS: Record<string, (v: unknown) => string | undefined> = {
       if (cap["capability_class"] === "arbitrary_exec") return `${String(t["name"])}: not an arbitrary_exec tool (N7: an edition ships none)`;
       const extra = Object.keys(t).filter((k) => !["name", "description", "inputSchema", "capability", "handler"].includes(k));
       if (extra.length > 0) return `${String(t["name"])}: no members beyond a pinnable tool's (${extra.join(", ")})`;
-    }
-    return undefined;
-  },
-  "manifest-path": (v) => {
-    if (!(v instanceof URL) && typeof v !== "string") return "a path or file URL";
-    // The committed manifest lives in the repository's pins/ (an edition is packages/<name>): any
-    // other file, however valid, is not the approved one (CSR-WO-1007 §1.3).
-    let real: string;
-    try {
-      real = realpathSync(v instanceof URL ? fileURLToPath(v) : v);
-    } catch {
-      return "a manifest that exists";
-    }
-    const pins = `${realpathSync(join(dir, "..", ".."))}${sep}pins${sep}`;
-    if (!real.startsWith(pins) || !real.endsWith(".json")) return "the committed manifest, a .json file in the repository's pins/";
-    try {
-      core.parseManifest(readFileSync(v, "utf8"));
-    } catch (err) {
-      return `a readable, valid manifest (${err instanceof Error ? err.message : "unreadable"})`;
     }
     return undefined;
   },
@@ -167,4 +157,4 @@ if (typeof entry !== "string") {
     if (control !== undefined) add("control-exported", `carries ${control}`);
   }
 }
-stdout(`${stringify(findings)}\n`);
+stdout(`${REPORT_MARKER}${stringify({ nonce, findings })}\n`);

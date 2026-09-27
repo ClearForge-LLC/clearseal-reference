@@ -1,28 +1,35 @@
 // The supply boundary (N1; architecture §4 *Core ↔ edition*, §5 *Where OS primitives live*;
-// CSR-WO-1004 §1.5, CSR-WO-1007 §1.3). An edition may export only the kinds in KINDS, each declared by
-// name in its package.json ("clearseal": { "exports": { <export>: <kind> } }). It assembles nothing:
-// the core's startNode builds the gate, the registry and the transport from the edition's
-// definitions, manifest path and configuration schema. So its source rules are short enough to hold:
+// CSR-WO-1004 §1.5, CSR-WO-1007 §1.3, CSR-WO-1007a §1.2, §1.4). An edition may export only the kinds
+// in KINDS, each declared by name in its package.json ("clearseal": { "exports": { <export>: <kind> } }).
+// It assembles nothing and names no manifest: the core's startNode builds the gate, the registry and
+// the transport from the edition's definitions and configuration schema, against the manifest the
+// operator names in CLEARSEAL_MANIFEST. So its source rules are short enough to hold:
 //   (a) imports from @clearseal/core are type-only, except startNode, in bin/ only, called as
-//       startNode({ definitions, manifestPath, configSchema }) and in no other way;
-//   (b) `process` and `import.meta` are not referenced at all (by name, alias, destructuring,
-//       parentheses or computed access), except the one `new URL(<literal>, import.meta.url)` form,
-//       whose literal must name a .json file in the repository's pins/ (the committed manifest);
-//   (c) no property of a namespace import of the core is read, even a type-only one's;
-//   (d) so process.getBuiltinModule, createRequire, loadEnvFile and every other process member are
-//       unreachable: (b) removes process itself.
+//       startNode({ definitions, configSchema }) and in no other way;
+//   (b) bin/ imports nothing but the core's startNode (and its types) and the edition's own package
+//       entry, by its package name: no relative import (into dist/ or anywhere), no built-in, no other
+//       package. So what bin/ starts is the entry the export check loads;
+//   (c) `process` and `import.meta` are not referenced at all (by name, alias, destructuring,
+//       parentheses or computed access);
+//   (d) no property of a namespace import of the core is read, even a type-only one's;
+//   (e) so process.getBuiltinModule, createRequire, loadEnvFile and every other process member are
+//       unreachable: (c) removes process itself.
 // The kinds and the one allowed value import are data in this one place.
 //
-// What this is and is not. Static reading of JavaScript is best effort against a hostile author, not
-// a sandbox. One route is known and deferred to the P2 hardening WO: the Function constructor reached
-// through `.constructor` on any function or array (`(() => 0).constructor`, `[].constructor.constructor`)
-// compiles code the reading cannot see, and so can reach `process`. The boundaries that hold at run
-// time are the core's (the transport serves only a genuine
-// PinnedRegistry, startNode reads only the committed manifest file, a tool reaches out only through
-// its cage). The export rules run in a fresh child process per edition, so an edition cannot patch
-// the checker's own built-ins.
+// What this is and is not: DEFENSE IN DEPTH. Static reading of JavaScript is best effort against a
+// hostile author, not a sandbox, and an author with arbitrary code in the node's process can defeat
+// any check made from outside it (a module that detects the check, the Function constructor reached
+// through `.constructor`, deferred to the P2 hardening WO). The runtime guarantee is the core's, and
+// it does not depend on this checker: startNode admits only definitions that hash to the manifest the
+// operator named (CSR-WO-1007a §1.1), the transport serves only a genuine PinnedRegistry, and a tool
+// reaches out only through its cage. The export rules run in a fresh child process per edition, so an
+// edition cannot patch the checker's own built-ins, and the child's report is authenticated by a nonce
+// the loaded entry never sees (checkExports), so an entry that prints a result of its own is refused;
+// an entry with arbitrary code could still look for the nonce in its own process's memory, which is
+// why dist/, where the entry usually lives, is read by these same static rules (CSR-WO-1007a, F3).
 
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { join, relative, sep } from "node:path";
@@ -43,7 +50,6 @@ export interface Finding {
  *  export (CSR-WO-1007 §1.2). */
 export const KINDS: Readonly<Record<string, "checked" | null>> = Object.freeze({
   "tool-definitions": "checked",
-  "manifest-path": "checked",
   "configuration-schema": "checked",
   cage: "checked",
   "approval-notifier": null,
@@ -53,7 +59,7 @@ export const KINDS: Readonly<Record<string, "checked" | null>> = Object.freeze({
 /** The one core value an edition imports, and where: startNode, in bin/ only. */
 export const BIN_CORE_IMPORTS: ReadonlySet<string> = new Set(["startNode"]);
 /** The keys startNode is given: the edition's three values, nothing else. */
-export const START_NODE_KEYS: readonly string[] = ["definitions", "manifestPath", "configSchema"];
+export const START_NODE_KEYS: readonly string[] = ["definitions", "configSchema"];
 
 /** Node built-ins an edition's source may import: pure helpers with no reach outside the process. */
 export const ALLOWED_BUILTINS: ReadonlySet<string> = new Set(["node:path", "node:url"]);
@@ -64,10 +70,13 @@ const FORBIDDEN_GLOBALS = new Set(["eval", "Function", "fetch", "WebSocket", "XM
 /** The core's controls by name: an edition that names one is building its own. */
 const CONTROL_NAMES = new Set(["PinGate", "PinnedRegistry", "buildManifest", "serializeManifest", "parseManifest", "Admission", "loadPinnedRegistry", "startTransport"]);
 
-const SKIP_TOP = new Set(["node_modules", "dist", "test"]);
+/** Not read: dependencies and the edition's own tests. dist/ IS read (CSR-WO-1007a adversarial pass,
+ *  F3): the package entry an edition's bin/ loads is usually dist/index.js, and code the checker never
+ *  reads is code that runs unchecked, before startNode, in the node's process. */
+const SKIP_TOP = new Set(["node_modules", "test"]);
 
-/** The edition's source files: everything under its directory except the top-level test/, dist/
- *  and node_modules/. A symbolic link anywhere in the tree is itself a finding. */
+/** The edition's source files: everything under its directory except the top-level test/ and
+ *  node_modules/, dist/ included. A symbolic link anywhere in the tree is itself a finding. */
 function sourceFiles(dir: string, findings: Finding[]): string[] {
   const out: string[] = [];
   const walk = (d: string, top: boolean): void => {
@@ -101,20 +110,11 @@ function isReference(id: ts.Identifier): boolean {
   return true;
 }
 
-/** Is this `import.meta` the one allowed form: the second argument of `new URL(<literal>, import.meta.url)`? */
-function isManifestUrlForm(meta: ts.MetaProperty): boolean {
-  const access = meta.parent;
-  if (!ts.isPropertyAccessExpression(access) || access.expression !== meta || access.name.text !== "url") return false;
-  const call = access.parent;
-  if (!ts.isNewExpression(call) || !ts.isIdentifier(call.expression) || call.expression.text !== "URL") return false;
-  const args = call.arguments ?? ts.factory.createNodeArray();
-  return args.length === 2 && args[1] === access && args[0] !== undefined && (ts.isStringLiteral(args[0]) || ts.isNoSubstitutionTemplateLiteral(args[0]));
-}
-
 /** The static rules, over every source file of the edition. */
 export function checkSource(dir: string): Finding[] {
   const findings: Finding[] = [];
   const edition = realpathSync(dir);
+  const ownName = packageName(dir);
   for (const file of sourceFiles(dir, findings)) {
     const rel = relative(dir, file).split(sep).join("/");
     const inBin = rel.startsWith("bin/");
@@ -148,6 +148,11 @@ export function checkSource(dir: string): Finding[] {
       if (ts.isImportDeclaration(stmt) && ts.isStringLiteral(stmt.moduleSpecifier)) {
         const spec = stmt.moduleSpecifier.text;
         const clause = stmt.importClause;
+        // (b) bin/ imports the core's startNode and the edition's own entry, by name, and nothing else.
+        if (inBin && spec !== "@clearseal/core") {
+          if (ownName === undefined || spec !== ownName) add("bin-import", `"${spec}": bin/ imports only the core's startNode and the edition's own package entry by name${ownName === undefined ? " (package.json has no name)" : ` ("${ownName}")`}, so what it starts is the entry the export check loads`);
+          continue;
+        }
         if (spec === "@clearseal/core") {
           const bindings = clause?.namedBindings;
           if (clause?.isTypeOnly === true) {
@@ -180,12 +185,16 @@ export function checkSource(dir: string): Finding[] {
       }
       if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier !== undefined && ts.isStringLiteral(stmt.moduleSpecifier)) {
         const spec = stmt.moduleSpecifier.text;
+        if (inBin) {
+          add("bin-import", `re-exports from "${spec}": bin/ starts the node and exports nothing`);
+          continue;
+        }
         if (spec.startsWith(".")) relativeSpecifier(spec);
         else if (!stmt.isTypeOnly) add("core-reexport", `re-exports from "${spec}": an edition exports its own kinds, never the core's values`);
       }
     }
 
-    /** Is this startNode reference the one allowed call: startNode({ definitions, manifestPath, configSchema })? */
+    /** Is this startNode reference the one allowed call: startNode({ definitions, configSchema })? */
     const isStartNodeCall = (id: ts.Identifier): boolean => {
       const call = id.parent;
       if (!ts.isCallExpression(call) || call.expression !== id || call.arguments.length !== 1) return false;
@@ -204,24 +213,14 @@ export function checkSource(dir: string): Finding[] {
 
     const visit = (node: ts.Node): void => {
       if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) add("dynamic-import", "import(): an edition's imports are static and checked");
-      // (b) import.meta, in any form but new URL(<literal>, import.meta.url).
-      if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) {
-        if (!isManifestUrlForm(node)) add("import-meta", "import.meta: an edition uses it only as new URL(<literal>, import.meta.url)");
-        else {
-          // The one allowed form names the committed manifest: a .json file in the repository's pins/
-          // (an edition is packages/<name>), never a file anywhere the literal can climb to.
-          const literal = ((node.parent.parent as ts.NewExpression).arguments?.[0] as ts.StringLiteral).text;
-          const target = fileURLToPath(new URL(literal, pathToFileURL(file)));
-          const pins = join(edition, "..", "..", "pins") + sep;
-          if (!target.startsWith(pins) || !target.endsWith(".json") || literal.includes("%")) add("manifest-url", `new URL("${literal}", import.meta.url) names ${relative(edition, target).split(sep).join("/")}: the one URL an edition builds is its committed manifest, a .json file in the repository's pins/`);
-        }
-      }
-      // (c) a property of a core namespace, read in an expression.
+      // (c) import.meta, in any form: an edition names no file of its own, its manifest least of all.
+      if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) add("import-meta", "import.meta: an edition refers to no file by its own location; the operator names the manifest (CLEARSEAL_MANIFEST)");
+      // (d) a property of a core namespace, read in an expression.
       if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression) && namespaces.has(node.expression.text)) add("core-namespace-access", `${node.expression.text}${ts.isPropertyAccessExpression(node) ? `.${node.name.text}` : "[...]"}: an edition reads nothing from the core's namespace`);
 
       if (ts.isIdentifier(node) && isReference(node)) {
         const t = node.text;
-        // (b) process, by any name: every alias starts from a reference to process itself.
+        // (c) process, by any name: every alias starts from a reference to process itself.
         if (t === "process") add("process-referenced", "process: an edition reads nothing from the process; the core reads the configuration and starts the node");
         if (FORBIDDEN_GLOBALS.has(t)) add("forbidden-global", `${t}: code loading and network access go through the core and the cage`);
         if (CONTROL_NAMES.has(t)) add("control-constructed", `${t}: the core's gate, registry and transport are built by the core alone`);
@@ -249,18 +248,63 @@ export function checkSource(dir: string): Finding[] {
 
 const CHILD = fileURLToPath(new URL("./supply-boundary-child.ts", import.meta.url));
 
+/** The edition's package name, or undefined when package.json has none. */
+function packageName(dir: string): string | undefined {
+  try {
+    const name = (JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { name?: unknown }).name;
+    return typeof name === "string" && name.length > 0 ? name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The child's report line: its marker, then JSON { nonce, findings }. */
+export const REPORT_MARKER = "clearseal-supply-boundary-report ";
+
+const isFinding = (v: unknown): v is Finding =>
+  typeof v === "object" && v !== null && !Array.isArray(v) && Object.keys(v).sort().join(",") === "detail,file,rule" && ["file", "rule", "detail"].every((k) => typeof (v as Record<string, unknown>)[k] === "string");
+
+/**
+ * The child's findings from its stdout, trusted only if authenticated. The nonce reaches the child on
+ * stdin, which the child reads to its end before it loads anything of the edition's; the loaded entry
+ * can print anything, but not a line carrying a nonce it never saw. Exactly one report line must carry
+ * this nonce and a well-formed findings array; anything else (no line, two, a wrong nonce, a malformed
+ * array, a non-zero exit) is a check-failed finding, never a clean result.
+ */
+export function parseReport(stdout: string, nonce: string): Finding[] | string {
+  const lines = stdout.split("\n").filter((l) => l.startsWith(REPORT_MARKER));
+  const ours: unknown[] = [];
+  for (const line of lines) {
+    let value: unknown;
+    try {
+      value = JSON.parse(line.slice(REPORT_MARKER.length));
+    } catch {
+      continue;
+    }
+    if (typeof value === "object" && value !== null && (value as { nonce?: unknown }).nonce === nonce) ours.push((value as { findings?: unknown }).findings);
+  }
+  if (ours.length !== 1) return `${String(ours.length)} authenticated report lines (${String(lines.length)} report-looking lines): the child's own report is missing or doubled`;
+  const findings = ours[0];
+  if (!Array.isArray(findings) || !findings.every(isFinding)) return "the authenticated report does not carry a well-formed findings array";
+  return findings;
+}
+
 /** The runtime rules, run in a fresh node process for this edition alone. */
 function checkExports(dir: string): Finding[] {
   const env = { ...process.env };
   delete env["NODE_TEST_CONTEXT"];
+  const nonce = randomBytes(32).toString("hex");
+  const failed = (detail: string): Finding[] => [{ file: "package.json", rule: "check-failed", detail: `the export check did not complete: ${detail}` }];
+  let out: string;
   try {
-    const out = execFileSync(process.execPath, [CHILD, dir], { encoding: "utf8", env, stdio: ["ignore", "pipe", "pipe"] });
-    return JSON.parse(out.trim().split("\n").pop() ?? "[]") as Finding[];
+    out = execFileSync(process.execPath, [CHILD, dir], { encoding: "utf8", env, input: nonce, stdio: ["pipe", "pipe", "pipe"] });
   } catch (err) {
-    // An edition that crashes the check, or prints over its result, is refused, not waved through.
+    // An edition that crashes the check, or exits it early, is refused, not waved through.
     const e = err as { stderr?: string; message?: string };
-    return [{ file: "package.json", rule: "check-failed", detail: `the export check did not complete: ${(e.stderr ?? e.message ?? "").trim().split("\n")[0] ?? ""}` }];
+    return failed((e.stderr ?? e.message ?? "").trim().split("\n")[0] ?? "");
   }
+  const report = parseReport(out, nonce);
+  return typeof report === "string" ? failed(report) : report;
 }
 
 /** Every finding for the edition in `dir`; none means it keeps to the boundary. */
