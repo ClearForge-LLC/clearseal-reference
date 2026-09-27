@@ -41,6 +41,21 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     `EXEC_TOOLS_FORBIDDEN` is on, which is the default.
   - `tools/call` runs every handler inside a per-call cage and refuses an undeclared reach.
   - A reusable reach harness for editions.
+- **CSR-WO-1007a:** the operator names the manifest (the H1 re-test's F1 and F2).
+  - `startNode({ definitions, configSchema })` reads the approved manifest from `CLEARSEAL_MANIFEST`
+    (required; an absolute path or `file:` URL to a regular file with no link on the way), reads it
+    once, and writes one `manifest-loaded` audit line with its path and the SHA-256 of the bytes the
+    gate parses. An edition that passes anything else, a manifest path above all, is refused, and an
+    edition's configuration may not claim the core's variable prefixes.
+  - Editions export definitions and a configuration schema only. The teaching edition's `bin/`
+    imports its own package entry by name; `pins/teaching.json` is the manifest an operator points
+    `CLEARSEAL_MANIFEST` at.
+  - The supply-boundary checker, stated as defense in depth: `import.meta` is banned outright;
+    `bin/` imports only `startNode` and the edition's own entry; the export check's child reports
+    through a line authenticated by a nonce it reads on stdin before the entry loads, and anything
+    short of one well-formed authenticated report is a failure.
+  - The P1 evidence reproduces F1 and F2 end to end, as real nodes started by their own `bin/`, and
+    shows each refused at start against the committed manifest.
 - **CSR-WO-2000:** the capability obligation, enforced at registry construction (the first P2
   control).
   - `capability/ladder.ts` computes a frozen obligation from each tool's frozen tag: which

@@ -1,277 +1,209 @@
-# FEEDBACK: CSR-WO-2000 (the capability obligation, enforced at registry construction)
+# FEEDBACK: CSR-WO-1007a (the operator names the manifest)
 
-Branch `wo/CSR-WO-2000`, cut from `main` at `9ce3fb4`, which carries the WO. `-1007` merged at
-`cc9cd0b`. Parked as one unmerged pull request. Built on Node v24.21.0.
+Branch `wo/CSR-WO-1007a`, cut from `main` at `4478a35` (`-2000` merged; the WO on `main` since
+`98c2fda`). Parked as one unmerged pull request. Built on Node v24.21.0.
 
 ## Read this first
 
-- **Built, spec first.**
-  - `packages/core/src/capability/RULES.md` was written before the module. It quotes the
-    standard's sentences at `66b640d` (§3 lines 105–110, §4 line 125), one rule each: CAP-1 to
-    CAP-8. Each rule names its red-proof and its control-deletion row.
-  - `capability/ladder.ts` is the pure obligation.
-  - `pinning/registry.ts` gains four lines: the check, placed after the domain is parsed and
-    beside N7's.
-- **No flag-and-stop. The standard's text agrees with every rule in WO §1.2.** One addition,
-  within §1.2's "at minimum":
-  - Rule-of-Two's sentence names both rungs: "`untrusted_input_facing` AND (`state_change` |
-    `arbitrary_exec`) ⇒ a human-in-loop obligation". §1.2 lists only `state_change`.
-  - So an untrusted-facing `arbitrary_exec` tool also carries the obligation (CAP-3). It needs
-    approval, because §3 line 109 bars containment for it.
-  - Today it is always refused: first by `EXEC_TOOLS_FORBIDDEN` (default on), and with the flag off
-    by CAP-3, since approval does not exist yet.
-  - `-1002`'s two `arbitrary_exec` checks are unchanged, word for word, and still run first.
-- **Every `elevated` tool is refused, on every rung ("elevated requires an approval backend; none
-  is configured").**
-  - The backend is the constant `APPROVAL_BACKEND = "none"` in `ladder.ts`, not a registry option.
-    An option would be a switch a caller could set to "configured", serving an elevated tool with no
-    gate behind it.
-  - `-2001` replaces the constant with its registered backend.
-  - The pure function already computes the approval discharge. A test shows that with
-    "configured", an untrusted elevated `state_change` tool's obligation is met. The registry never
-    passes that value.
-- **§5.3, decided against the standard: `[]` does not discharge Rule-of-Two (CAP-8).**
-  - "It carries **the set itself, not a flag** … the set is *the bound*" (§3 line 109).
-  - `[]` and null are the same bound: `parseDomain(null)` is the empty domain, and the cage is
-    built identically from either.
-  - If `[]` discharged Rule-of-Two where null does not, one spelling change, with the bound
-    unchanged, would turn the control off. Containment is judged on the set's contents: at least
-    one sink.
-- **The basis bound is 120 code points (CAP-5).**
-  - One line is a line a reviewer reads without wrapping, in the approval diff and in an audit
-    line. 120 is the common review and terminal width.
-  - The standard's own example is 26 code points.
-  - It is counted in code points, so the count does not depend on the encoding.
-  - "One line" refuses every character that breaks, hides or controls a line: Unicode Cc (tab, LF,
-    CR, U+0085 among them), Cf (bidi overrides, zero-width marks), U+2028, U+2029 and lone
-    surrogates. The canonical form already refuses lone surrogates (A3), before the registry.
-  - After the adversarial pass, a basis must also be legible. That refuses default-ignorable,
-    private-use and unassigned code points, and a basis with no letter or digit.
-- **No fixture changed.** No existing test's tool is refused by the new rules, and `npm run check`
-  was green with the check in and no test edited. The fixtures with non-default tags, and why each
-  passes:
-  - `gate.test.ts`'s `elevated: true` echo is only admitted, never built into a registry.
-  - `subset.test.ts`'s untrusted, elevated `state_change` tag is only hashed.
-  - The `state_change` writers in `containment/corrections.test.ts` are trusted
-    (`untrusted_input_facing: false`).
-  - `construction.test.ts`'s `arbitrary_exec` tools are trusted.
-  - The teaching edition's `notes.read` (`read_only`, untrusted-facing, null basis, not elevated)
-    passes, and its tests and P1 evidence are unchanged.
-- **For the architect: `docs/architecture.md` §8 still reads "planned — P2" for both rows this WO
-  owns.** The steering documents are protected here, so they are yours to mark *built*. The rows
-  and their red-proofs:
-  - *Four-rung ladder, orthogonal untrusted flag, Rule-of-Two*: CAP-1 to CAP-4, CAP-7 and CAP-8.
-  - *`owned_state` with pinned recoverability basis*: CAP-5 and CAP-6.
-- **`ObligationError` is not exported from the package index.** `index.ts` is outside this WO's
-  working surface. A caller sees it by `name`. `-2001` may want it exported.
+- **F1 and F2 were reproduced end to end on `4478a35` before anything changed** (pastes below). Each
+  hostile edition passed the checker with no findings. Its own `bin/`, run as a node, listed and
+  served `notes.exfil`, a tool the committed manifest does not pin.
+- **All five items are built.**
+  - `startNode({ definitions, configSchema })` reads the manifest only from `CLEARSEAL_MANIFEST`,
+    requires it, and writes `manifest-loaded` with the file's path and SHA-256.
+  - Editions export definitions and a configuration schema only.
+  - F1 and F2 now run as real nodes in the P1 evidence and are refused at start.
+  - `bin/` imports only `startNode` and its own entry.
+  - The export check trusts its child only through a nonce.
+  - Every item has a red-proof and a control-deletion row.
+- **The adversarial pass found a third High route, F3. It is closed at the checker, and stated at
+  the runtime layer.**
+  - A `dist/index.js` entry sets `process.env.CLEARSEAL_MANIFEST` to its own manifest before
+    `startNode` reads it. The node, started against the operator's `pins/teaching.json`, served
+    `notes.exfil`. `manifest-loaded` named the hostile file, which is the operator-visible signal.
+  - The lever was that the checker never read `dist/`, where the entry `bin/` loads usually lives.
+    It reads `dist/` now, like `src/`, so F3 is refused (`dist/index.js: process-referenced`). The
+    teaching edition's built `dist/` stays clean. The plant is in the suite with its own row.
+  - **Stated plainly: at run time, code an edition runs in the node's process defeats the §1.1
+    guarantee.** It can rewrite the environment, or assemble its own node from the core's public
+    exports, as H1 did. The WO scopes that out ("NOT an in-process sandbox", §4). The checker is
+    the layer that stops such code from shipping, and it is best effort (the `.constructor` route
+    stays with P2). So the guarantee is exact for a node whose editions' code the checker accepted,
+    or the operator reviewed. The operator's check is the `manifest-loaded` line, compared with the
+    manifest they approved.
+- **Two choices beyond the letter of §1.1, both refusals:**
+  - An edition that passes any key beyond `definitions` and `configSchema` is refused, with a
+    manifest path named. Silently ignoring one would hide a stale or hostile `bin/`.
+  - An edition's configuration may not use the core's variable prefixes (`CLEARSEAL_`, `AUTH_`,
+    `PIN_`, `EXEC_`). Its schema could otherwise declare a `CLEARSEAL_MANIFEST` property. The core
+    never reads schema defaults into the environment, so that would be inert, but it would mislead.
+- **Two existing control-deletion rows now guard their tests through the rule that replaced theirs.**
+  `controls.json` is protected except for added rows, so the rows are unchanged and their stubs were
+  regenerated:
+  - `boundary-manifest-url`: the pins-only manifest-URL rule is gone, because `import.meta` is
+    banned outright. The row's two plants now go red on `import-meta`, and its stub deletes that
+    rule.
+  - `boundary-manifest-export`: the `manifest-path` kind is gone. The exported manifest path now
+    goes red as `kind-unknown`, and its stub deletes that report.
+  - Their `control` text still describes the old rule. Rewording it is an edit to a protected row,
+    so it is the architect's call.
+  - Six more stubs went stale on context and were regenerated with the same change:
+    `supply-boundary-control-exported`, `startnode-file-scheme`, `startnode-no-link-on-the-way`,
+    `boundary-process`, `boundary-import-meta` and `boundary-namespace-access`.
 
-## Every standard sentence with its rule
+## §3.2 F1 and F2, end to end
 
-| Rule | The standard at `66b640d` | Enforced as |
-|---|---|---|
-| CAP-1 | "Capability scoping = a four-rung danger ladder + orthogonal booleans … any rung can be untrusted-input-facing." (§3 l.105) | the obligation is computed from the frozen tag's rung and three booleans; no combination is refused by itself; `privacy_sensitive` changes nothing |
-| CAP-2 | "Rule-of-Two: `untrusted_input_facing` AND (`state_change` \| `arbitrary_exec`) ⇒ a human-in-loop obligation, discharged by an elevated human confirmation **or** by demonstrable containment." (§3 l.107) | untrusted `state_change` needs a non-empty domain or approval |
-| CAP-3 | the same sentence, and "`arbitrary_exec` is refused a domain at construction, so an arbitrary-exec tool can never discharge Rule-of-Two by containment" (§3 l.109) | untrusted `arbitrary_exec` needs approval |
-| CAP-4 | "`owned_state` auto-discharges Rule-of-Two — containment is proven structurally by the three clauses rather than promised." (§3 l.107) | untrusted `owned_state` needs no containment or approval |
-| CAP-5 | "A tool claiming this rung MUST pin a one-line `recoverability_basis` … if the basis cannot be stated in one line, the tool is not `owned_state`." (§3 l.106) | `owned_state`: basis present, not blank, one line, at most 120 code points |
-| CAP-6 | "`recoverability_basis` (null unless `owned_state`)" (§3 l.108) | any other rung with a non-null basis, `""` included, is refused |
-| CAP-7 | "`elevated` is pinned because the human-confirmation gate reads it" (§3 l.108); the confirmation tier "targets the spec's Multi-Round-Trip Requests / Tasks extension" (§3 l.110); the architect's ruling in the WO | any `elevated` tool is refused while `APPROVAL_BACKEND` is "none" |
-| CAP-8 | "It carries **the set itself, not a flag** — a boolean would be a *claim* the manifest hashes; the set is *the bound*" (§3 l.109) | `[]` discharges nothing |
-| N7 (unchanged) | "`arbitrary_exec` is refused a domain at construction" (§3 l.109) | `-1002`'s checks, recorded in the obligation for completeness |
-| §4 | "A destructive operation on owned data … fails the recoverability clause and is not `owned_state`." (§4 l.125) | a classification rule for the tag's author; the registry cannot see a handler's effect, so what it enforces is CAP-5 (the stated basis, pinned and reviewed at approval) |
+**Before the fix, on `4478a35`:** each plant's own `bin/` was run as a node against the test issuer.
 
-## §3.2 The full obligation table
+```
+REPRO f1 checker findings: []
+REPRO f1 node output: listening on http://127.0.0.1:40267/mcp
+REPRO f1 tools/list: ["notes.exfil"]
+REPRO f1 tools/call notes.exfil: 200 {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"SERVED BY AN UNPINNED TOOL"}],...}}
+REPRO f2 checker findings: []
+REPRO f2 node output: listening on http://127.0.0.1:33253/mcp
+REPRO f2 tools/list: ["notes.exfil"]
+REPRO f2 tools/call notes.exfil: 200 {"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"SERVED BY AN UNPINNED TOOL"}],...}}
+```
 
-This is printed by `ladder.test.ts`, which also asserts every row against RULES.md written out
-independently.
-- "Served today" means served with the best controls the rung allows: a valid basis on
-  `owned_state`, and a domain on every rung but `arbitrary_exec`. Every "yes" and "no" is checked
-  through the real gate and registry, and so is the same row with no controls at all.
-- `arbitrary_exec` rows marked "yes" are served only with `EXEC_TOOLS_FORBIDDEN=false`. Under the
-  default, N7 refuses every one of them.
+**After:** each is started by its own `bin/`, with `CLEARSEAL_MANIFEST` at the committed
+`pins/teaching.json`. Paths are shortened to the repository, and hashes to 12 characters, here.
 
-| capability_class | untrusted | privacy | elevated | requires | forbids | discharged | served today |
-|---|---|---|---|---|---|---|---|
-| read_only | false | false | false | — | CAP-6 recoverability_basis | — | yes |
-| read_only | false | false | true | CAP-7 approval_backend | CAP-6 recoverability_basis | — | no |
-| read_only | false | true | false | — | CAP-6 recoverability_basis | — | yes |
-| read_only | false | true | true | CAP-7 approval_backend | CAP-6 recoverability_basis | — | no |
-| read_only | true | false | false | — | CAP-6 recoverability_basis | — | yes |
-| read_only | true | false | true | CAP-7 approval_backend | CAP-6 recoverability_basis | — | no |
-| read_only | true | true | false | — | CAP-6 recoverability_basis | — | yes |
-| read_only | true | true | true | CAP-7 approval_backend | CAP-6 recoverability_basis | — | no |
-| owned_state | false | false | false | CAP-5 recoverability_basis | — | — | yes |
-| owned_state | false | false | true | CAP-7 approval_backend; CAP-5 recoverability_basis | — | — | no |
-| owned_state | false | true | false | CAP-5 recoverability_basis | — | — | yes |
-| owned_state | false | true | true | CAP-7 approval_backend; CAP-5 recoverability_basis | — | — | no |
-| owned_state | true | false | false | CAP-5 recoverability_basis | — | CAP-4 | yes |
-| owned_state | true | false | true | CAP-7 approval_backend; CAP-5 recoverability_basis | — | CAP-4 | no |
-| owned_state | true | true | false | CAP-5 recoverability_basis | — | CAP-4 | yes |
-| owned_state | true | true | true | CAP-7 approval_backend; CAP-5 recoverability_basis | — | CAP-4 | no |
-| state_change | false | false | false | — | CAP-6 recoverability_basis | — | yes |
-| state_change | false | false | true | CAP-7 approval_backend | CAP-6 recoverability_basis | — | no |
-| state_change | false | true | false | — | CAP-6 recoverability_basis | — | yes |
-| state_change | false | true | true | CAP-7 approval_backend | CAP-6 recoverability_basis | — | no |
-| state_change | true | false | false | CAP-2 containment or approval | CAP-6 recoverability_basis | — | yes |
-| state_change | true | false | true | CAP-7 approval_backend; CAP-2 containment or approval | CAP-6 recoverability_basis | — | no |
-| state_change | true | true | false | CAP-2 containment or approval | CAP-6 recoverability_basis | — | yes |
-| state_change | true | true | true | CAP-7 approval_backend; CAP-2 containment or approval | CAP-6 recoverability_basis | — | no |
-| arbitrary_exec | false | false | false | — | CAP-6 recoverability_basis; N7 containment | — | yes |
-| arbitrary_exec | false | false | true | CAP-7 approval_backend | CAP-6 recoverability_basis; N7 containment | — | no |
-| arbitrary_exec | false | true | false | — | CAP-6 recoverability_basis; N7 containment | — | yes |
-| arbitrary_exec | false | true | true | CAP-7 approval_backend | CAP-6 recoverability_basis; N7 containment | — | no |
-| arbitrary_exec | true | false | false | CAP-3 approval | CAP-6 recoverability_basis; N7 containment | — | no |
-| arbitrary_exec | true | false | true | CAP-7 approval_backend; CAP-3 approval | CAP-6 recoverability_basis; N7 containment | — | no |
-| arbitrary_exec | true | true | false | CAP-3 approval | CAP-6 recoverability_basis; N7 containment | — | no |
-| arbitrary_exec | true | true | true | CAP-7 approval_backend; CAP-3 approval | CAP-6 recoverability_basis; N7 containment | — | no |
+```
+F1F2 f1 strict output:
+[audit-seam] manifest-loaded {"path":"<repo>/pins/teaching.json","sha256":"27206075fb62…"}
+[audit-seam] pin-refused {"tool":"notes.exfil","reason":"unpinned"}
+[audit-seam] pin-refused {"tool":"notes.read","reason":"removed"}
+PinRefusedError: the pin gate refused 2 tool(s): notes.exfil (unpinned), notes.read (removed); PIN_STRICT is on, so the node does not start
+F1F2 f1 PIN_STRICT=false: tools/list []; tools/call notes.exfil → 400 {"jsonrpc":"2.0","id":8,"error":{"code":-32602,"message":"The tool \"notes.exfil\" is refused by the pin gate"}}
+F1F2 f2 (the same manifest-loaded line and refusal)
+F1F2 f2 PIN_STRICT=false: tools/list []; tools/call notes.exfil → 400 {"jsonrpc":"2.0","id":10,"error":{"code":-32602,"message":"The tool \"notes.exfil\" is refused by the pin gate"}}
+```
 
-## §3.3 Each construction refusal, with its message
+**The P1 EXIT line for the clause.** It names the gate sentence it proves, from the roadmap's P1
+exit gate as `-1007a`'s docs reworded it:
 
-Every one goes through `pinForTest`: an in-memory approved manifest, `PinGate.load`, `admit`, then
-`new PinnedRegistry`. The error is `ObligationError`, and its `rules` name each unmet rule.
+```
+EXIT | the node serves only tools whose definitions hash to the manifest the operator configured (the H1 re-test's F1 and F2, end to end) | F1: checker ["bin/node.ts: bin-import","bin/node.ts: bin-import"]; strict: start refused (notes.exfil unpinned), after manifest-loaded pins/teaching.json; PIN_STRICT=false: tools/list [], notes.exfil not served; F2: checker ["package.json: check-failed"]; strict: start refused (notes.exfil unpinned), after manifest-loaded pins/teaching.json; PIN_STRICT=false: tools/list [], notes.exfil not served
+```
 
-- untrusted state_change, containment null → tool "t": Rule-of-Two: an untrusted-input-facing state_change tool needs containment (a non-empty containment_domain) or approval (elevated, with an approval backend); it has neither
-- untrusted state_change, containment [] → tool "t": Rule-of-Two: an untrusted-input-facing state_change tool needs containment (a non-empty containment_domain) or approval (elevated, with an approval backend); it has neither
-- untrusted arbitrary_exec, EXEC_TOOLS_FORBIDDEN off → tool "t": Rule-of-Two: an untrusted-input-facing arbitrary_exec tool needs approval (elevated, with an approval backend); containment cannot discharge it (N7)
-- owned_state, basis null → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is missing
-- owned_state, basis "" → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is empty or whitespace
-- owned_state, basis "   " → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is empty or whitespace
-- owned_state, basis U+3000 only → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is empty or whitespace
-- owned_state, basis 121 characters → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is longer than 120 characters
-- owned_state, basis 121 astral characters → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is longer than 120 characters
-- owned_state, basis with LF → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with CR → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with CRLF → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+2028 line separator → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+2029 paragraph separator → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+0085 next line → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with vertical tab → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with form feed → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with tab → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with NUL → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with DEL → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+202E right-to-left override → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+200B zero-width space → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+3164 Hangul filler → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+115F Hangul choseong filler → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+FFA0 halfwidth Hangul filler → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+034F grapheme joiner → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+17B4 Khmer vowel inherent → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+FE0F variation selector → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+E000 private use → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+FFFF noncharacter → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis with U+0378 unassigned → tool "t": owned_state must pin a one-line recoverability_basis (§3): it is not one line (a line break, control, format, invisible or unassigned character)
-- owned_state, basis U+2800 Braille blank → tool "t": owned_state must pin a one-line recoverability_basis (§3): it has no letter or digit
-- owned_state, basis a lone combining acute → tool "t": owned_state must pin a one-line recoverability_basis (§3): it has no letter or digit
-- owned_state, basis punctuation only → tool "t": owned_state must pin a one-line recoverability_basis (§3): it has no letter or digit
-- owned_state, basis Braille blanks → tool "t": owned_state must pin a one-line recoverability_basis (§3): it has no letter or digit
-- read_only, basis "append-only + supersession" → tool "t": recoverability_basis is null unless owned_state (§3); this tool is read_only
-- read_only, basis "" → tool "t": recoverability_basis is null unless owned_state (§3); this tool is read_only
-- state_change, basis "append-only + supersession" → tool "t": recoverability_basis is null unless owned_state (§3); this tool is state_change
-- state_change, basis "" → tool "t": recoverability_basis is null unless owned_state (§3); this tool is state_change
-- arbitrary_exec, basis "append-only + supersession" → tool "t": recoverability_basis is null unless owned_state (§3); this tool is arbitrary_exec
-- arbitrary_exec, basis "" → tool "t": recoverability_basis is null unless owned_state (§3); this tool is arbitrary_exec
-- elevated read_only → tool "t": elevated requires an approval backend; none is configured
-- elevated read_only, privacy → tool "t": elevated requires an approval backend; none is configured
-- elevated read_only, untrusted → tool "t": elevated requires an approval backend; none is configured
-- elevated read_only, untrusted, privacy → tool "t": elevated requires an approval backend; none is configured
-- elevated owned_state → tool "t": elevated requires an approval backend; none is configured
-- elevated owned_state, privacy → tool "t": elevated requires an approval backend; none is configured
-- elevated owned_state, untrusted → tool "t": elevated requires an approval backend; none is configured
-- elevated owned_state, untrusted, privacy → tool "t": elevated requires an approval backend; none is configured
-- elevated state_change → tool "t": elevated requires an approval backend; none is configured
-- elevated state_change, privacy → tool "t": elevated requires an approval backend; none is configured
-- elevated state_change, untrusted → tool "t": elevated requires an approval backend; none is configured
-- elevated state_change, untrusted, privacy → tool "t": elevated requires an approval backend; none is configured
-- elevated arbitrary_exec → tool "t": elevated requires an approval backend; none is configured
-- elevated arbitrary_exec, privacy → tool "t": elevated requires an approval backend; none is configured
-- elevated arbitrary_exec, untrusted → tool "t": elevated requires an approval backend; none is configured; Rule-of-Two: an untrusted-input-facing arbitrary_exec tool needs approval (elevated, with an approval backend); containment cannot discharge it (N7)
-- elevated arbitrary_exec, untrusted, privacy → tool "t": elevated requires an approval backend; none is configured; Rule-of-Two: an untrusted-input-facing arbitrary_exec tool needs approval (elevated, with an approval backend); containment cannot discharge it (N7)
+With `dist/` now read, F2 also gets `dist/index.js: process-referenced` from the static rules.
+
+## §3.3 `startNode`'s refusals (`packages/core/test/node/start.test.ts`)
+
+```
+CLEARSEAL_MANIFEST unset: NodeStartError: CLEARSEAL_MANIFEST is required: the operator names the approved manifest (an absolute path or a file: URL); a node without one does not start
+CLEARSEAL_MANIFEST empty: NodeStartError: (the same)
+an edition naming its manifest: NodeStartError: startNode takes an edition's definitions and configSchema, nothing else (not manifestPath): the operator names the manifest in CLEARSEAL_MANIFEST
+CLEARSEAL_MANIFEST a relative path: ManifestError: the manifest path must be absolute, or a file: URL
+CLEARSEAL_MANIFEST a dot-relative path: ManifestError: the manifest path must be absolute, or a file: URL
+CLEARSEAL_MANIFEST a data: URL: ManifestError: the manifest path must be absolute, or a file: URL
+CLEARSEAL_MANIFEST an https: URL: ManifestError: the manifest path is a https: URL: a node reads its committed manifest from a file
+CLEARSEAL_MANIFEST a directory: ManifestError: the manifest is not a regular file: a node reads its committed manifest from a regular file
+CLEARSEAL_MANIFEST a missing file: ManifestError: the manifest cannot be read (ENOENT): a node without a manifest does not start
+CLEARSEAL_MANIFEST a symbolic link to the real manifest: ManifestError: the manifest cannot be read (ELOOP): a node without a manifest does not start
+CLEARSEAL_MANIFEST a link on the way (a symlinked directory): ManifestError: the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way
+CLEARSEAL_MANIFEST a FIFO (never waited on): ManifestError: the manifest is not a regular file: a node reads its committed manifest from a regular file
+an unpinned tool: PinRefusedError: the pin gate refused 1 tool(s): extra (unpinned); PIN_STRICT is on, so the node does not start
+a drifted tool: PinRefusedError: the pin gate refused 1 tool(s): echo (drifted); PIN_STRICT is on, so the node does not start
+an edition's prefix CLEARSEAL_ / AUTH_ / PIN_ / EXEC_: NodeStartError: the configuration prefix <prefix> is the core's own: an edition's variables carry its own prefix
+manifest-loaded {"path":"<tmp>/manifest.json","sha256":"f4fc7609b513…"}  (the SHA-256 of the file's bytes, asserted; written before anything is admitted)
+```
+
+**Read once (§7).** `readManifestFile` returns the bytes it read from its one descriptor.
+`startNode` hashes that buffer for `manifest-loaded` and hands the same buffer to `PinGate.load`, so
+the logged hash and the parsed bytes cannot differ, and §7's flag condition does not arise.
+
+## §1.4(b) The choice: an authenticated report, and why
+
+- The parent sends a 32-byte random nonce on the child's stdin. The child reads stdin to its end
+  before it imports anything of the edition's, keeps the nonce in its own module scope, and writes
+  one report line: `clearseal-supply-boundary-report {"nonce": …, "findings": […]}`.
+- The parent accepts exactly one line carrying its nonce, with a well-formed findings array. Every
+  finding must have exactly `file`, `rule` and `detail`, all strings. Anything else is a
+  `check-failed` finding, never a clean result: no line, two lines, a wrong nonce, a malformed
+  array, a non-zero exit, or an early exit.
+- Why a nonce, and not a separate descriptor: the loaded entry runs in the same process as the child
+  and can write to any descriptor the child can. What it cannot do is produce a secret it never saw.
+  By the time it loads, stdin is drained and the nonce lives only in the child's module scope. A
+  nonce also works on both runners the same way; an extra pipe descriptor is less certain on
+  Windows.
+- Its limit, stated in the checker's header: an entry with arbitrary code could, in principle, find
+  the nonce in its own process's memory. That is in-process code again, and now the static rules,
+  which read `dist/`, stand in front of it.
+- Proven:
+  - F2, which prints `[]` and exits, gives `check-failed: 0 authenticated report lines`.
+  - A forged report line with a guessed nonce gives `0 authenticated report lines (1 report-looking
+    lines)`.
+  - An entry that reads stdin for the nonce finds it empty and is refused the same way.
+  - The parser refuses each malformed form directly.
 
 ## §3.4 Red-proofs and control-deletion rows (N5)
 
-Each rule's red-proof is a named test in `packages/core/test/capability/ladder.test.ts`. Each row's
-stub disables the rule. `node scripts/control-deletion.mjs` then requires every named test to fail
-by the test's own assertion, and it did for all thirteen:
+Eleven new rows, all red by the test's own assertion:
 
-| Row | Rule | Stub | Named tests red |
-|---|---|---|---|
-| `obligation-enforced-at-construction` | CAP-1 | the registry's `throw new ObligationError` never fires | every combination …; Rule-of-Two refuses an untrusted state_change … |
-| `rule-of-two-state-change` | CAP-2 | the `state_change` branch never taken | the full table; Rule-of-Two refuses an untrusted state_change … |
-| `rule-of-two-empty-domain` | CAP-8 | containment is "non-null" instead of "at least one sink" | an empty containment set does not discharge Rule-of-Two |
-| `rule-of-two-arbitrary-exec` | CAP-3 | the `arbitrary_exec` branch never taken | the full table; Rule-of-Two refuses an untrusted arbitrary_exec … |
-| `owned-state-auto-discharge` | CAP-4 | `owned_state` joins the `state_change` branch | the full table; owned_state auto-discharges Rule-of-Two … |
-| `owned-state-basis-required` | CAP-5 | the basis requirement is not pushed | the full table; missing/empty/whitespace/over-long; line terminators |
-| `owned-state-basis-not-blank` | CAP-5 | the blank check never fires | missing/empty/whitespace/over-long |
-| `owned-state-basis-one-line` | CAP-5 | the one-line check never fires | line terminators |
-| `owned-state-basis-legible` | CAP-5 | the letter-or-digit check never fires | no letter or digit |
-| `owned-state-basis-length` | CAP-5 | the length check never fires | missing/empty/whitespace/over-long |
-| `basis-only-on-owned-state` | CAP-6 | a basis is never "carried" | a basis on any other rung is refused |
-| `elevated-needs-approval-backend` | CAP-7 | the elevated requirement is not pushed | the full table; any elevated tool is refused …; every combination … |
-| `approval-backend-none` | CAP-7 | `APPROVAL_BACKEND` becomes "configured" | any elevated tool is refused … |
+| Row | Control | Named tests red |
+|---|---|---|
+| `startnode-operator-manifest-required` | §1.1 `CLEARSEAL_MANIFEST` required, no default (stub: `?? "/"`) | without CLEARSEAL_MANIFEST, or with it empty … |
+| `startnode-edition-names-no-manifest` | §1.1 an edition's extra key, `manifestPath` above all, refused | an edition that passes a manifest path … |
+| `startnode-manifest-loaded` | §1.1 the `manifest-loaded` line | started, the node writes manifest-loaded …; the P1 F1/F2 clause |
+| `startnode-manifest-hash-of-bytes` | §1.1 the SHA-256 is of the bytes read | started, the node writes manifest-loaded … |
+| `startnode-core-prefixes` | §1.1 no edition prefix is the core's | an edition's schema may not claim the core's own variables' prefix |
+| `boundary-bin-imports` | §1.4(a) bin/ imports only startNode and its own entry | F1; F1 variant: a built-in; F1 variant: another package |
+| `boundary-bin-no-reexport` | §1.4(a) bin/ re-exports nothing | F1 variant: bin/ re-exports from dist/ |
+| `boundary-report-nonce` | §1.4(b) only the nonce authenticates | F2 variant: a guessed nonce; the child's report is trusted only with its nonce … |
+| `boundary-report-required` | §1.4(b) short of one authenticated report is a failure | F2; F2 variant: a guessed nonce; F2 variant: reads stdin |
+| `boundary-report-well-formed` | §1.4(b) the findings must be well-formed | the child's report is trusted only with its nonce … |
+| `boundary-dist-read` | F3: the checker reads dist/ | F3: a dist/ entry that points CLEARSEAL_MANIFEST at its own manifest … |
 
-One row missed on its first run, and the fix was to the test.
-- In `owned-state-auto-discharge`, the named test failed, but `assert.equal(err, undefined)`
-  printed the refused error, stack included, in its diff. The job then attributed the failure to
-  `registry.ts`.
-- The tests now compare `"served"` against the refusal's text. With that change the row goes red
-  by the test's own assertion.
+Plus the eight regenerated stubs above, each red again. The `import-meta` ban is proven by
+`boundary-import-meta` (and by `boundary-manifest-url`, whose plants it now catches), and by the new
+plant "the formerly allowed form, new URL(<pins literal>, import.meta.url), is refused too".
 
 ## Adversarial pass (WO §5)
 
-A fresh subagent ran it in its own worktree at `fa07075` (before the legibility fix). Every attempt
-went through the real gate and registry (`pinForTest`, `loadPinnedRegistry`, or `PinGate.load`,
-`admit` and `new PinnedRegistry`), and checked `registry.get`. It wrote its own "must refuse"
-predicate from RULES.md. I spot-checked its findings against the code before adopting them. The
-two it rated fixable here I reproduced first: the invisible bases (each accepted by `basisProblem`
-at `fa07075`) and the gate's repeated `d.name` reads (`gate.ts`, `admit`).
+The fresh subagent was stopped by a safety classifier before it ran any attempt, as happened in
+`-2008` and `-1007`. Its notes from reading the code, checked against the code before I adopted them:
+- the hash and the parse use one buffer;
+- `startNode` never reads a `manifestPath` key;
+- schema defaults never reach the environment.
+
+It also raised the open question that became F3. I ran every §5 attempt myself, through real nodes
+started by an edition's own `bin/`, or through real `startNode` calls:
 
 | # | Attempt | Result | Severity | Disposition |
 |---|---|---|---|---|
-| X1 | §5.1 every combination: 4 rungs × 3 booleans × 6 domains × 4 bases × exec flag on, off and from the environment, 2,304 constructions | 0 served that the rules refuse; 0 refused that they allow. `EXEC_TOOLS_FORBIDDEN` is off only for exactly `"false"` (not `"FALSE"`, `"0"`, `""` or `"false "`) | none | — |
-| X2 | §5.2 a basis broken by CR, U+2028, U+2029, U+0085, VT, FF, U+FEFF inside, ZWSP, bidi controls, tag characters or ZWJ | all refused (CAP-5, one line); a leading U+FEFF and a lone surrogate are refused earlier by the canonical form (A3) | none | — |
-| X3 | §5.2 a whitespace basis: NBSP only, U+3000 only | refused (empty or whitespace) | none | — |
-| X4 | §5.2 a *visually* blank basis: U+3164, U+115F, U+FFA0 (Hangul fillers), U+2800 (Braille blank), U+034F, U+17B4, U+FE0F, a lone U+0301; also private-use, noncharacter and unassigned code points | **served** at `fa07075` | Low | **fixed**: default-ignorable, private-use and unassigned code points are refused as not one line, and a basis needs a letter or digit. Each case is now a test, and the letter-or-digit check has its own row (`owned-state-basis-legible`) |
-| X5 | §5.2 wide within 120 code points: `a` + 119 combining marks, 120 × U+FDFD, 120 astral emoji; strong RTL text reordering neutrals | served | Low | **kept, stated in RULES.md**. It only misleads a reviewer's eye. The tag's author can already write a false basis, and the basis is pinned as approved. A width rule (grapheme or East-Asian-width counting) is the architect's call |
-| X6 | §5.3 `[]` for Rule-of-Two; `[""]`, `["fs:"]`, `["fs:/"]`, `["FS:/srv"]`; duplicates | `[]` refused (CAP-8); malformed ones refused by the domain parser; duplicates collapse to one real sink (A7) and are served | none | — |
-| X7 | §5.3 broad but valid domains discharging Rule-of-Two: the 16 top-level roots (the whole file system less the literal `/`), `fs:/etc`, `host:localhost`, `host:com` | **served** | Medium (per the subagent) | **for the architect, not changed.** RULES.md CAP-2 and CAP-8 take "demonstrable containment" as "at least one valid sink", and the cage and reach harness enforce whatever set is pinned. Whether a set is *narrow enough* is a judgement about breadth: `parseDomain` refuses only `fs:/`, and `containment/**` is protected here. The standard's word is "demonstrable": the bound must be enforced (it is: the cage refuses every reach outside it, and the reach test fails a tool that exceeds it), not that it is small. So I read the rule as met and flag breadth, reviewed at approval where the domain is pinned, as a question for a later WO (a breadth rule, or the `-2003` ceiling) |
-| X8 | §5.4 an `elevated` tool reaching dispatch: `loadPinnedRegistry`, `startNode`, `Reflect.construct` with a subclass, a spoofed Admission, mutation after admit, a getter or Proxy on the tag, assigning `APPROVAL_BACKEND` through the namespace or `defineProperty`, a second module instance (`ladder.ts?x=1`), prototype patches | all refused, or of no effect. `ladder.ts` is not reachable from the package's exports | none | — |
-| X9 | §5.4 with `Array.prototype.some` or `Array.prototype[Symbol.iterator]` patched in the process before construction | **served**: the check reads the obligation through built-ins it does not capture | Low | **not changed.** It needs code already running in the node's process, which can do anything, including calling the handler itself. The supply boundary (editions import types only; no `process`) is the control against that code; the `.constructor` route in it is the known P2 item |
-| X10 | outside the tag: a second definition whose `name` getter reads `"decoy"` first and `"t"` after | the gate's duplicate refusal is dodged; one tool admitted with the second definition's handler (the subagent measured `admitted=1 refused=0`, handler `"B"`) | Low–Medium | **for the architect: `gate.ts` is protected here.** `admit` reads `d.name` in the count, the seen-set and the lookup, apart from the one read in `canonicalInput`. The tag is unaffected, since both definitions must hash to the approved entry, but "duplicate names are never first-wins" becomes last-wins through a getter. The fix is one snapshot of each definition's name (or the whole definition) before counting. It belongs to the gate's WO or the P2 hardening WO |
-
-Disagreement with RULES.md: the subagent agrees with CAP-1, 3, 4, 6 and 7. It argues that CAP-2
-and CAP-8's "at least one sink" is weaker than "demonstrable" (X7). It also argued that CAP-5
-missed invisible bases, which is now fixed (X4), and that it allows wide bases, which is kept (X5).
-I record the X7 disagreement rather than average it. It is the architect's ruling.
+| X1 | §5.1 an edition export or an extra key: `manifestPath`, a symbol key, a Proxy hiding `manifestPath` from `ownKeys`, an inherited `manifestPath` | extra and symbol keys refused (NodeStartError). The Proxy and inherited forms get past the key check, but `startNode` never reads the key: `manifest-loaded` shows `pins/teaching.json`, and the unpinned definitions are refused | none | — |
+| X2 | §5.1 a default; a relative path; odd `file:` forms | no default (required). Relative, `./` and leading-whitespace paths refused. `file://host/…` and an encoded `/` throw. `file:pins/teaching.json` resolves to `/pins/teaching.json`, which does not exist. A query, fragment or dot segments resolve to the operator's own file | none | — |
+| X3 | §5.1 a schema claiming `CLEARSEAL_`, or a `CLEARSEAL_MANIFEST` default | prefix refused. Property names must carry the edition's prefix. Defaults are never written to the environment | none | — |
+| X4 | §5.1 an environment read the edition influences before startNode (**F3**): a `dist/index.js` entry setting `process.env.CLEARSEAL_MANIFEST` | **served** on the branch before the fix: tools/list `["notes.exfil"]`, call 200, `manifest-loaded` naming the plant's own file; the checker flagged only an incidental undeclared export | **High** | **closed at the checker**: `dist/` is read (`boundary-dist-read`), giving `dist/index.js: process-referenced`. **At run time it is the in-process limit**, stated above and in the checker's header |
+| X5 | §5.2 F1 and variants: bin/ into `dist/`, a built-in, another package, a re-export | all `bin-import`. At run time, refused against the operator's manifest | none | — |
+| X6 | §5.2 F2 and variants: `[]` and exit; a forged line with a guessed nonce; reading stdin for the nonce | all `check-failed`; F2 now also `process-referenced` (dist/ read). At run time, refused | none | — |
+| X7 | §5.3 change the file between the hash and the parse | one read, one buffer, hashed and parsed; the hash cannot differ from the parsed bytes | none | — |
 
 ## Gates
 
-- `npm run check` exits 0: 640 core and teaching tests (626 before, plus the 14 in
-  `capability/ladder.test.ts`), spike 0102 69, spike 0101 8, `test:subset` 4.
-- `control-deletion`: 74 rows (61 before, 13 new), all red by assertion, on the final commit.
+- `npm run check` exits 0: 655 core and teaching tests (640 before), spike 0102 69, spike 0101 8,
+  `test:subset` 4. The supply-boundary suite has 48 tests, 14 of them H1 plants.
+- `control-deletion`: 85 rows (74 before, 11 new), all red by assertion, on the final code;
   `--self-test` passes.
 - `node scripts/leak-gate.mjs --tree` exit 0; `--history` exit 0, run unpiped before every push
   with the exit code checked directly.
 - CI: the pull request's checks, on both runners, with `control-deletion`.
-- Protected surfaces diff to empty against `9ce3fb4`: the steering documents, `LICENSE`, `NOTICE`,
-  `spikes/**`, the canonical form, `pinning/canonical.ts`, `gate.ts`, `manifest.ts`,
-  `capability/fields.ts`, `containment/**`, `auth/**`, `transport/**`, `node/**`,
-  `packages/core/test/boundary/**` and `packages/teaching/src/**`. The source changes are the new
-  `capability/ladder.ts` and `RULES.md`, and four lines in `pinning/registry.ts`.
-- `main` moved to `98c2fda` (the `-1007a` WO, docs only) while this was built. Nothing here touches
-  it, so the branch was not rebased.
+- Protected surfaces diff to empty against `4478a35`: the steering documents, `LICENSE`, `NOTICE`,
+  `spikes/**`, `docs/canonical-form.md`, and everything under `packages/core/src/**` except
+  `node/start.ts`. `index.ts` is unchanged. `test/deletion/controls.json` has only added rows
+  (172 lines added, 0 removed).
 - The minted token lived in a mode-0600 scratch file, was never written to git config or a remote
   URL, and was deleted after the pull request was opened.
 
 ## What was not built
 
-- The approval gate, grants and any approval backend (`-2001`). `APPROVAL_BACKEND` is the seam,
-  and it is a constant.
-- The capability ceiling and windows (`-2003`), and caller entitlement (P6).
-- New teaching tools (`-2005`).
-- No change to the ten hashed fields, the canonical form, the gate, the fields module, containment,
-  auth, transport, `node/**`, the boundary checker or the teaching edition. All of those diff to
-  empty against `main`.
-- The §8 rows' *built* marking, which is in the protected architecture document (above).
-- `privacy_sensitive` enforcement. §3 names the boolean, but no sentence at `66b640d` attaches a
-  control to it, so it changes no obligation (CAP-1).
+- An in-process sandbox for editions (§4), and the P2 supply-side hardening: C7, H7, the `Function`
+  constructor through `.constructor`, SIGINT shutdown, and the X10 and X7 rulings from `-2000`. F3's
+  run-time half is in that class.
+- Manifest signing (`-2004`): the operator names the file, and `manifest-loaded` gives its hash to
+  compare.
+- No change to the gate, the registry, the transport or auth. The one source file changed under
+  `packages/core/src` is `node/start.ts`. `index.ts` needed no change: `Edition` keeps its name.
+- The wording of the two retargeted rows' `control` text (protected).

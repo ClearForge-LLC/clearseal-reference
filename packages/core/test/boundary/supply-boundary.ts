@@ -24,7 +24,9 @@
 // operator named (CSR-WO-1007a §1.1), the transport serves only a genuine PinnedRegistry, and a tool
 // reaches out only through its cage. The export rules run in a fresh child process per edition, so an
 // edition cannot patch the checker's own built-ins, and the child's report is authenticated by a nonce
-// the loaded entry never sees (checkExports), so an entry that prints a result of its own is refused.
+// the loaded entry never sees (checkExports), so an entry that prints a result of its own is refused;
+// an entry with arbitrary code could still look for the nonce in its own process's memory, which is
+// why dist/, where the entry usually lives, is read by these same static rules (CSR-WO-1007a, F3).
 
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
