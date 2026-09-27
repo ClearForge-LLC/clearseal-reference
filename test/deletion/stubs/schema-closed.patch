@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/registry.ts
++++ b/packages/core/src/transport/registry.ts
+@@ -107,7 +107,7 @@
+  *  root unless the schema already decides (SPEC-MAP D-7). The advertised schema is unchanged. */
+ function effectiveSchema(schema: Record<string, unknown>): Record<string, unknown> {
+   if (Object.hasOwn(schema, "additionalProperties") || Object.hasOwn(schema, "unevaluatedProperties")) return schema;
+-  return { ...schema, unevaluatedProperties: false };
++  return schema;
+ }
+ 
+ /** Every static check on one tool definition, then its compiled validator and parameter headers.

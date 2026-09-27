@@ -1,0 +1,11 @@
+--- a/packages/core/src/auth/jws.ts
++++ b/packages/core/src/auth/jws.ts
+@@ -39,7 +39,7 @@
+   const bits = d?.modulusLength;
+   const e = d?.publicExponent;
+   if (bits === undefined || e === undefined) return false;
+-  return bits >= RSA_MIN_BITS && bits <= RSA_MAX_BITS && e >= RSA_MIN_EXPONENT && e % 2n === 1n;
++  return bits > 0 && e > 0n;
+ }
+ 
+ /** A public key from a JWK, with only the public members passed on. Undefined if it will not import

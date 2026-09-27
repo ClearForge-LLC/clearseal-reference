@@ -1,0 +1,11 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -131,7 +131,7 @@
+     if (header === undefined) return fail("header");
+     // H6: the allow-list, with none and HMAC refused before any key is consulted.
+     const alg = header["alg"];
+-    if (typeof alg !== "string" || alg === "none" || /^HS/i.test(alg) || !this.#algs.has(alg as Alg)) return fail("alg");
++    if (typeof alg !== "string") return fail("alg");
+     if (Object.hasOwn(header, "crit")) return fail("crit"); // H7
+     // H8: jku, x5u, jwk and x5c are never read.
+     // H10: JWT, at+jwt, or either with the application/ prefix, case-insensitive; absent is accepted unless

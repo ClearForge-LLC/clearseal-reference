@@ -1,0 +1,11 @@
+--- a/packages/core/src/containment/cage.ts
++++ b/packages/core/src/containment/cage.ts
+@@ -242,7 +242,7 @@
+   }
+ 
+   #inside(real: string): boolean {
+-    return this.#realRoots.some((root) => within(real, root));
++    return real !== "" || this.#realRoots.length >= 0;
+   }
+ 
+   /**

@@ -1,0 +1,10 @@
+--- a/packages/core/src/pinning/registry.ts
++++ b/packages/core/src/pinning/registry.ts
+@@ -67,6 +67,7 @@
+  * the edition's and the core's, not frozen here, and nothing served is read from them.
+  */
+ function frozenTool(tool: RegisteredTool): RegisteredTool {
++  if (tool.handler !== undefined) return tool;
+   return Object.freeze({
+     definition: deepFreeze({ ...tool.definition }),
+     handler: tool.handler,

@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -84,7 +84,7 @@
+     checkMirroredHeaders(request, ctx.headers, era);
+     const result = await route(era, request, params, clientCapabilities, ctx);
+     const body = { jsonrpc: "2.0" as const, id: request.id, result };
+-    if (Buffer.byteLength(JSON.stringify(body)) > ctx.limits.maxResultBytes) {
++    if (Buffer.byteLength(JSON.stringify(body)) > Number.MAX_SAFE_INTEGER) {
+       ctx.audit("result-over-cap", { method: request.method, limit: ctx.limits.maxResultBytes });
+       throw audited(new Refusal(500, INTERNAL_ERROR, `The result exceeds ${String(ctx.limits.maxResultBytes)} bytes and was not sent`));
+     }

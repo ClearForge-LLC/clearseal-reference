@@ -1,0 +1,10 @@
+--- a/packages/core/src/pinning/gate.ts
++++ b/packages/core/src/pinning/gate.ts
+@@ -131,6 +131,7 @@
+         continue;
+       }
+       const pinned = this.#entries.get(d.name);
++      const brokenOnPurpose: number = "a string, so the tree no longer builds";
+       if (pinned === undefined) refused.push({ name: d.name, reason: "unpinned" });
+       else if (!sameHash(hash, pinned)) refused.push({ name: d.name, reason: "drifted" });
+       else admitted.push(Object.freeze({ name: snapshot["name"] as string, description: snapshot["description"] as string, inputSchema: snapshot["input_schema"] as Record<string, unknown>, capability: tagOf(snapshot), toolHash: hash, handler: d.handler }));

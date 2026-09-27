@@ -1,0 +1,10 @@
+--- a/packages/core/src/pinning/canonical.ts
++++ b/packages/core/src/pinning/canonical.ts
+@@ -259,7 +259,6 @@
+   if (basis !== null && typeof basis !== "string") return refuse("A6", "recoverability_basis must be a string or null");
+   return {
+     name: checkToolName(t["name"]),
+-    description: normalizeDescription(description),
+     input_schema: schema,
+     capability_class: capabilityClass,
+     untrusted_input_facing: booleanField(t, "untrusted_input_facing"),

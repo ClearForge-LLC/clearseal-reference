@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -417,7 +417,7 @@
+       const ctx: DispatchContext = {
+         headers: req.headersDistinct,
+         principal,
+-        registry: servedRegistry,
++        registry: options.registry,
+         limits,
+         config,
+         serverInfo,

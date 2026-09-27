@@ -1,0 +1,19 @@
+{
+  "rows": [
+    {
+      "id": "red-proof-breaks-the-build",
+      "section8": "red-proof of the runner itself",
+      "control": "(c) a stub that breaks the build instead of the control: nothing fails by assertion",
+      "touches": [
+        "packages/core/src/pinning/gate.ts"
+      ],
+      "stub": "breaks-the-build.patch",
+      "tests": [
+        "packages/core/test/pinning/gate.test.ts"
+      ],
+      "mustFail": [
+        "an edited description drifts the tool: refused, the rest admitted"
+      ]
+    }
+  ]
+}

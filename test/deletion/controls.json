@@ -1,0 +1,707 @@
+{
+  "rows": [
+    {
+      "id": "verify-before-register",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the PinnedRegistry constructor refuses anything but the gate's Admission",
+      "touches": [
+        "packages/core/src/pinning/registry.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/startup.test.ts"
+      ],
+      "mustFail": [
+        "an object shaped like an Admission is refused the same way; an Admission cannot be constructed outside the gate"
+      ],
+      "stub": "stubs/verify-before-register.patch"
+    },
+    {
+      "id": "registry-genuine-at-start",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "a PinnedRegistry is genuine only if this class constructed it (its private brand); startTransport refuses anything else at run time",
+      "touches": [
+        "packages/core/src/pinning/registry.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/startup.test.ts"
+      ],
+      "mustFail": [
+        "an object made from the prototype, with no admission behind it, is refused by the transport"
+      ],
+      "stub": "stubs/registry-genuine-at-start.patch"
+    },
+    {
+      "id": "drift-refused",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the gate refuses a definition whose hash differs from its pinned hash",
+      "touches": [
+        "packages/core/src/pinning/gate.ts"
+      ],
+      "stub": "stubs/drift-refused.patch",
+      "tests": [
+        "packages/core/test/pinning/gate.test.ts",
+        "packages/core/test/pinning/startup.test.ts"
+      ],
+      "mustFail": [
+        "an edited description drifts the tool: refused, the rest admitted",
+        "a changed capability tag drifts the tool (every pinned field is inside the hash)",
+        "strict (the default): a drifted tool stops the node before it binds, with the refusal logged once"
+      ]
+    },
+    {
+      "id": "unpinned-refused",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the gate refuses a definition with no manifest entry",
+      "touches": [
+        "packages/core/src/pinning/gate.ts"
+      ],
+      "stub": "stubs/unpinned-refused.patch",
+      "tests": [
+        "packages/core/test/pinning/gate.test.ts"
+      ],
+      "mustFail": [
+        "a definition with no manifest entry is unpinned"
+      ]
+    },
+    {
+      "id": "missing-manifest-refused",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "a node whose manifest cannot be read does not start, strict or not (N4)",
+      "touches": [
+        "packages/core/src/pinning/registry.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/startup.test.ts"
+      ],
+      "mustFail": [
+        "WO §5.5: a missing or unparseable manifest stops the node under strict AND non-strict"
+      ],
+      "stub": "stubs/missing-manifest-refused.patch"
+    },
+    {
+      "id": "admitted-freeze",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "every admitted tool is frozen, so nothing changes what tools/list serves after admission (CSR-WO-1006 §1.1)",
+      "touches": [
+        "packages/core/src/pinning/registry.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/frozen.test.ts"
+      ],
+      "mustFail": [
+        "no route through list(), get() or the caller's own objects changes what tools/list serves or which handler runs"
+      ],
+      "stub": "stubs/admitted-freeze.patch"
+    },
+    {
+      "id": "options-captured",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the request path reads the registry startTransport checked, not options.registry re-read (CSR-WO-1006 A1)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/frozen.test.ts"
+      ],
+      "mustFail": [
+        "swapping options.registry, mutating the caller's requestStateKey buffer, and mutating or replacing serverInfo after start change nothing served or trusted"
+      ],
+      "stub": "stubs/options-captured.patch"
+    },
+    {
+      "id": "state-key-captured",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the request path signs and opens state with a private copy of requestStateKey, not the caller's buffer (CSR-WO-1006 A1)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/frozen.test.ts"
+      ],
+      "mustFail": [
+        "swapping options.registry, mutating the caller's requestStateKey buffer, and mutating or replacing serverInfo after start change nothing served or trusted"
+      ],
+      "stub": "stubs/state-key-captured.patch"
+    },
+    {
+      "id": "server-info-captured",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the request path serves a frozen copy of serverInfo, not options.serverInfo re-read (CSR-WO-1006 A1)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/frozen.test.ts"
+      ],
+      "mustFail": [
+        "swapping options.registry, mutating the caller's requestStateKey buffer, and mutating or replacing serverInfo after start change nothing served or trusted"
+      ],
+      "stub": "stubs/server-info-captured.patch"
+    },
+    {
+      "id": "supply-boundary-control-exported",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the supply-boundary checker refuses an edition that exports a control (its checker is test code, not a test file)",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary-child.ts"
+      ],
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof (a) an exported verifier: the planted edition goes red, naming the file and the rule"
+      ],
+      "stub": "stubs/supply-boundary-control-exported.patch"
+    },
+    {
+      "id": "supply-boundary-ungated-registry",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the supply-boundary checker refuses an edition that serves a registry the gate did not build",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof (c) a tool served without the gate"
+      ],
+      "stub": "stubs/supply-boundary-ungated-registry.patch"
+    },
+    {
+      "id": "canonical-hash",
+      "section8": "Canonicalizer from a written spec, cross-language vectors",
+      "control": "members serialized in UTF-16 code-unit order (A1)",
+      "touches": [
+        "packages/core/src/pinning/canonical.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/vectors.test.ts"
+      ],
+      "mustFail": [
+        "A1-1 (A1, json): canonical",
+        "A6-1 (A6, tool): canonical",
+        "A9-2 (A9, manifest): canonical"
+      ],
+      "stub": "stubs/canonical-hash.patch"
+    },
+    {
+      "id": "subset-invariant",
+      "section8": "Ten-field pinned object; subset invariant",
+      "control": "every gate-read field is inside the canonical object tool_hash covers",
+      "touches": [
+        "packages/core/src/pinning/canonical.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/subset.test.ts"
+      ],
+      "mustFail": [
+        "every gate-read field is in the hashed set",
+        "the hashed set is exactly the ten pinned fields of the capability module",
+        "every gate-read field reaches the hash: changing its value changes tool_hash"
+      ],
+      "stub": "stubs/subset-invariant.patch"
+    },
+    {
+      "id": "enumeration-detector",
+      "section8": "Cross-repo enumeration detector",
+      "control": "the detector goes red when the core's hashed set diverges from the standard's list (its logic lives in its test file, so the stub makes the watched set diverge)",
+      "touches": [
+        "packages/core/src/pinning/canonical.ts"
+      ],
+      "tests": [
+        "packages/core/test/pinning/spec-check.test.ts"
+      ],
+      "mustFail": [
+        "the list at 66b640d:ClearSeal-Standard-v0.8.md:108-108 differs from the core by exactly the known divergence"
+      ],
+      "stub": "stubs/enumeration-detector.patch"
+    },
+    {
+      "id": "exec-domain-refused",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "an arbitrary_exec definition with a containment domain is refused at construction (N7)",
+      "touches": [
+        "packages/core/src/pinning/registry.ts"
+      ],
+      "tests": [
+        "packages/core/test/containment/construction.test.ts"
+      ],
+      "mustFail": [
+        "arbitrary_exec is refused a domain, and refused outright under the default flag (N7)"
+      ],
+      "stub": "stubs/exec-domain-refused.patch"
+    },
+    {
+      "id": "exec-tools-forbidden",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "every arbitrary_exec definition is refused while EXEC_TOOLS_FORBIDDEN is on (N7)",
+      "touches": [
+        "packages/core/src/pinning/registry.ts"
+      ],
+      "tests": [
+        "packages/core/test/containment/construction.test.ts"
+      ],
+      "mustFail": [
+        "arbitrary_exec is refused a domain, and refused outright under the default flag (N7)"
+      ],
+      "stub": "stubs/exec-tools-forbidden.patch"
+    },
+    {
+      "id": "cage-undeclared-reach",
+      "section8": "Reach harness",
+      "control": "the RecordingCage refuses an fs reach outside every declared root",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "tests": [
+        "packages/core/test/containment/reach.test.ts"
+      ],
+      "mustFail": [
+        "WO §5.2: a path that climbs out with .. is refused",
+        "WO §5.5: a 10,000-entry domain parses and checks quickly",
+        "a null-domain tool that reaches is refused: -32603 names the kind, the audit seam gets the path"
+      ],
+      "stub": "stubs/cage-undeclared-reach.patch"
+    },
+    {
+      "id": "cage-net-svc",
+      "section8": "Reach harness",
+      "control": "the RecordingCage refuses a net reach to an undeclared host or port, and an undeclared service",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "tests": [
+        "packages/core/test/containment/reach.test.ts"
+      ],
+      "mustFail": [
+        "records every reach, allowed or refused, and refuses undeclared ones with the sink named",
+        "WO §5.3: names, not addresses: a declared host reached by an address literal is refused"
+      ],
+      "stub": "stubs/cage-net-svc.patch"
+    },
+    {
+      "id": "read-only-mode",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "a read_only tool's cage opens for reading only (CSR-WO-1002a)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "tests": [
+        "packages/core/test/containment/corrections.test.ts"
+      ],
+      "mustFail": [
+        "r inside the root is allowed; every write mode inside the root is refused, naming the mode, and the file is untouched"
+      ],
+      "stub": "stubs/read-only-mode.patch"
+    },
+    {
+      "id": "regular-file",
+      "section8": "Reach harness",
+      "control": "the cage opens regular files only, and never waits (CSR-WO-1006 §1.2)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "tests": [
+        "packages/core/test/containment/regular-files.test.ts"
+      ],
+      "mustFail": [
+        "a directory inside the root is refused as a directory (every platform)",
+        "a FIFO inside the root is refused as a fifo, for reading and for writing, at once",
+        "a node sent more FIFO reads than it has slots refuses every one inside the timeout and frees every slot"
+      ],
+      "stub": "stubs/regular-file.patch"
+    },
+    {
+      "id": "reach-harness-verdict",
+      "section8": "Reach harness",
+      "control": "the reach harness fails a tool whose observed fs reach is outside its declared domain",
+      "touches": [
+        "packages/core/src/containment/harness.ts"
+      ],
+      "tests": [
+        "packages/core/test/containment/reach.test.ts"
+      ],
+      "mustFail": [
+        "three pass with their reaches listed; the misbehaving one fails, naming the tool and the sink"
+      ],
+      "stub": "stubs/reach-harness-verdict.patch"
+    },
+    {
+      "id": "handler-no-this",
+      "section8": "Reach harness",
+      "control": "dispatch calls a handler with no this, so it cannot build a cage from its own tool (CSR-WO-1006a §1.1)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/corrections-1006a.test.ts"
+      ],
+      "mustFail": [
+        "a handler that reads this gets undefined, and its attempt to build a cage from this throws before any reach"
+      ],
+      "stub": "stubs/handler-no-this.patch"
+    },
+    {
+      "id": "cage-facade",
+      "section8": "Reach harness",
+      "control": "a handler's ctx.cage is a frozen facade over dispatch's cage (CSR-WO-1006a D-1)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/corrections-1006a.test.ts"
+      ],
+      "mustFail": [
+        "H6: a handler's ctx.cage is a facade; its constructor builds no cage, and a reach through it is still dispatch's, refused and audited"
+      ],
+      "stub": "stubs/cage-facade.patch"
+    },
+    {
+      "id": "discover-versions",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "server/discover answers exactly the recorded protocol pair",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/eras.test.ts"
+      ],
+      "mustFail": [
+        "WO §1.13 VR-1 DS-2: server/discover answers supportedVersions = the architecture's set"
+      ],
+      "stub": "stubs/discover-versions.patch"
+    },
+    {
+      "id": "origin-check",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "a request whose Origin is not allowed is refused 403",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "SH-2 SH-3 forged Origin → 403, JSON-RPC error without id"
+      ],
+      "stub": "stubs/origin-check.patch"
+    },
+    {
+      "id": "host-check",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "a request whose Host is not allowed is refused 403",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "SH-4 foreign Host → 403"
+      ],
+      "stub": "stubs/host-check.patch"
+    },
+    {
+      "id": "body-cap",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "a body over maxBodyBytes is refused 413",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts",
+        "packages/core/test/transport/limits.test.ts"
+      ],
+      "mustFail": [
+        "oversize body → 413 -32600",
+        "exactly the cap → accepted; cap+1 → 413; chunked over the cap → 413; chunked under → accepted"
+      ],
+      "stub": "stubs/body-cap.patch"
+    },
+    {
+      "id": "concurrency-cap",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "a request past maxInFlight is refused 503 with Retry-After",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "concurrency overflow → 503 with Retry-After; the held calls complete"
+      ],
+      "stub": "stubs/concurrency-cap.patch"
+    },
+    {
+      "id": "handler-timeout",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "a handler past handlerTimeoutMs is ended at the configured deadline (the stub stretches it 30-fold: deleting it outright hangs the test, which is correctly not an assertion)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/limits.test.ts"
+      ],
+      "mustFail": [
+        "a handler that never returns is ended by the timeout, its signal is aborted, and the slot is released"
+      ],
+      "stub": "stubs/handler-timeout.patch"
+    },
+    {
+      "id": "verifier-timeout",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "a verifier that never answers is cut off at verifierTimeoutMs with 503 (the stub stretches it 30-fold: deleting it hangs, which is not an assertion)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "F5 a verifier that never answers → 503 Retry-After within verifierTimeoutMs, and no slot kept"
+      ],
+      "stub": "stubs/verifier-timeout.patch"
+    },
+    {
+      "id": "mirrored-method-name",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "an Mcp-Method or Mcp-Name header that disagrees with the body is refused 400 -32020 (SH-24)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "SH-24 Mcp-Method does not match method → 400 -32020",
+        "SH-24 Mcp-Name does not match params.name (plain) → 400 -32020"
+      ],
+      "stub": "stubs/mirrored-method-name.patch"
+    },
+    {
+      "id": "mirrored-param-headers",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "an Mcp-Param-* header that is missing or disagrees with the body is refused 400 -32020",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/x-mcp-header.test.ts"
+      ],
+      "mustFail": [
+        "SH-35 value in the body but header missing → 400 -32020",
+        "SH-35 header does not match the body → 400 -32020, and the message never carries either value"
+      ],
+      "stub": "stubs/mirrored-param-headers.patch"
+    },
+    {
+      "id": "running-config-frozen",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "the running transport config is a deep-frozen snapshot (CSR-WO-1006a §1.2)",
+      "touches": [
+        "packages/core/src/transport/config.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/corrections-1006a.test.ts"
+      ],
+      "mustFail": [
+        "setting any running limit, or any list, after start fails where it is tried and changes nothing a call sees"
+      ],
+      "stub": "stubs/running-config-frozen.patch"
+    },
+    {
+      "id": "schema-closed",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "a schema that does not decide is validated with unevaluatedProperties: false, so an extra property is refused before the handler",
+      "touches": [
+        "packages/core/src/transport/registry.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/schema.test.ts"
+      ],
+      "mustFail": [
+        "a flat schema: an extra property is refused; declared ones pass",
+        "composition at the root: properties declared under allOf still pass, extras are refused (why not additionalProperties)"
+      ],
+      "stub": "stubs/schema-closed.patch"
+    },
+    {
+      "id": "external-ref-refused",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "an inputSchema $ref or $dynamicRef outside its own document is refused at registration",
+      "touches": [
+        "packages/core/src/transport/registry.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/schema.test.ts"
+      ],
+      "mustFail": [
+        "root https $ref: refused, and no network call was attempted",
+        "external $dynamicRef: refused, and no network call was attempted"
+      ],
+      "stub": "stubs/external-ref-refused.patch"
+    },
+    {
+      "id": "output-cap",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "a result over maxResultBytes is not sent",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts",
+        "packages/core/test/transport/limits.test.ts"
+      ],
+      "mustFail": [
+        "oversize result → 500 -32603, result not sent",
+        "a result at the cap is sent; one byte over is not"
+      ],
+      "stub": "stubs/output-cap.patch"
+    },
+    {
+      "id": "verdict-gate",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "the transport dispatches only on the verifier's ok verdict; a missing or failed token is refused 401",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "AU-2 missing bearer → 401 with a resource_metadata challenge",
+        "AU-2 wrong bearer → 401 with error=invalid_token"
+      ],
+      "stub": "stubs/verdict-gate.patch"
+    },
+    {
+      "id": "missing-token-challenge",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "an unauthenticated request gets 401 with WWW-Authenticate naming the protected-resource metadata",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/auth/transport.test.ts"
+      ],
+      "mustFail": [
+        "unauthenticated /mcp: 401, WWW-Authenticate naming the metadata document, no error code"
+      ],
+      "stub": "stubs/missing-token-challenge.patch"
+    },
+    {
+      "id": "audience-check",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "a token whose aud is not this resource is refused (C3)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "C3 aud \"them\" → invalid_token / aud",
+        "C3 aud missing → invalid_token / aud"
+      ],
+      "stub": "stubs/audience-check.patch"
+    },
+    {
+      "id": "issuer-check",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "a token from another issuer is refused (C2)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "C2 iss another issuer → invalid_token / iss",
+        "C2 iss missing → invalid_token / iss"
+      ],
+      "stub": "stubs/issuer-check.patch"
+    },
+    {
+      "id": "expiry-check",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "an expired token is refused (C4: exp is compared with the clock, less the skew)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "C4 exp 90 s ago (skew 60) → invalid_token / exp"
+      ],
+      "stub": "stubs/expiry-check.patch"
+    },
+    {
+      "id": "algorithm-check",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "alg none, HS*, and algorithms off the allow-list are refused (H6)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "H6 alg none, unsigned → invalid_token / alg",
+        "H6 WO §5.1: HS256 keyed with the issuer's own public key → invalid_token / alg",
+        "H6 alg PS256, not on the allow-list → invalid_token / alg"
+      ],
+      "stub": "stubs/algorithm-check.patch"
+    },
+    {
+      "id": "signature-check",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "a token whose signature does not verify under a served key is refused (K3)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "K3 payload altered after signing → invalid_token / signature",
+        "K3 signed by another key under a served kid → invalid_token / signature"
+      ],
+      "stub": "stubs/signature-check.patch"
+    },
+    {
+      "id": "rsa-key-rules",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "an RSA key is used only with an odd exponent of at least 65537 and a 2048 to 8192 bit modulus (red-team F3)",
+      "touches": [
+        "packages/core/src/auth/jws.ts"
+      ],
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "the e=1 forgery: node:crypto verifies it against that key, and the verifier refuses it",
+        "K3 an RSA key of 1024 bits → invalid_token / key-mismatch"
+      ],
+      "stub": "stubs/rsa-key-rules.patch"
+    },
+    {
+      "id": "outage-503",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "an unreachable key set answers 503 with Retry-After and no challenge, not 401 (CSR-WO-1003a §1.1)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "cache expired and the issuer down: 503, Retry-After from the cooldown, no challenge, one auth-unavailable line; issuer up: 200",
+        "a cold cache with the issuer down, and a key set answering 200 with garbage: 503 each"
+      ],
+      "stub": "stubs/outage-503.patch"
+    }
+  ]
+}

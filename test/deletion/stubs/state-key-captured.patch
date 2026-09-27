@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -421,7 +421,7 @@
+         limits,
+         config,
+         serverInfo,
+-        requestStateKey,
++        requestStateKey: options.requestStateKey,
+         signal: aborter.signal,
+         now,
+         // Every call-scoped event carries the caller (CSR-WO-1003 §1.7), including a containment

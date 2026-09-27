@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -254,7 +254,7 @@
+   let resourceUrl = "";
+ 
+   // RFC 9728 §3.1: the metadata for a resource at a path lives at the well-known path plus that path.
+-  const challenge = (): Record<string, string> => ({ "WWW-Authenticate": `Bearer resource_metadata="${new URL(resourceUrl).origin}${PRM_PATH}${config.endpointPath}"` });
++  const challenge = (): Record<string, string> => ({});
+ 
+   /** Runs the verifier under its deadline. Dispatch needs ok === true and a non-empty principal
+    *  id; anything else never dispatches (F4). */

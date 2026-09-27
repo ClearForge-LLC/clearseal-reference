@@ -1,0 +1,19 @@
+{
+  "rows": [
+    {
+      "id": "red-proof-stale",
+      "section8": "red-proof of the runner itself",
+      "control": "(b) a stub that no longer applies",
+      "touches": [
+        "packages/core/src/pinning/gate.ts"
+      ],
+      "stub": "stale.patch",
+      "tests": [
+        "packages/core/test/pinning/gate.test.ts"
+      ],
+      "mustFail": [
+        "an edited description drifts the tool: refused, the rest admitted"
+      ]
+    }
+  ]
+}

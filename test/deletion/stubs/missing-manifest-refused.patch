@@ -1,0 +1,22 @@
+--- a/packages/core/src/pinning/registry.ts
++++ b/packages/core/src/pinning/registry.ts
+@@ -12,7 +12,7 @@
+ import { type Cage, type CagePolicy, cagePolicy, type Reach, recordingCageFactory } from "../containment/cage.ts";
+ import type { HarnessTool } from "../containment/harness.ts";
+ import { type Domain, DomainError, parseDomain } from "../containment/domain.ts";
+-import { ManifestError, type PinnableTool } from "./manifest.ts";
++import { buildManifest, ManifestError, type PinnableTool, serializeManifest } from "./manifest.ts";
+ import type { Limits } from "../transport/config.ts";
+ import { prepareTool, type PinningStatus, type RegisteredTool, type SchemaCompiler, type ToolRegistry } from "../transport/registry.ts";
+ 
+@@ -177,8 +177,8 @@
+   let text: string;
+   try {
+     text = readFileSync(manifestPath, "utf8");
+-  } catch (err) {
+-    throw new ManifestError(`the manifest cannot be read (${err instanceof Error && "code" in err ? String(err.code) : "error"}): a node without a manifest does not start`);
++  } catch {
++    text = serializeManifest(buildManifest(definitions));
+   }
+   return new PinnedRegistry(PinGate.load(text).admit(definitions), options);
+ }

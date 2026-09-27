@@ -41,6 +41,17 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     `EXEC_TOOLS_FORBIDDEN` is on, which is the default.
   - `tools/call` runs every handler inside a per-call cage and refuses an undeclared reach.
   - A reusable reach harness for editions.
+- **CSR-WO-2008:** the control-deletion job (N5).
+  - `test/deletion/controls.json` names 45 built controls. Each row has a reviewed stub (a patch
+    that deletes the control) and the specific tests that must fail. The rows cover every *built*
+    §8 row and every P1 exit-gate clause.
+  - `scripts/control-deletion.mjs` applies each stub to a throwaway copy of the tree, with its own
+    workspace links, and requires every named test to fail by assertion. A test that stays green,
+    fails some other way, or never runs, or a stub that no longer applies, fails the job and names
+    its row. The unpatched copy must pass the same tests first.
+  - `--self-test` proves the runner fails a no-op stub, a stale stub and a build-breaking stub.
+  - The `control-deletion` CI job runs it on every push and pull request. It is not a required
+    check.
 - **CSR-WO-1004:** the teaching edition's skeleton, and the supply-boundary test.
   - `packages/teaching`, a thin edition that depends on `@clearseal/core` through its package entry
     only. It exports tool definitions, its manifest path, a configuration schema and a `start()`

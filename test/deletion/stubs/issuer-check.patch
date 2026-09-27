@@ -1,0 +1,10 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -154,7 +154,6 @@
+     // K3
+     if (!keys.some((key) => verifySignature(alg as Alg, key, `${h}.${p}`, signature))) return fail("signature");
+     // C2
+-    if (payload["iss"] !== this.issuer) return fail("iss");
+     // C3: string-equal; a one-element array is the same audience; more than one is refused.
+     const aud = payload["aud"];
+     const audOk = aud === this.#audience || (Array.isArray(aud) && aud.length === 1 && aud[0] === this.#audience);

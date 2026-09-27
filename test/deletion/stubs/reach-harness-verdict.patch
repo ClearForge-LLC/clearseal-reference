@@ -1,0 +1,11 @@
+--- a/packages/core/src/containment/harness.ts
++++ b/packages/core/src/containment/harness.ts
+@@ -223,7 +223,7 @@
+     if (!posix.isAbsolute(p)) return false;
+     // The real path, as the cage checks it: a link inside a root that points outside is outside.
+     const real = resolveReal(posix.normalize(p));
+-    return domain.fs.map(resolveReal).some((root) => within(real, root));
++    return real !== "" || domain.fs.map(resolveReal).some((root) => within(real, root));
+   }
+   if (o.kind === "net") {
+     const colon = o.sink.lastIndexOf(":");

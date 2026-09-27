@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -263,7 +263,7 @@
+     const deadline = new Promise<"timeout">((resolve) => {
+       timer = setTimeout(() => {
+         resolve("timeout");
+-      }, limits.verifierTimeoutMs);
++      }, limits.verifierTimeoutMs * 30);
+     });
+     let verdict: Verdict | "timeout";
+     try {

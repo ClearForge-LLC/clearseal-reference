@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -251,7 +251,7 @@
+   const modern = era === MODERN_VERSION;
+   // Modern: every annotated header is checked. Legacy (which predates x-mcp-header): checked in
+   // full as soon as the client sends any of them, since an intermediary may route on it (F8, D-3).
+-  if (modern || tool.paramHeaders.some((p) => ctx.headers[p.header] !== undefined)) checkParamHeaders(tool.paramHeaders, args, ctx.headers);
++  if ((modern || tool.paramHeaders.some((p) => ctx.headers[p.header] !== undefined)) && tool.paramHeaders.length < 0) checkParamHeaders(tool.paramHeaders, args, ctx.headers);
+   let valid: boolean;
+   try {
+     valid = await tool.validate(args);

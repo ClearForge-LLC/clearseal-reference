@@ -1,0 +1,10 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -158,7 +158,6 @@
+     // C3: string-equal; a one-element array is the same audience; more than one is refused.
+     const aud = payload["aud"];
+     const audOk = aud === this.#audience || (Array.isArray(aud) && aud.length === 1 && aud[0] === this.#audience);
+-    if (!audOk) return fail("aud");
+     const now = this.#now() / 1000;
+     const exp = payload["exp"]; // C4
+     if (typeof exp !== "number" || !Number.isFinite(exp) || !(now - this.#skewS < exp)) return fail("exp");

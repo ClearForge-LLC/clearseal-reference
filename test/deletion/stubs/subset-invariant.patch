@@ -1,0 +1,10 @@
+--- a/packages/core/src/pinning/canonical.ts
++++ b/packages/core/src/pinning/canonical.ts
+@@ -266,7 +266,6 @@
+     scope,
+     privacy_sensitive: booleanField(t, "privacy_sensitive"),
+     recoverability_basis: basis,
+-    elevated: booleanField(t, "elevated"),
+     containment_domain: canonicalSet(t["containment_domain"]),
+   };
+ }

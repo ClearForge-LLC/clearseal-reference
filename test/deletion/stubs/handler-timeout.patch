@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -297,7 +297,7 @@
+   const deadline = new Promise<never>((_, reject) => {
+     timer = setTimeout(() => {
+       reject(new HandlerTimeout());
+-    }, ctx.limits.handlerTimeoutMs);
++    }, ctx.limits.handlerTimeoutMs * 30);
+     // A client disconnect ends the call: stop the clock, so no timeout is reported for it (F15).
+     ctx.signal.addEventListener("abort", () => {
+       clearTimeout(timer);
