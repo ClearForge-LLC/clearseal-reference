@@ -163,6 +163,12 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   adversarial pass: admitted tools deeply frozen so nothing in the process changes what `tools/list`
   serves (N2); the cage opens without blocking and admits regular files only; the Windows cage
   resolves symlinks and junctions, measured on `windows-latest`.
+- `CSR-WO-1007` — (WO written 2026-09-26; **P1 exits after it** and a targeted re-test of H1) the core
+  owns node assembly: `startNode` reads the committed manifest file and builds gate, registry and
+  transport; editions import only types from the core (and `startNode` in `bin/`); the boundary
+  checker's rules hold under aliasing; the P1 evidence test gains containment and audit clauses.
+  From the P1 exit red-team's H1 — a planted edition built its own gate — whose root was the
+  architect's `-1004` WO putting assembly in the edition.
 - `CSR-WO-1006a` — (WO written 2026-09-26) two transport corrections from `-1006` FEEDBACK before the
   P1 exit red-team: a handler is called with no `this` (A5: an unaudited cage); the running config is
   deeply frozen (A7).
@@ -188,8 +194,7 @@ by deleting the control it guards; a hand-edited description leaves that tool ab
 `tools/list` on restart; `curl -i` unauthenticated returns `401` with a `WWW-Authenticate` header
 carrying `resource_metadata`, and a token with a different audience also returns `401`; the
 enumeration detector goes red when a local copy of the standard's field list is edited; every
-committed cross-language vector hashes identically in the core; the supply-boundary test exists and
-goes red on a planted edition-side control; a forged `Origin` and an extra request property are each
+committed cross-language vector hashes identically in the core; the supply-boundary test exists and goes red on each planted edition-side control in its corpus, including the P1 exit red-team's (static reading is best-effort against a hostile author — `architecture.md` §4; the guarantee is that the only assembly path reads the committed manifest); a forged `Origin` and an extra request property are each
 refused before any handler runs.
 
 ### P2 · The rest of the core, and a teaching edition a reader can hold
@@ -213,7 +218,7 @@ red-proof, and the teaching edition demonstrates every rung except exec.
 - `CSR-WO-2007` — tripwire and rate limit, as two controls: a read-burst tripwire that emits one
   loud audit event and refuses nothing; a per-principal rate limit that answers `429` with
   `Retry-After` and leaves other principals untouched.
-- `CSR-WO-2008` — (WO written 2026-09-26; pulled forward during the P1 exit red-team, rows for every control built so far) the control-deletion job: each control stubbed out in turn, the suite required to
+- `CSR-WO-2008` — (built, merged `290077a` 2026-09-26: 45 controls; pulled forward during the P1 exit red-team, rows for every control built so far) the control-deletion job: each control stubbed out in turn, the suite required to
   fail for each; wired into CI as its own job.
 - `CSR-WO-2009` — the *resources* and *prompts* primitives (`resources/list`, `resources/read`,
   `prompts/list`, `prompts/get`, their list TTLs and `Mcp-Name` mirroring), pinned and validated
@@ -371,6 +376,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | 2026-09-25 | P0 exit gate amended: `-0101` is no longer a P0 clause; `v0.1` is cut at P0 exit per the gate's ruling on first tags. | The gate's rulings on the open choices, same day. |
 | 2026-09-25 | `-2009` (resources and prompts primitives) added to P2 under the completeness bar, after `-1005`'s conformance run showed every remaining failure was an unimplemented primitive. | The gate's ruling; sequenced after the controls so the primitives inherit pinning and validation rather than predating them. |
 | 2026-09-25 | `-1005a` inserted before `-1000`; `-2001` gains three acceptance lines from `-0101`; the client half of `-0101` added to the human track. | Same day; the spike's findings. |
+| 2026-09-26 | P1 exit gate clause on the supply-boundary test reworded to claim what it proves: red on each planted control in its corpus, best-effort against a hostile author, with the committed-manifest assembly path (`-1007`) as the guarantee. | The P1 exit red-team planted an edition whose aliasing passed the checker; a clause that says "a planted control" without a corpus claims more than static reading of JavaScript can deliver. |
 
 ## Provenance
 
