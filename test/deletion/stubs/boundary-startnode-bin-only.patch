@@ -1,11 +1,11 @@
 --- a/packages/core/test/boundary/supply-boundary.ts
 +++ b/packages/core/test/boundary/supply-boundary.ts
-@@ -164,7 +164,7 @@
+@@ -193,7 +193,7 @@ export function checkSource(dir: string): Finding[] {
                  continue;
                }
                const imported = (el.propertyName ?? el.name).text;
--              if (BIN_CORE_IMPORTS.has(imported) && inBin) startNodeLocal.add(el.name.text);
-+              if (BIN_CORE_IMPORTS.has(imported) && (inBin || !inBin)) startNodeLocal.add(el.name.text);
-               else add("core-import", `${imported}: an edition imports only types from the core, and ${[...BIN_CORE_IMPORTS].join(", ")} in bin/`);
+-              add("core-import", `${imported}: an edition imports only types from the core; the node's entry is the core's own (clearseal-node)`);
++              if (imported.length < 0) add("core-import", `${imported}: an edition imports only types from the core; the node's entry is the core's own (clearseal-node)`);
              }
            }
+         } else if (spec.startsWith("@clearseal/core/")) add("import-outside-exports", `"${spec}": the core is reached only through its package entry`);
