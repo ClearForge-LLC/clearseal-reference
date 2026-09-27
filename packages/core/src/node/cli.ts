@@ -50,9 +50,9 @@ function editionFrom(name: string, mod: Record<string, unknown>): { definitions:
 }
 
 /**
- * Flags that load a module before the entry runs (CSR-WO-1007c §1.2), by the name Node knows them by.
- * Enumerated against Node 24.21.0's `node --help` and its manual (node.1; nodejs.org/docs/latest-v24.x/
- * api/cli.html):
+ * Flags that run a module, or code, in this process before the entry runs (CSR-WO-1007c §1.2), by the
+ * name Node knows them by. Enumerated against Node 24.21.0's `node --help`, which lists every one, and
+ * nodejs.org/docs/latest-v24.x/api/cli.html (the shipped node.1 omits some, --import among them):
  *   --import, --require / -r         preload an ES module / a CommonJS module;
  *   --loader / --experimental-loader  a customization-hooks module, loaded first;
  *   --experimental-config-file, --experimental-default-config-file
@@ -61,13 +61,23 @@ function editionFrom(name: string, mod: Record<string, unknown>): { definitions:
  *   --snapshot-blob                  restores a startup snapshot: state built by code run elsewhere,
  *                                    and a deserialize-main function that runs in place of the entry;
  *   --experimental-package-map       a file that decides, exclusively, where every bare specifier
- *                                    resolves, so it chooses what the entry's own static imports load.
+ *                                    resolves, so it chooses what the entry's own static imports load;
+ *   -e / --eval, -p / --print, -pe   run a script that can import the entry itself, after running
+ *                                    anything else first (measured: the entry is then the main module);
+ *   --test, --test-reporter, --test-global-setup
+ *                                    the test runner, which with --test-isolation=none runs its reporter,
+ *                                    its global setup and other test files in this process first
+ *                                    (measured: a reporter module runs, then the entry starts a node).
  * `--env-file` is not here: a NODE_OPTIONS in the file is applied, but it also lands in the environment
  * this reads, so it is refused by what it carries.
  */
-export const MODULE_LOADING_FLAGS: ReadonlySet<string> = new Set(["--import", "--require", "-r", "--loader", "--experimental-loader", "--experimental-config-file", "--experimental-default-config-file", "--snapshot-blob", "--experimental-package-map"]);
+export const MODULE_LOADING_FLAGS: ReadonlySet<string> = new Set(["--import", "--require", "-r", "--loader", "--experimental-loader", "--experimental-config-file", "--experimental-default-config-file", "--snapshot-blob", "--experimental-package-map", "-e", "--eval", "-p", "--print", "-pe", "-ep", "--test", "--test-reporter", "--test-global-setup"]);
 
-/** NODE_OPTIONS as Node splits it: on whitespace, except inside double quotes, where \ escapes. */
+/**
+ * NODE_OPTIONS as Node splits it: at a space outside double quotes, with \ escaping inside them. This
+ * also splits at any other whitespace, where Node does not (it refuses such a token instead); that only
+ * ever finds more tokens, so it can refuse more, never less.
+ */
 function nodeOptionsTokens(value: string): string[] {
   const tokens: string[] = [];
   let token = "";
@@ -145,8 +155,9 @@ export async function runNode(env: NodeJS.ProcessEnv, execArgv: readonly string[
 /**
  * Is this file the process's main module? Compared by real path on both sides (CSR-WO-1007c §1.1): npm
  * installs `clearseal-node` as a symbolic link (a shim on Windows), and Node loads the main module by
- * its real path, so `import.meta.url` never equals the path the operator typed. `import.meta.main`
- * would also hold, but it is marked early development in Node 24.
+ * its real path, so `import.meta.url` is not the path the operator typed through a link (unless
+ * --preserve-symlinks-main, which this holds under too). `import.meta.main` would also hold, but it is
+ * marked early development in Node 24.
  */
 function isMain(): boolean {
   const script = process.argv[1];

@@ -82,7 +82,7 @@ const CONTROL_NAMES = new Set(["PinGate", "PinnedRegistry", "buildManifest", "se
  * `npm ci` run preinstall, install, postinstall, prepublish, preprepare, prepare and postprepare;
  * `npm rebuild` runs preinstall, install, postinstall and prepare; `dependencies` runs after any command
  * that changes node_modules. A `binding.gyp` at the package root makes npm run `node-gyp rebuild` as the
- * install script when none is declared, so it is refused alongside them.
+ * install script when neither `install` nor `preinstall` is declared, so it is refused alongside them.
  */
 export const INSTALL_SCRIPTS: readonly string[] = ["preinstall", "install", "postinstall", "prepublish", "preprepare", "prepare", "postprepare", "dependencies"];
 
@@ -294,7 +294,7 @@ function installScripts(dir: string, findings: Finding[]): void {
       if (Object.hasOwn(scripts, name)) findings.push({ file: "package.json", rule: "install-script", detail: `scripts.${name}: npm runs it when the edition is installed, before any node exists; an edition ships no install-time code` });
     }
   }
-  if (readdirSync(dir).some((name) => name.toLowerCase() === "binding.gyp")) findings.push({ file: "binding.gyp", rule: "install-script", detail: "npm runs node-gyp rebuild on install when a package ships binding.gyp and declares no install script; an edition ships no install-time code" });
+  if (readdirSync(dir).some((name) => name.toLowerCase() === "binding.gyp")) findings.push({ file: "binding.gyp", rule: "install-script", detail: "npm runs node-gyp rebuild on install when a package ships binding.gyp and declares neither install nor preinstall; an edition ships no install-time code" });
 }
 
 const CHILD = fileURLToPath(new URL("./supply-boundary-child.ts", import.meta.url));

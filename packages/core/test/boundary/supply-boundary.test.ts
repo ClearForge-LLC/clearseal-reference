@@ -203,6 +203,9 @@ void describe("CSR-WO-1007c §1.3, §1.4: what the checker cannot parse, and wha
     // "./m.wasm" reached no import rule.
     ['M-1: import source m from "./m.wasm"', "m1", { "src/index.ts": `export const definitions = [${TOOL}];\n`, "dist/index.js": `import source m from "./m.wasm";\nexport const definitions = [${TOOL}];\n` }, "./dist/index.js", /dist\/index\.js: parse-error: line 1: '=' expected\.: a statement these rules cannot parse can hide an import from every one of them/],
     ["M-1 in a file with no extension, parsed as the JavaScript Node loads it as", "m1-extless", { "src/index.ts": `import "./helper";\nexport const definitions = [${TOOL}];\n`, "src/helper": `import source m from "./m.wasm";\n` }, "./src/index.ts", /src\/helper: parse-error: line 1: '=' expected\./],
+    // The review pass's R3: M-1 fails to parse either way, so this is the case that shows an extensionless
+    // file is parsed as the JavaScript Node loads it as. As TypeScript, it has no diagnostic at all.
+    ["TypeScript syntax in a file with no extension, which Node loads as JavaScript and would refuse", "ts-extless", { "src/index.ts": `import "./helper";\nexport const definitions = [${TOOL}];\n`, "src/helper": "export const x: number = 1;\n" }, "./src/index.ts", /src\/helper: parse-error: line 1: Type annotations can only be used in TypeScript files\./],
     ["an unterminated string", "unterminated", { "src/index.ts": `export const definitions = [${TOOL}];\nexport const s = "unterminated;\n` }, "./src/index.ts", /src\/index\.ts: parse-error: line 2: Unterminated string literal\./],
   ];
   for (const [label, name, files, entry, rule] of parse) {
