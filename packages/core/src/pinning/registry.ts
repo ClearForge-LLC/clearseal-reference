@@ -9,6 +9,7 @@
 import { readFileSync } from "node:fs";
 
 import { type Admission, isIssuedAdmission, PinGate, type PinRefusal } from "./gate.ts";
+import { APPROVAL_BACKEND, ObligationError, obligationOf, unmetObligations } from "../capability/ladder.ts";
 import { type Cage, type CagePolicy, cagePolicy, type Reach, recordingCageFactory } from "../containment/cage.ts";
 import type { HarnessTool } from "../containment/harness.ts";
 import { type Domain, DomainError, parseDomain } from "../containment/domain.ts";
@@ -104,6 +105,10 @@ export class PinnedRegistry implements ToolRegistry {
         if (err instanceof DomainError) throw new ContainmentConstructionError(tool.name, err.message);
         throw err;
       }
+      // The capability obligation (CSR-WO-2000, capability/RULES.md), computed from the same frozen
+      // tag: Rule-of-Two, the owned_state basis, and no elevated tool while no approval backend exists.
+      const unmet = unmetObligations(tool.capability, obligationOf(tool.capability), APPROVAL_BACKEND);
+      if (unmet.length > 0) throw new ObligationError(tool.name, unmet);
       // Served exactly as hashed: the gate's frozen snapshot of name, description and schema.
       const prepared = prepareTool({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, handler: tool.handler }, options.compile, options.limits);
       tools.set(tool.name, frozenTool({ ...prepared, newCage: cageFor(domain, cagePolicy(capabilityClass)) }));
