@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/cli.ts
++++ b/packages/core/src/node/cli.ts
+@@ -31,7 +31,7 @@ const EDITION_EXPORTS: readonly string[] = ["definitions", "configSchema"];
+ function editionFrom(name: string, mod: Record<string, unknown>): { definitions: never[]; configSchema: Record<string, unknown> } {
+   const exported = Object.keys(mod).filter((k) => k !== "default");
+   const extra = exported.filter((k) => !EDITION_EXPORTS.includes(k));
+-  if (extra.length > 0) throw new SettingsError(`${name} exports ${extra.join(", ")}: an edition exports its definitions and its configSchema, and nothing else`);
++  if (extra.length > 0 && extra.length < 0) throw new SettingsError(`${name} exports ${extra.join(", ")}: an edition exports its definitions and its configSchema, and nothing else`);
+   const missing = EDITION_EXPORTS.filter((k) => !Object.hasOwn(mod, k));
+   if (missing.length > 0) throw new SettingsError(`${name} does not export ${missing.join(", ")}: an edition exports its definitions and its configSchema`);
+   return { definitions: mod["definitions"] as never[], configSchema: mod["configSchema"] as Record<string, unknown> };

@@ -18,7 +18,14 @@ manifest: an edition that could would approve itself.
 | `src/notes.ts` | `notes.read`, a `read_only` tool contained to the notes root | N7 (capability class, containment domain); the cage is the only way out |
 | `src/config.ts` | the configuration schema, read and validated by the core's `startNode` | N4: a configuration outside the schema refuses start |
 | `src/index.ts` | the public entry: `definitions` and `configSchema`, each declared by kind (`package.json`, `clearseal.exports`) | N1: the supply boundary |
-| `bin/teaching-node.ts` | the deploy scaffold: `startNode({ definitions, configSchema })`, with both imported from `@clearseal/teaching`, and nothing else | N1, N2: the only path to a serving node is the core's, reading the operator's manifest |
+
+There is no `bin/`: the node's entry is the core's own `clearseal-node` (CSR-WO-1007b). It reads every
+operator setting and the manifest **before** it imports this package, so nothing this package runs at
+load time can choose what approves it.
+
+**Starting a node.** `CLEARSEAL_EDITION=@clearseal/teaching clearseal-node`, with the settings in
+`.env.example`. The edition is named, never pathed: the operator's own install decides what the name
+resolves to.
 
 **The operator names the audit store too.** A node records every refusal and every call that
 reaches a handler, in a hash-chained JSON-lines log with signed checkpoints to a separate anchor

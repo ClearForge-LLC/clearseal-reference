@@ -1,11 +1,11 @@
---- a/packages/core/src/node/start.ts
-+++ b/packages/core/src/node/start.ts
-@@ -200,7 +200,7 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
-   const config = readEditionConfig(edition.configSchema, process.env);
-   // The audit store is configured before anything else is read, so a node never starts unrecorded
-   // (CSR-WO-2002 §1.5; audit/RULES.md AU-21, AU-22).
--  const auditConfig = auditFromEnv(process.env);
-+  const auditConfig = { mode: "seam-only" as const };
-   const file = readManifestFile(manifestPathFromEnv(process.env));
-   const sha256 = createHash("sha256").update(file.bytes).digest("hex");
-   // The log and the anchor are never the manifest (nor the key files: the store checks those).
+--- a/packages/core/src/node/settings.ts
++++ b/packages/core/src/node/settings.ts
+@@ -94,7 +94,7 @@ export function captureSettings(env: NodeJS.ProcessEnv): Settings {
+     pinStrict: pinStrictFromEnv(frozen),
+     execToolsForbidden: execToolsForbiddenFromEnv(frozen),
+     requestStateKey: key === undefined ? undefined : Object.freeze(Uint8Array.from(key)),
+-    audit: auditFromEnv(frozen),
++    audit: { mode: "seam-only" as const },
+     verifier: jwtVerifierFromEnv(frozen),
+   });
+ }

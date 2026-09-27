@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/start.ts
++++ b/packages/core/src/node/start.ts
+@@ -81,7 +81,7 @@ export function manifestPathFault(real: string | undefined, path: string): strin
+   } catch {
+     resolved = undefined;
+   }
+-  if (resolved !== undefined && resolved === real) return "the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way";
++  if (resolved === undefined || resolved !== real || real === undefined) return "the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way";
+   return "the manifest file changed while it was being opened (it was renamed, replaced or removed): a node reads one file, once";
+ }
+ 

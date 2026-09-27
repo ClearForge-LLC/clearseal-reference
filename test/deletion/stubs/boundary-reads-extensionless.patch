@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -102,7 +102,7 @@ function sourceFiles(dir: string, findings: Finding[]): string[] {
+       // extension (.json, .md) is data these rules do not cover.
+       // Case-insensitively: a file named .JS is a module on a case-insensitive file system, and reading
+       // it costs nothing (CSR-WO-1007b adversarial pass, L1).
+-      else if (/\.(ts|mts|cts|js|mjs|cjs|tsx|jsx)$/i.test(name) ? !/\.d\.ts$/i.test(name) : !name.includes(".")) out.push(p);
++      else if (/\.(ts|mts|cts|js|mjs|cjs|tsx|jsx)$/i.test(name) && !/\.d\.ts$/i.test(name)) out.push(p);
+     }
+   };
+   walk(dir, true);

@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 
-import { buildManifest, type PinnableTool, type RunningTransport, serializeManifest, startNode as coreStartNode } from "@clearseal/core";
+import { buildManifest, type PinnableTool, type RunningTransport, serializeManifest, startNodeFromEnv as coreStartNode } from "@clearseal/core";
 
 import { type AuditKit, auditKit } from "../../core/test/audit/keys.ts";
 import { AUDIENCE, ISSUER, TestIssuer } from "../../core/test/auth/issuer.ts";
@@ -60,8 +60,11 @@ export function restoreEnv(): void {
   saved.clear();
 }
 
-/** Starts a teaching node through the core's startNode, configured only by the environment, as a
- *  deployment is: the edition's definitions for this root, and the manifest pinned for them. */
+/** Starts a teaching node through the core's startNodeFromEnv, configured only by the environment: the
+ *  edition's definitions for this root, and the manifest pinned for them. A deployed node starts through
+ *  `clearseal-node`, which captures the settings before it imports the edition (CSR-WO-1007b); this
+ *  harness holds the definitions already, so it captures and starts in one step. The entry's ordering is
+ *  proven by the H-1 clause in p1-exit.test.ts and by core/test/node/cli.test.ts. */
 /** Every audit kit a started (or refused) node was given, in order: the canary scans all of them. */
 export const kits: AuditKit[] = [];
 
@@ -78,6 +81,7 @@ export async function startNode(issuer: TestIssuer, root: string, manifest: stri
     AUTH_JWKS_URL: issuer.jwksUrl,
     AUTH_AUDIENCE: AUDIENCE,
     AUTH_JWKS_CA_FILE: caFile,
+    CLEARSEAL_EDITION: "@clearseal/teaching",
     CLEARSEAL_MANIFEST: manifest,
     PIN_STRICT: undefined,
     AUDIT_STORE: undefined,
@@ -86,7 +90,7 @@ export async function startNode(issuer: TestIssuer, root: string, manifest: stri
   });
   const lines: string[] = [];
   kits.push(kit);
-  const t = await coreStartNode({ definitions: toolsFor(root), configSchema }, { audit: (e, f) => lines.push(`${e} ${JSON.stringify(f)}`) });
+  const t = await coreStartNode({ definitions: toolsFor(root), configSchema }, process.env, { audit: (e, f) => lines.push(`${e} ${JSON.stringify(f)}`) });
   return { t, lines, kit, close: () => t.close() };
 }
 

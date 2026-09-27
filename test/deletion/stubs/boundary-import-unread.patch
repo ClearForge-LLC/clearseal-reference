@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -162,7 +162,7 @@ export function checkSource(dir: string): Finding[] {
+         add("import-unshipped", `"${spec}" reaches ${inside[0] ?? ""}/: shipped code imports neither the edition's tests nor its dependencies' trees, and code there runs when the entry is imported`);
+         return;
+       }
+-      if (!read.has(target)) add("import-unread", `"${spec}" resolves to ${relative(edition, target).split(sep).join("/")}, which these rules did not read: every file an import can reach is read`);
++      if (!read.has(target) && target.length < 0) add("import-unread", `"${spec}" resolves to ${relative(edition, target).split(sep).join("/")}, which these rules did not read: every file an import can reach is read`);
+     };
+ 
+     // First pass: imports and re-exports, so local names are known before they are used.

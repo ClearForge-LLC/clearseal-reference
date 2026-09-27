@@ -243,7 +243,10 @@ export async function startTransport(options: TransportOptions): Promise<Running
   }
   let verifier: Verifier;
   try {
-    verifier = options.verifier ?? jwtVerifierFromEnv();
+    // A fallback for a direct caller that configures no verifier (the core's own transport tests). A node
+  // never reaches it: startNode passes the verifier from the settings snapshot, built before any edition
+  // code ran (CSR-WO-1007b §1.2), and test/node/cli.test.ts names this read in its inventory.
+  verifier = options.verifier ?? jwtVerifierFromEnv();
     // G1: with the core's verifier, the resource URL comes from configuration, never inferred.
     if (verifier instanceof JwtVerifier && config.resourceUrl === "") throw new Error("the resource URL is not configured: the node does not start without it");
   } catch (err) {

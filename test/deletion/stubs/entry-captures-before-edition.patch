@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/cli.ts
++++ b/packages/core/src/node/cli.ts
+@@ -40,6 +40,8 @@ function editionFrom(name: string, mod: Record<string, unknown>): { definitions:
+ /** Starts the node the environment describes. Returns its URL; throws to refuse start. */
+ export async function runNode(env: NodeJS.ProcessEnv): Promise<{ url: string; close: () => Promise<void> }> {
+   // 1, 2: every setting and the manifest, before any edition code.
++  const early = (await import(env["CLEARSEAL_EDITION"] ?? "node:os")) as Record<string, unknown>;
++  void early;
+   const settings = captureSettings(env);
+   const prepared = PreparedNode.prepare(settings);
+   try {

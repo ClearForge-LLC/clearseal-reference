@@ -9,6 +9,9 @@
       "default": "./dist/index.js"
     }
   },
+  "bin": {
+    "clearseal-node": "./dist/node/cli.js"
+  },
   "files": [
     "dist",
     "schemas"

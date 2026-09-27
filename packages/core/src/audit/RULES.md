@@ -53,6 +53,7 @@ Kinds of field:
 | Event | Written by | principal | Fields (kind) |
 |---|---|---|---|
 | `manifest-loaded` | `node/start.ts` | node | path (config), sha256 (hex64) |
+| `manifest-refused` | `node/start.ts` | node | path (config), sha256 (hex64), reason (errname) |
 | `audit-unanchored` | `audit/config.ts` (seam-only start) | node | mode (code) |
 | `pin-refused` | `transport/server.ts` | node | tool (tool), reason (code), rule (code) |
 | `pin-non-strict` | `transport/server.ts` | node | admitted (int), refused (int) |
@@ -144,6 +145,6 @@ No event carries a token, a header value or a JSON-RPC id. The transport never p
 
   Red-proofs: "start is refused for each missing or invalid AUDIT_* setting" [audit-start-fail-closed], [audit-log-not-a-key], [audit-strong-digest-key].
 - **AU-22** The one exception is `AUDIT_STORE=seam-only`, for development. It keeps today's stderr line and writes an `audit-unanchored` row first. It refuses start if any store setting is also set, so a configured store is never silently ignored. Any other `AUDIT_STORE` value refuses start. Red-proof: "seam-only starts with its audit-unanchored row" [audit-seam-only].
-- **AU-23** `manifest-loaded` is the first row a start writes to a new log. On a resumed log it follows `audit-resumed` (AU-25). Red-proof: "manifest-loaded is the first row of the run" [audit-first-row].
+- **AU-23** `manifest-loaded` is the first row a start writes to a new log, and it is written only after the manifest parses (CSR-WO-1007b §1.6). A manifest that is read but refused writes `manifest-refused` with the same path and hash instead, and start is refused. On a resumed log it follows `audit-resumed` (AU-25). Red-proof: "manifest-loaded is the first row of the run" [audit-first-row].
 - **AU-24** On start the store checks the anchor's last checkpoint against the log. A log shorter than that checkpoint, or one whose row at `count - 1` does not hash to its `head`, refuses start. So does a checkpoint under the store's own kid whose signature does not verify under its own key. A checkpoint under another kid, from a rotated key, is left to `audit verify` and its allowlist. Red-proofs: "the store refuses to start on a log behind its last checkpoint" [audit-start-anchor-count, audit-start-anchor-head] and "the store checks its own last checkpoint's signature at start" [audit-start-anchor-signature].
 - **AU-25** A store that resumes a log with rows in it writes `audit-resumed` as the run's first row. The row records `fromSeq` and `unanchored`, the number of rows after the last checkpoint that this run adopts and will cover with its next checkpoint (AU-12). Red-proof: "a resumed store records the unanchored rows it adopts" [audit-resumed].

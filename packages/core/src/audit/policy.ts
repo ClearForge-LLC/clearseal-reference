@@ -21,6 +21,7 @@ const TOOL_FIELDS = { tool: "tool" } as const;
 export const EVENTS: Readonly<Record<string, EventRule>> = Object.freeze({
   "manifest-loaded": { principal: "node", fields: { path: "config", sha256: "hex64" } },
   "audit-unanchored": { principal: "node", fields: { mode: "code" } },
+  "manifest-refused": { principal: "node", fields: { path: "config", sha256: "hex64", reason: "errname" } },
   "pin-refused": { principal: "node", fields: { tool: "tool", reason: "code", rule: "code" } },
   "pin-non-strict": { principal: "node", fields: { admitted: "int", refused: "int" } },
   "auth-audience-differs": { principal: "node", fields: { audience: "config", resource: "config" } },

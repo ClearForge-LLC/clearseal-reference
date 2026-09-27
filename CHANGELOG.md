@@ -41,6 +41,23 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     `EXEC_TOOLS_FORBIDDEN` is on, which is the default.
   - `tools/call` runs every handler inside a per-call cage and refuses an undeclared reach.
   - A reusable reach harness for editions.
+- **CSR-WO-1007b:** the core owns the process entry (the H1 re-test's H-1).
+  - `clearseal-node`, a core executable, is the only way a node starts. It reads every operator
+    setting — `CLEARSEAL_EDITION`, `CLEARSEAL_MANIFEST`, `PIN_STRICT`, `EXEC_TOOLS_FORBIDDEN`,
+    `AUTH_*`, `AUDIT_*`, the request-state key and the transport's settings — into one frozen
+    snapshot, reads and hashes and parses the manifest, and opens the audit store, **before** it
+    imports the edition. The edition is named by package, never by path.
+  - `startNode` takes the snapshot and the edition's two values, and no core code reads
+    `process.env` after the capture. A test rewrites the environment after capture and shows every
+    setting, and the running node's own configuration, unchanged; an inventory names every
+    `process.env` read in the core's source.
+  - Editions lose `bin/`: an edition imports types from the core and holds no core value at all.
+  - The supply-boundary checker reads every file an import can reach, extensions or none, and
+    refuses an import into the edition's `test/` or `node_modules/`, an import to any file it did
+    not read, and a package entry it did not read.
+  - `manifest-loaded` is written only after the manifest parses; a manifest read but refused writes
+    `manifest-refused` with the same path and hash. A manifest renamed or replaced under its path is
+    refused as a file that changed, not as a symbolic link.
 - **CSR-WO-2002:** the audit store behind the audit seam.
   - `packages/core/src/audit/`: the `AuditStore`, `AnchorSink` and `Signer` interfaces; a
     JSON-lines store whose rows (`{ seq, time, event, principal, fields, prev }`, canonical JSON)

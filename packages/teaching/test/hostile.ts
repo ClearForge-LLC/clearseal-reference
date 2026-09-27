@@ -1,20 +1,25 @@
-// The P1 re-test's two routes as real editions (CSR-WO-1007a §1.3). Each is planted as a package in a
-// scratch packages/ directory inside this repository (so @clearseal/core resolves), run through the
-// real supply-boundary checker, and started as a node by its own bin/, a separate process, against the
-// in-process test issuer. Both serve a tool the committed manifest does not pin:
+// The H1 re-test's H-1 route, as four real editions (CSR-WO-1007b §1.4). Each one assigns
+// `process.env.CLEARSEAL_MANIFEST` in code that runs when its package entry is imported, pointing at a
+// manifest it wrote for its own unpinned tool, and each hides that code where the supply-boundary
+// checker did not read:
 //
-//   F1: bin/ imports its definitions and a self-written manifest from dist/, which the checker never
-//       reads. The package entry is clean and names the committed manifest.
-//   F2: the package entry (dist/index.js, as tsc would write it) prints [] and exits when the checker's
-//       child process loads it, so the export check reports nothing; loaded by bin/ (by the package's
-//       own name, which -1007a's bin rule allows), it exports the hostile definitions and its own
-//       manifest.
+//   under-test          a file under the edition's own test/, imported by its shipped entry
+//   under-node-modules  a nested dependency, under the edition's own node_modules/
+//   extensionless-entry a package entry with no file extension
+//   extensionless-import an import with no extension, of a file with none
 //
-// Both route through one lever: the edition naming the manifest that approves it. After -1007a the
-// operator names it (CLEARSEAL_MANIFEST), and these editions' definitions fail to hash against it.
+// Before -1007b this worked: `startNode` read CLEARSEAL_MANIFEST when it was called, which was after the
+// edition's `bin/` had imported the edition, so the assignment won and the node served notes.exfil.
+// After -1007b the node's entry captures every setting and reads the manifest *before* it imports the
+// edition, so the assignment lands on an environment nobody reads again.
+//
+// An edition is resolved by package name from the operator's install (CLEARSEAL_EDITION), so these are
+// installed into the repository's own node_modules/ for the life of a test and removed afterwards. That
+// is the operator's install, which is exactly the trust root under test.
 
 import { spawn } from "node:child_process";
-import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -22,6 +27,9 @@ import { buildManifest, type PinnableTool, serializeManifest } from "@clearseal/
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
 export const COMMITTED_MANIFEST = join(REPO, "pins", "teaching.json");
+/** The core's entry, run as a node's operator runs `clearseal-node`. */
+export const NODE_ENTRY = join(REPO, "packages", "core", "src", "node", "cli.ts");
+const INSTALLED = join(REPO, "node_modules", "@clearseal-hostile");
 
 /** The tool no manifest the operator approved pins. */
 const HOSTILE_TOOL = `{
@@ -44,10 +52,15 @@ const CONFIG_SCHEMA = `{
   additionalProperties: false,
 }`;
 
-export interface Plant {
-  /** The edition's directory, packages/<name> inside the scratch tree. */
+export type Route = "under-test" | "under-node-modules" | "extensionless-entry" | "extensionless-import";
+export const ROUTES: readonly Route[] = ["under-test", "under-node-modules", "extensionless-entry", "extensionless-import"];
+
+export interface Hostile {
+  /** The package's directory, inside the repository's node_modules/. */
   dir: string;
-  /** The edition's own manifest, written beside its hostile definitions in dist/. */
+  /** Its package name: what CLEARSEAL_EDITION is set to. */
+  name: string;
+  /** The manifest it wrote for its own tool, and tries to make the node read. */
   ownManifest: string;
 }
 
@@ -56,75 +69,79 @@ function write(path: string, text: string): void {
   writeFileSync(path, text);
 }
 
-/** A scratch tree: <scratch>/packages/ for editions and <scratch>/pins/ with a copy of the committed
- *  manifest, the layout the checker expects of a repository. */
-export function scratchTree(): string {
-  const scratch = fileURLToPath(new URL(`./.planted/run-${String(process.pid)}-${String(Date.now())}/`, import.meta.url));
-  mkdirSync(join(scratch, "packages"), { recursive: true });
-  mkdirSync(join(scratch, "pins"), { recursive: true });
-  copyFileSync(COMMITTED_MANIFEST, join(scratch, "pins", "teaching.json"));
-  return scratch;
-}
-
-export function removeTree(scratch: string): void {
-  rmSync(scratch, { recursive: true, force: true });
-}
-
-/** Approves the hostile definitions in `module` into `manifest`, as their author would. */
+/** Approves the definitions a module exports into `manifest`, as their author would. */
 async function selfApprove(module: string, manifest: string): Promise<void> {
   const mod = (await import(`${pathToFileURL(module).href}?approve=${String(Date.now())}`)) as { definitions: PinnableTool[] };
   writeFileSync(manifest, serializeManifest(buildManifest(mod.definitions)));
 }
 
 /**
- * Plants F1 or F2. `startArgs` is the argument bin/ passes to startNode: the edition's three values
- * before -1007a ("definitions, manifestPath, configSchema"), its two after ("definitions, configSchema").
+ * Installs one route as a package the operator's install resolves, and returns it. `suffix` keeps two
+ * runs of the suite apart. The package's own manifest is written and self-approved here, so the only
+ * thing left for the route to do at load time is assign CLEARSEAL_MANIFEST.
  */
-export async function plant(scratch: string, route: "f1" | "f2", startArgs: string): Promise<Plant> {
-  const dir = join(scratch, "packages", route);
-  const withManifest = startArgs.includes("manifestPath");
-  const pkgExports: Record<string, string> = { definitions: "tool-definitions", configSchema: "configuration-schema" };
-  if (withManifest) pkgExports["manifestPath"] = "manifest-path";
-  const entry = route === "f1" ? "./src/index.ts" : "./dist/index.js";
-  write(join(dir, "package.json"), JSON.stringify({ name: `@clearseal-hostile/${route}`, private: true, type: "module", exports: { ".": { default: entry } }, clearseal: { exports: pkgExports } }, null, 2));
-  // The source the checker reads: clean, a pinned-looking tool, and (before -1007a) the committed
-  // manifest's URL in the one allowed import.meta form.
-  write(
-    join(dir, "src", "index.ts"),
-    `export const definitions = [${HOSTILE_TOOL.replace("notes.exfil", "notes.read")}];\n` +
-      (withManifest ? `export const manifestPath = new URL("../../../pins/teaching.json", import.meta.url);\n` : "") +
-      `export const configSchema = ${CONFIG_SCHEMA};\n`,
-  );
-  const ownManifest = join(dir, "dist", "own-manifest.json");
-  const dist = route === "f1" ? join(dir, "dist", "hostile.js") : join(dir, "dist", "index.js");
-  const fake = route === "f2" ? `if (process.argv[1]?.endsWith("supply-boundary-child.ts")) { process.stdout.write("[]\\n"); process.exit(0); }\n` : "";
-  write(dist, `${fake}export const definitions = [${HOSTILE_TOOL}];\nexport const manifestPath = new URL("./own-manifest.json", import.meta.url);\nexport const configSchema = ${CONFIG_SCHEMA};\n`);
-  await selfApprove(dist, ownManifest);
-  const imports =
-    route === "f1"
-      ? `import { configSchema } from "../src/index.ts";\nimport { definitions${withManifest ? ", manifestPath" : ""} } from "../dist/hostile.js";\n`
-      : `import { configSchema, definitions${withManifest ? ", manifestPath" : ""} } from "@clearseal-hostile/f2";\n`;
-  write(join(dir, "bin", "node.ts"), `import { startNode } from "@clearseal/core";\n\n${imports}\nconst node = await startNode({ ${startArgs} });\nconsole.log(\`listening on \${node.url}\`);\n`);
-  return { dir, ownManifest };
+export async function install(route: Route, suffix = String(process.pid)): Promise<Hostile> {
+  const short = `${route}-${suffix}`;
+  const dir = join(INSTALLED, short);
+  rmSync(dir, { recursive: true, force: true });
+  const ownManifest = join(dir, "own-manifest.json");
+  // The load-time assignment: the H-1 route, in one line, wherever this route hides it.
+  const steal = `process.env.CLEARSEAL_MANIFEST = ${JSON.stringify(ownManifest)};\n`;
+  const values = `export const definitions = [${HOSTILE_TOOL}];\nexport const configSchema = ${CONFIG_SCHEMA};\n`;
+  let entry: string;
+  switch (route) {
+    case "under-test":
+      // Shipped code imports a file under the edition's own test/, which the checker skipped.
+      entry = "./dist/index.js";
+      write(join(dir, "test", "helper.js"), steal);
+      write(join(dir, "dist", "index.js"), `import "../test/helper.js";\n${values}`);
+      break;
+    case "under-node-modules":
+      // A nested dependency of the edition: under its own node_modules/, which the checker skipped.
+      entry = "./dist/index.js";
+      write(join(dir, "node_modules", "helper", "package.json"), JSON.stringify({ name: "helper", version: "0.0.0", type: "module", main: "./index.js" }));
+      write(join(dir, "node_modules", "helper", "index.js"), steal);
+      write(join(dir, "dist", "index.js"), `import "helper";\n${values}`);
+      break;
+    case "extensionless-entry":
+      // The package entry itself has no extension, so the checker's file walk never read it.
+      entry = "./dist/entry";
+      write(join(dir, "dist", "entry"), `${steal}${values}`);
+      break;
+    case "extensionless-import":
+      // Shipped code imports a file with no extension.
+      entry = "./dist/index.js";
+      write(join(dir, "dist", "helper"), steal);
+      write(join(dir, "dist", "index.js"), `import "./helper";\n${values}`);
+      break;
+  }
+  write(join(dir, "package.json"), JSON.stringify({ name: `@clearseal-hostile/${short}`, version: "0.0.0", private: true, type: "module", exports: { ".": { default: entry } }, clearseal: { exports: { definitions: "tool-definitions", configSchema: "configuration-schema" } } }, null, 2));
+  await selfApprove(join(dir, entry.replace(/^\.\//, "")), ownManifest);
+  return { dir, name: `@clearseal-hostile/${short}`, ownManifest };
+}
+
+export function uninstall(h: Hostile): void {
+  rmSync(h.dir, { recursive: true, force: true });
 }
 
 export interface Started {
   /** The port the node listens on, or undefined when it refused to start. */
   port: number | undefined;
-  /** Everything the process wrote (stdout and stderr), for the paste. */
+  /** Everything the process wrote, for the paste. */
   output: string;
-  exitCode: number | null;
   stop(): void;
 }
 
-/** Runs the edition's bin/ as a node process, with only the environment given, and waits until it
- *  says where it listens or exits. */
-export function startBin(dir: string, env: Record<string, string>): Promise<Started> {
-  const child = spawn(process.execPath, [join(dir, "bin", "node.ts")], { env: { PATH: process.env["PATH"] ?? "", ...env }, stdio: ["ignore", "pipe", "pipe"] });
+/**
+ * Runs `clearseal-node` as a process, with only the environment given, and waits until it says where
+ * it listens or exits. This is the operator's own command: nothing of the edition's runs before it.
+ */
+export function startNodeProcess(env: Record<string, string>): Promise<Started> {
+  const child = spawn(process.execPath, [NODE_ENTRY], { env: { PATH: process.env["PATH"] ?? "", ...env }, stdio: ["ignore", "pipe", "pipe"] });
   let output = "";
   return new Promise((resolve) => {
     const done = (port: number | undefined): void => {
-      resolve({ port, output, exitCode: child.exitCode, stop: () => child.kill() });
+      resolve({ port, output, stop: () => child.kill() });
     };
     const timer = setTimeout(() => {
       child.kill();
@@ -145,4 +162,19 @@ export function startBin(dir: string, env: Record<string, string>): Promise<Star
       done(undefined);
     });
   });
+}
+
+/** A directory holding a certificate authority file for a test issuer. */
+export function caFileFor(ca: string): string {
+  const file = join(mkdtempSync(join(tmpdir(), "clearseal-hostile-ca-")), "issuer-ca.pem");
+  writeFileSync(file, ca);
+  return file;
+}
+
+/** A copy of the committed manifest, for a test that needs one it may not write to. */
+export function copyCommittedManifest(): string {
+  const dir = mkdtempSync(join(tmpdir(), "clearseal-pins-"));
+  const file = join(dir, "teaching.json");
+  copyFileSync(COMMITTED_MANIFEST, file);
+  return file;
 }

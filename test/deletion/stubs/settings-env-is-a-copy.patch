@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/settings.ts
++++ b/packages/core/src/node/settings.ts
+@@ -85,7 +85,7 @@ export function captureSettings(env: NodeJS.ProcessEnv): Settings {
+   // A frozen copy of our own: the caller's object can be written afterwards without changing this.
+   const copy: Record<string, string> = Object.create(null) as Record<string, string>;
+   for (const [k, v] of Object.entries(env)) if (typeof v === "string") copy[k] = v;
+-  const frozen = Object.freeze(copy);
++  const frozen = env as Readonly<Record<string, string>>;
+   const key = requestStateKeyFromEnv(frozen);
+   return Object.freeze({
+     env: frozen,

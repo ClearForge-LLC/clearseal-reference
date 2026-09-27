@@ -1,11 +1,11 @@
 --- a/packages/core/src/node/start.ts
 +++ b/packages/core/src/node/start.ts
-@@ -234,7 +234,7 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
-     options.audit?.(event, fields);
-   };
-   try {
--    if (auditConfig.mode === "seam-only") audit("audit-unanchored", { mode: "seam-only" });
-+    if (auditConfig.mode === "seam-only" && config.port < 0) audit("audit-unanchored", { mode: "seam-only" });
-     audit("manifest-loaded", { path: file.path, sha256 });
-     const gate = PinGate.load(file.bytes.toString("utf8"));
-     const key = requestStateKeyFromEnv();
+@@ -274,7 +274,7 @@ export class PreparedNode {
+       options.audit?.(event, fields);
+     };
+     try {
+-      if (settings.audit.mode === "seam-only") audit("audit-unanchored", { mode: "seam-only" });
++      if (settings.audit.mode === "seam-only" && sha256.length < 0) audit("audit-unanchored", { mode: "seam-only" });
+       let gate: PinGate;
+       try {
+         gate = PinGate.load(file.bytes.toString("utf8"));

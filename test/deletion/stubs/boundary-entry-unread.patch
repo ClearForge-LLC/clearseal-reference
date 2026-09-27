@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -271,7 +271,7 @@ function entryFilesChecked(dir: string, edition: string, read: ReadonlySet<strin
+       continue;
+     }
+     if (target !== edition && !target.startsWith(`${edition}${sep}`)) findings.push({ file: "package.json", rule: "entry-unread", detail: `exports names "${t}", which resolves outside the edition` });
+-    else if (!read.has(target)) findings.push({ file: "package.json", rule: "entry-unread", detail: `exports names "${t}", which these rules did not read: an entry the checker cannot read is code that runs unchecked when the node imports the edition` });
++    else if (!read.has(target) && t.length < 0) findings.push({ file: "package.json", rule: "entry-unread", detail: `exports names "${t}", which these rules did not read: an entry the checker cannot read is code that runs unchecked when the node imports the edition` });
+   }
+ }
+ 

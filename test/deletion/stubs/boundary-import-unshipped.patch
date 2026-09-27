@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -158,7 +158,7 @@ export function checkSource(dir: string): Finding[] {
+         return;
+       }
+       const inside = relative(edition, target).split(sep);
+-      if (inside.length > 1 && UNSHIPPED.includes(inside[0] as string)) {
++      if (inside.length > 1 && UNSHIPPED.includes(inside[0] as string) && inside.length < 0) {
+         add("import-unshipped", `"${spec}" reaches ${inside[0] ?? ""}/: shipped code imports neither the edition's tests nor its dependencies' trees, and code there runs when the entry is imported`);
+         return;
+       }
