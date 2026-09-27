@@ -236,31 +236,36 @@ void describe("CSR-WO-1007b §1.6: what the manifest's audit rows say", () => {
     pastes.push(`MANIFEST refused: ${(refused[0] ?? "").replace(createHash("sha256").update(readFileSync(bad)).digest("hex"), "<sha256>")}`);
   });
 
-  void it("a manifest renamed between the open and the check says the file changed, not that it is a link", (t) => {
-    if (process.platform === "win32") {
-      t.skip("POSIX: the check compares the descriptor's own path with the path it was given");
-      return;
-    }
+  void it("a manifest renamed between the open and the check says the file changed, not that it is a link", () => {
     // The core opens the manifest, then compares the descriptor's own path with the path it was given.
-    // The two ways those differ are built here, each on disk, so each message is proven and neither is
-    // a guess: a link on the way, and a file that is no longer at the path it was opened through.
+    // The two ways those differ are built here on disk, so each message is proven and neither is a guess.
     const dir = mkdtempSync(join(tmpdir(), "clearseal-rename-"));
     const real = join(dir, "real");
     mkdirSync(real);
     const inReal = join(real, "manifest.json");
     writeFileSync(inReal, serializeManifest(buildManifest([echo])));
-    symlinkSync(real, join(dir, "linked"));
-    const throughLink = join(dir, "linked", "manifest.json");
-    assert.match(manifestPathFault(inReal, throughLink), /passes through a symbolic link/);
-    // Renamed: the descriptor holds dir/moved.json, the path it was opened through is gone.
+    // A link on the way. Creating one needs a privilege Windows may withhold; where it cannot be made,
+    // the other branch below still runs, and the symlink rule has its own coverage in start.test.ts.
+    let link: string | undefined;
+    try {
+      symlinkSync(real, join(dir, "linked"), "dir");
+      link = join(dir, "linked", "manifest.json");
+    } catch (err) {
+      console.log(`MANIFEST a link on the way: not creatable here (${String((err as { code?: unknown }).code)}); the branch is exercised on POSIX`);
+    }
+    if (link !== undefined) {
+      assert.match(manifestPathFault(inReal, link), /passes through a symbolic link/);
+      pastes.push(`MANIFEST a link on the way: ${manifestPathFault(inReal, link)}`);
+    }
+    // Renamed: the descriptor holds dir/moved.json, and the path it was opened through is gone.
     const moved = join(dir, "moved.json");
     renameSync(inReal, moved);
     const changed = manifestPathFault(moved, inReal);
     assert.match(changed, /the manifest file changed while it was being opened \(it was renamed, replaced or removed\)/);
-    // And a replacement, not a removal: the path exists again, but names a different file.
+    // And replaced, not removed: the path exists again, but names a different file.
     writeFileSync(inReal, "{}\n");
     assert.match(manifestPathFault(moved, inReal), /changed while it was being opened/);
-    pastes.push(`MANIFEST a link on the way: ${manifestPathFault(inReal, throughLink)}`, `MANIFEST renamed or replaced under the path: ${changed}`);
+    pastes.push(`MANIFEST renamed or replaced under the path: ${changed}`);
     rmSync(dir, { recursive: true, force: true });
   });
 });

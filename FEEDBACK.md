@@ -223,7 +223,11 @@ header now says so, and points at the inventory and the mutation test, which are
   Windows runner, in two of my own new assertions: an audit row is JSON, so a Windows path's separators
   are escaped inside it, and I had compared the raw path text. (The `-1007a` clause I replaced had
   escaped it; I dropped that when I rewrote it.) Both now compare the parsed field, or the escaped
-  form, so they hold on either platform. Nothing in the core changed.
+  form, so they hold on either platform. The second Windows run then failed on `skipped 1`: my rename
+  test skipped its symbolic-link branch there, and this repo's runner counts a skip as a failure (and is
+  right to). The test now runs on both platforms: the rename and replacement branches always, and the
+  link branch where a link can be created, saying so when it cannot. Nothing in the core changed for
+  either fix.
 - Protected surfaces diff to empty against `b88f71f`, except the two the WO allows: `auth/**` and
   `transport/**` change only where an environment read moved (`transport/server.ts` gains a comment
   naming its verifier fallback, and `startTransport` gains no new behaviour), and `pinning/**` is
