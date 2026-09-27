@@ -1,6 +1,6 @@
 --- a/packages/core/src/capability/ladder.ts
 +++ b/packages/core/src/capability/ladder.ts
-@@ -76,7 +76,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
+@@ -80,7 +80,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
    const requires: Requirement[] = [];
    const forbids: Prohibition[] = [];
    const discharged: { rule: RuleId; reason: string }[] = [];

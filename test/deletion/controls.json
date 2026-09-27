@@ -1077,6 +1077,21 @@
       ]
     },
     {
+      "id": "owned-state-basis-legible",
+      "section8": "`owned_state` with pinned recoverability basis",
+      "control": "CAP-5: a basis with no letter or digit is refused",
+      "touches": [
+        "packages/core/src/capability/ladder.ts"
+      ],
+      "stub": "stubs/owned-state-basis-legible.patch",
+      "tests": [
+        "packages/core/test/capability/ladder.test.ts"
+      ],
+      "mustFail": [
+        "owned_state refuses a basis with no letter or digit"
+      ]
+    },
+    {
       "id": "owned-state-basis-length",
       "section8": "`owned_state` with pinned recoverability basis",
       "control": "CAP-5: a basis over 120 code points is refused",

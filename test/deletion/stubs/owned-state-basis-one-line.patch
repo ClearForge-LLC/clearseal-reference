@@ -1,11 +1,11 @@
 --- a/packages/core/src/capability/ladder.ts
 +++ b/packages/core/src/capability/ladder.ts
-@@ -100,7 +100,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
+@@ -104,7 +104,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
  export function basisProblem(basis: string | null): string | undefined {
    if (basis === null) return "it is missing";
    if (!/\S/u.test(basis)) return "it is empty or whitespace";
--  if (NOT_ONE_LINE.test(basis)) return "it is not one line (a line break, control or format character)";
-+  if (NOT_ONE_LINE.test(basis) && basis.length < 0) return "it is not one line (a line break, control or format character)";
+-  if (NOT_ONE_LINE.test(basis)) return "it is not one line (a line break, control, format, invisible or unassigned character)";
++  if (NOT_ONE_LINE.test(basis) && basis.length < 0) return "it is not one line (a line break, control, format, invisible or unassigned character)";
+   if (!LEGIBLE.test(basis)) return "it has no letter or digit";
    if ([...basis].length > MAX_BASIS) return `it is longer than ${String(MAX_BASIS)} characters`;
    return undefined;
- }

@@ -1,6 +1,6 @@
 --- a/packages/core/src/capability/ladder.ts
 +++ b/packages/core/src/capability/ladder.ts
-@@ -81,7 +81,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
+@@ -85,7 +85,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
    else forbids.push({ control: "recoverability_basis", rule: "CAP-6", reason: `recoverability_basis is null unless owned_state (§3); this tool is ${cls}` });
    if (cls === "arbitrary_exec") forbids.push({ control: "containment", rule: "N7", reason: "arbitrary_exec is refused a containment domain (N7)" });
    if (tag.untrusted_input_facing) {

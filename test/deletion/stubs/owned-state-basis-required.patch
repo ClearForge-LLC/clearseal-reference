@@ -1,6 +1,6 @@
 --- a/packages/core/src/capability/ladder.ts
 +++ b/packages/core/src/capability/ladder.ts
-@@ -77,7 +77,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
+@@ -81,7 +81,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
    const forbids: Prohibition[] = [];
    const discharged: { rule: RuleId; reason: string }[] = [];
    if (tag.elevated) requires.push({ anyOf: ["approval_backend"], rule: "CAP-7", reason: "elevated requires an approval backend; none is configured" });

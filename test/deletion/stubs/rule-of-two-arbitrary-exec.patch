@@ -1,6 +1,6 @@
 --- a/packages/core/src/capability/ladder.ts
 +++ b/packages/core/src/capability/ladder.ts
-@@ -83,7 +83,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
+@@ -87,7 +87,7 @@ export function obligationOf(tag: ObligationInput): Obligation {
    if (tag.untrusted_input_facing) {
      if (cls === "state_change") {
        requires.push({ anyOf: ["containment", "approval"], rule: "CAP-2", reason: "Rule-of-Two: an untrusted-input-facing state_change tool needs containment (a non-empty containment_domain) or approval (elevated, with an approval backend); it has neither" });

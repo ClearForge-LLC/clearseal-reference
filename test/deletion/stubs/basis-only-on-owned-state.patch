@@ -1,6 +1,6 @@
 --- a/packages/core/src/capability/ladder.ts
 +++ b/packages/core/src/capability/ladder.ts
-@@ -126,7 +126,7 @@ function carried(control: Control, tag: CapabilityTag): boolean {
+@@ -131,7 +131,7 @@ function carried(control: Control, tag: CapabilityTag): boolean {
      case "containment":
        return tag.containment_domain !== null;
      case "recoverability_basis":
