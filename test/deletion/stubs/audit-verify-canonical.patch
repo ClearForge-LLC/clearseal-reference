@@ -1,6 +1,6 @@
 --- a/packages/core/src/audit/verify.ts
 +++ b/packages/core/src/audit/verify.ts
-@@ -77,7 +77,7 @@ function canonical(line: string): { value: Record<string, unknown> } | { error:
+@@ -95,7 +95,7 @@ function canonical(line: string): { value: Record<string, unknown> } | { error:
    } catch (err) {
      return { error: err instanceof Error ? err.message : "not canonical", nonCanonical: true };
    }

@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -181,7 +181,7 @@ export function verifyAudit(logInput: string | Uint8Array, anchorInput: string |
+       return;
+     }
+     const c = r.value as Partial<Checkpoint>;
+-    if (typeof c.kid !== "string" || typeof c.seq !== "number" || typeof c.head !== "string" || !HEX64.test(c.head) || typeof c.count !== "number" || !Number.isSafeInteger(c.count) || c.count < 1 || typeof c.time !== "string" || typeof c.sig !== "string" || !SIGNATURE_FORM.test(c.sig) || Object.keys(c).length !== 6) {
++    if (typeof c.kid !== "string" || typeof c.seq !== "number" || typeof c.head !== "string" || !HEX64.test(c.head) || typeof c.count !== "number" || !Number.isSafeInteger(c.count) || c.count < 1 || typeof c.time !== "string" || typeof c.sig !== "string" || Object.keys(c).length !== 6) {
+       add("malformed-checkpoint", where, "not a checkpoint { kid, seq, head, count ≥ 1, time, sig } with a signature in its one base64url spelling");
+       return;
+     }

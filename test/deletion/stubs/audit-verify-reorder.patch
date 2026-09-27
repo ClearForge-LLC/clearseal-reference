@@ -1,6 +1,6 @@
 --- a/packages/core/src/audit/verify.ts
 +++ b/packages/core/src/audit/verify.ts
-@@ -121,7 +121,7 @@ export function verifyAudit(logText: string, anchorText: string, allowlist: read
+@@ -147,7 +147,7 @@ export function verifyAudit(logInput: string | Uint8Array, anchorInput: string |
      const repeated = known.indexOf(r.seq) !== known.lastIndexOf(r.seq);
      // Every seq present exactly once, in the wrong order: reordered, and nothing is missing.
      if (isPermutation) {

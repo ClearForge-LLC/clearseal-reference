@@ -1,6 +1,6 @@
 --- a/packages/core/src/audit/store.ts
 +++ b/packages/core/src/audit/store.ts
-@@ -184,7 +184,7 @@ export class JsonLinesStore implements AuditStore {
+@@ -230,7 +230,7 @@ export class JsonLinesStore implements AuditStore {
      if (this.#closed) return Promise.resolve();
      clearInterval(this.#timer);
      try {

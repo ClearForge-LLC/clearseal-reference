@@ -1,6 +1,6 @@
 --- a/packages/core/src/audit/store.ts
 +++ b/packages/core/src/audit/store.ts
-@@ -174,7 +174,7 @@ export class JsonLinesStore implements AuditStore {
+@@ -220,7 +220,7 @@ export class JsonLinesStore implements AuditStore {
    #checkpoint(): void {
      fsyncSync(this.#fd);
      const unsigned = { kid: this.#signer.kid, seq: this.#checkpointSeq, head: this.#prev, count: this.#seq, time: new Date(this.#now()).toISOString() };

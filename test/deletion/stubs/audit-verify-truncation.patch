@@ -1,6 +1,6 @@
 --- a/packages/core/src/audit/verify.ts
 +++ b/packages/core/src/audit/verify.ts
-@@ -169,7 +169,7 @@ export function verifyAudit(logText: string, anchorText: string, allowlist: read
+@@ -195,7 +195,7 @@ export function verifyAudit(logInput: string | Uint8Array, anchorInput: string |
      if (c.seq !== expectedSeq || c.count < lastCount) add("checkpoint-replayed", where, `checkpoint seq ${String(c.seq)} (count ${String(c.count)}) where seq ${String(expectedSeq)} (count at least ${String(lastCount)}) was expected: a checkpoint was replayed, removed or reordered`);
      expectedSeq = Math.max(expectedSeq, c.seq + 1);
      lastCount = Math.max(lastCount, c.count);

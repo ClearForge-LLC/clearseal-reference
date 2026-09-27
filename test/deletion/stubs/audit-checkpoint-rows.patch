@@ -1,6 +1,6 @@
 --- a/packages/core/src/audit/store.ts
 +++ b/packages/core/src/audit/store.ts
-@@ -158,7 +158,7 @@ export class JsonLinesStore implements AuditStore {
+@@ -204,7 +204,7 @@ export class JsonLinesStore implements AuditStore {
      writeSync(this.#fd, `${line}\n`);
      this.#seq += 1;
      this.#prev = lineHash(line);

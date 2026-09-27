@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/policy.ts
++++ b/packages/core/src/audit/policy.ts
+@@ -30,7 +30,7 @@ export const EVENTS: Readonly<Record<string, EventRule>> = Object.freeze({
+   "auth-refused": { principal: "unauthenticated", fields: { reason: "code" } },
+   "http-refused": { principal: "caller-or-unauthenticated", fields: { status: "int", reason: "code" } },
+   "rpc-refused": { principal: "caller", fields: { code: "int", method: "method" } },
+-  "transport-error": { principal: "caller-or-unauthenticated", fields: { reason: "errname" } },
++  "transport-error": { principal: "caller-or-unauthenticated", fields: { reason: "code" } },
+   "result-over-cap": { principal: "caller", fields: { method: "method", limit: "int" } },
+   "validation-timeout": { principal: "caller", fields: { tool: "tool", limitMs: "int" } },
+   "validation-error": { principal: "caller", fields: TOOL_FIELDS },

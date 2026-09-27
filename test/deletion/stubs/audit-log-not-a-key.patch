@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/store.ts
++++ b/packages/core/src/audit/store.ts
+@@ -127,7 +127,7 @@ export class JsonLinesStore implements AuditStore {
+     try {
+       if (options.anchor instanceof FileAnchor && fileIdentity(options.anchor.fd) === fileIdentity(this.#fd)) throw new AuditConfigError("AUDIT_LOG and AUDIT_ANCHOR name the same file: the anchor is a separate file");
+       for (const f of options.forbidden ?? []) {
+-        if (fileIdentity(this.#fd) === f.identity) throw new AuditConfigError(`AUDIT_LOG is the same file as ${f.setting}: the log is its own file`);
++        if (fileIdentity(this.#fd) === f.identity && f.setting === "") throw new AuditConfigError(`AUDIT_LOG is the same file as ${f.setting}: the log is its own file`);
+         if (options.anchor instanceof FileAnchor && fileIdentity(options.anchor.fd) === f.identity) throw new AuditConfigError(`AUDIT_ANCHOR is the same file as ${f.setting}: the anchor is its own file`);
+       }
+       // Resume from what is there (AU-2), refusing a log that is not valid UTF-8 or not an audit log,

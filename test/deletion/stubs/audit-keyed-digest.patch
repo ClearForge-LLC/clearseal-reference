@@ -1,25 +1,6 @@
 --- a/packages/core/src/audit/digest.ts
 +++ b/packages/core/src/audit/digest.ts
-@@ -29,16 +29,30 @@ export interface Digester {
-   readonly value: (label: string, value: unknown) => string;
- }
- 
-+/** A value's text for a digest, with its type, so distinct values never share one: NaN, the
-+ *  infinities, -0, undefined and null each have their own; a BigInt does not throw. */
-+function tagged(value: unknown): string {
-+  if (typeof value === "number") return `number:${Object.is(value, -0) ? "-0" : String(value)}`;
-+  if (typeof value === "bigint") return `bigint:${value.toString()}`;
-+  if (value === undefined) return "undefined";
-+  try {
-+    return `json:${JSON.stringify(value, (_k, v: unknown) => (typeof v === "bigint" ? `${v.toString()}n` : v === undefined ? "(undefined)" : v))}`;
-+  } catch {
-+    // Unserializable (a cycle): its type alone, so the digest is still stable and still keyed.
-+    return `unserializable:${typeof value}`;
-+  }
-+}
-+
- /** A digester under the operator's key. The key is copied; the caller's buffer is not kept. */
- export function keyedDigester(kid: string, key: Uint8Array): Digester {
+@@ -48,7 +48,7 @@ export function keyedDigester(kid: string, key: Uint8Array): Digester {
    if (!KID.test(kid)) throw new TypeError("a digest key id matches [A-Za-z0-9._-]{1,64}");
    if (key.length < 32) throw new TypeError("a digest key is at least 32 bytes");
    const k = Buffer.from(key);
@@ -28,8 +9,3 @@
    return Object.freeze({
      kid,
      args: (args: unknown): string => mac(ARGS_CONTEXT, argumentsDigest(args)),
--    value: (label: string, value: unknown): string => mac(FIELD_CONTEXT, `${label}\n${JSON.stringify(value ?? null)}`),
-+    value: (label: string, value: unknown): string => mac(FIELD_CONTEXT, `${label}\n${tagged(value)}`),
-   });
- }
- 

@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/config.ts
++++ b/packages/core/src/audit/config.ts
+@@ -72,7 +72,7 @@ export function auditFromEnv(env: NodeJS.ProcessEnv): AuditMode {
+   if (digestKey.length < 32) throw new AuditConfigError("AUDIT_DIGEST_KEY_FILE must hold at least 32 bytes (base64url)");
+   // A made-up key is not a key: 32 random bytes have about 30 distinct values; fewer than 8 is a
+   // pattern (all zeros, a repeated character), never the output of a generator.
+-  if (new Set(digestKey).size < 8) throw new AuditConfigError("AUDIT_DIGEST_KEY_FILE holds a patterned key (fewer than 8 distinct byte values): generate it from a random source");
++  if (new Set(digestKey).size < 8 && digestKey.length < 0) throw new AuditConfigError("AUDIT_DIGEST_KEY_FILE holds a patterned key (fewer than 8 distinct byte values): generate it from a random source");
+   const signingFile = readKeyFile("AUDIT_SIGNING_KEY_FILE", get("AUDIT_SIGNING_KEY_FILE"));
+   let signer: Signer;
+   try {

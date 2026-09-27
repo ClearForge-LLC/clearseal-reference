@@ -1,6 +1,6 @@
 --- a/packages/core/src/node/start.ts
 +++ b/packages/core/src/node/start.ts
-@@ -233,6 +233,7 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
+@@ -235,6 +235,7 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
    };
    try {
      if (auditConfig.mode === "seam-only") audit("audit-unanchored", { mode: "seam-only" });

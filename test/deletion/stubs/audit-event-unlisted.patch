@@ -1,0 +1,9 @@
+--- a/packages/core/src/audit/policy.ts
++++ b/packages/core/src/audit/policy.ts
+@@ -115,5 +115,5 @@ export function shapeRow(event: string, input: Readonly<Record<string, unknown>>
+   else if (rule.principal === "node") principal = "node";
+   else if (rule.principal === "unauthenticated") principal = caller ?? "unauthenticated";
+   else principal = caller ?? (rule.principal === "caller" ? "unattributed" : "unauthenticated");
+-  return { event: rule === undefined ? "unlisted" : event, principal, fields };
++  return { event, principal, fields };
+ }

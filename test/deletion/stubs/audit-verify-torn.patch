@@ -1,11 +1,11 @@
 --- a/packages/core/src/audit/verify.ts
 +++ b/packages/core/src/audit/verify.ts
-@@ -105,7 +105,7 @@ export function verifyAudit(logText: string, anchorText: string, allowlist: read
+@@ -128,7 +128,7 @@ export function verifyAudit(logInput: string | Uint8Array, anchorInput: string |
      }
      return { seq, prev };
    });
--  if (log.torn !== undefined) add("torn-final-line", `log line ${String(log.complete.length + 1)}`, "the log does not end with a newline: its last line is incomplete (a crash mid-write), and is not part of the chain");
-+  if (log.torn !== undefined && log.torn.length < 0) add("torn-final-line", `log line ${String(log.complete.length + 1)}`, "the log does not end with a newline: its last line is incomplete (a crash mid-write), and is not part of the chain");
- 
-   // Seq: 0, 1, 2, … with no gap, no repeat and no reversal (AU-14, AU-15).
-   const seqs = rows.map((r) => r?.seq);
+-  if (log.torn !== undefined) {
++  if (log.torn !== undefined && log.torn.length < 0) {
+     const checked = log.complete[log.complete.length - 1] === log.torn;
+     add("torn-final-line", `log line ${String(checked ? log.complete.length : log.complete.length + 1)}`, checked ? "the log does not end with a newline, though its last line is a complete row: it is checked like the rest" : "the log does not end with a newline: its last line is incomplete (a crash mid-write), and is not part of the chain");
+   }

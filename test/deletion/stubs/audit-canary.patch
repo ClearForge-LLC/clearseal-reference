@@ -1,6 +1,6 @@
 --- a/packages/core/src/audit/policy.ts
 +++ b/packages/core/src/audit/policy.ts
-@@ -62,7 +62,7 @@ function ofKind(kind: Kind, v: unknown): boolean {
+@@ -69,7 +69,7 @@ function ofKind(kind: Kind, v: unknown): boolean {
      case "tool":
        return typeof v === "string" && TOOL.test(v);
      case "method":

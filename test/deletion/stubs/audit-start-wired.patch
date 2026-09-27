@@ -8,4 +8,4 @@
 +  const auditConfig = { mode: "seam-only" as const };
    const file = readManifestFile(manifestPathFromEnv(process.env));
    const sha256 = createHash("sha256").update(file.bytes).digest("hex");
-   const store = openAuditStore(auditConfig);
+   // The log and the anchor are never the manifest (nor the key files: the store checks those).

@@ -1,6 +1,6 @@
 --- a/packages/core/src/audit/verify.ts
 +++ b/packages/core/src/audit/verify.ts
-@@ -160,7 +160,7 @@ export function verifyAudit(logText: string, anchorText: string, allowlist: read
+@@ -186,7 +186,7 @@ export function verifyAudit(logInput: string | Uint8Array, anchorInput: string |
        return;
      }
      const key = keys.get(c.kid);

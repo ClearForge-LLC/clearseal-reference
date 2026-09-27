@@ -1,7 +1,7 @@
 --- a/packages/core/src/audit/store.ts
 +++ b/packages/core/src/audit/store.ts
-@@ -145,7 +145,7 @@ export class JsonLinesStore implements AuditStore {
-     }
+@@ -186,7 +186,7 @@ export class JsonLinesStore implements AuditStore {
+     this.#resumed = this.#seq > 0 ? { fromSeq: this.#seq, unanchored: this.#seq - this.#checkpointedCount } : undefined;
      this.#timer = setInterval(() => {
        this.#checkpointIfPending();
 -    }, options.checkpointMs);

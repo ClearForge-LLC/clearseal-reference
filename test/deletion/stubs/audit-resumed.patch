@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/store.ts
++++ b/packages/core/src/audit/store.ts
+@@ -192,7 +192,7 @@ export class JsonLinesStore implements AuditStore {
+ 
+   append(event: string, fields: AuditFields): void {
+     if (this.#closed) throw new Error("the audit store is closed");
+-    if (this.#resumed !== undefined) {
++    if (this.#resumed !== undefined && this.#seq < 0) {
+       const r = this.#resumed;
+       this.#resumed = undefined;
+       this.append("audit-resumed", r);

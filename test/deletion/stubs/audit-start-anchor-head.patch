@@ -1,8 +1,8 @@
 --- a/packages/core/src/audit/store.ts
 +++ b/packages/core/src/audit/store.ts
-@@ -135,7 +135,7 @@ export class JsonLinesStore implements AuditStore {
-         const last = JSON.parse(lastLine) as Partial<Checkpoint>;
-         if (typeof last.seq !== "number" || typeof last.count !== "number" || typeof last.head !== "string") throw new AuditConfigError("the audit anchor's last line is not a checkpoint");
+@@ -172,7 +172,7 @@ export class JsonLinesStore implements AuditStore {
+           if (!verifyWith(entry, checkpointPayload({ kid: last.kid, seq: last.seq, head: last.head, count: last.count, time: last.time }), Buffer.from(last.sig, "base64url"))) throw new AuditConfigError("AUDIT_ANCHOR's last checkpoint does not verify under the signing key: run `npm run audit -- verify`");
+         }
          if (last.count > rows.length) throw new AuditConfigError(`the audit log has ${String(rows.length)} rows but its last checkpoint covers ${String(last.count)}: it was truncated behind the checkpoint`);
 -        if (last.count > 0 && lineHash(rows[last.count - 1] as string) !== last.head) throw new AuditConfigError(`the audit log's row ${String(last.count - 1)} does not match its last checkpoint's head: it was edited or re-chained`);
 +        if (last.count > 0 && lineHash(rows[last.count - 1] as string) !== last.head && rows.length < 0) throw new AuditConfigError(`the audit log's row ${String(last.count - 1)} does not match its last checkpoint's head: it was edited or re-chained`);

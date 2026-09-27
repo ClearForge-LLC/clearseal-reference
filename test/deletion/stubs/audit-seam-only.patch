@@ -1,6 +1,6 @@
 --- a/packages/core/src/node/start.ts
 +++ b/packages/core/src/node/start.ts
-@@ -232,7 +232,7 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
+@@ -234,7 +234,7 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
      options.audit?.(event, fields);
    };
    try {
