@@ -19,7 +19,7 @@
 // variable with the edition's prefix included, refuses start (N4).
 
 import { createHash } from "node:crypto";
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,6 +31,7 @@ import { requestStateKeyFromEnv } from "../transport/request-state.ts";
 import { compileSchema } from "../transport/schema.ts";
 import { ValidationPool } from "../transport/schema-pool.ts";
 import { renderAuditLine, type RunningTransport, startTransport } from "../transport/server.ts";
+import { auditFromEnv, openAuditStore } from "../audit/config.ts";
 
 /** What an edition hands the core: nothing else. Not the manifest: the operator names it. */
 export interface Edition {
@@ -186,8 +187,9 @@ export function manifestPathFromEnv(env: NodeJS.ProcessEnv): string | URL {
  * names in CLEARSEAL_MANIFEST, the gate and the registry built here, the transport started. Refuses to
  * start (throws) on a configuration outside the schema, a missing CLEARSEAL_MANIFEST, a manifest that
  * is not a regular file or does not parse, a drifted, unpinned or removed tool under the strict
- * default, or missing AUTH_* settings. Writes one manifest-loaded audit line, with the file's path and
- * SHA-256, before the gate admits anything.
+ * default, missing AUTH_* settings, or a missing or invalid audit configuration (AUDIT_*; the
+ * development exception is AUDIT_STORE=seam-only). Writes one manifest-loaded audit row, with the
+ * file's path and SHA-256, before the gate admits anything: the first row of the run's chain.
  */
 export async function startNode(edition: Edition, options: StartNodeOptions = {}): Promise<RunningTransport> {
   if (typeof edition !== "object" || edition === null || !Array.isArray(edition.definitions) || typeof edition.configSchema !== "object" || edition.configSchema === null) {
@@ -196,27 +198,81 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
   const extra = Reflect.ownKeys(edition).filter((k) => typeof k !== "string" || !EDITION_KEYS.includes(k));
   if (extra.length > 0) throw new NodeStartError(`startNode takes an edition's definitions and configSchema, nothing else (not ${extra.map(String).join(", ")}): the operator names the manifest in CLEARSEAL_MANIFEST`);
   const config = readEditionConfig(edition.configSchema, process.env);
+  // The audit store is configured before anything else is read, so a node never starts unrecorded
+  // (CSR-WO-2002 §1.5; audit/RULES.md AU-21, AU-22).
+  const auditConfig = auditFromEnv(process.env);
   const file = readManifestFile(manifestPathFromEnv(process.env));
   const sha256 = createHash("sha256").update(file.bytes).digest("hex");
-  const audit = options.audit ?? ((event: string, fields: Record<string, string | number>) => console.error(renderAuditLine(event, fields)));
-  audit("manifest-loaded", { path: file.path, sha256 });
-  const gate = PinGate.load(file.bytes.toString("utf8"));
-  const key = requestStateKeyFromEnv();
-  const limits = DEFAULT_LIMITS;
-  const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
-  let registry: PinnedRegistry;
+  // The log and the anchor are never the manifest (nor the key files: the store checks those).
+  const manifestStat = statSync(file.path, { bigint: true });
+  const store = openAuditStore(auditConfig, undefined, [{ setting: "CLEARSEAL_MANIFEST", identity: `${String(manifestStat.dev)}:${String(manifestStat.ino)}` }]);
+  const stderr = (event: string, fields: Record<string, string | number>): void => {
+    console.error(renderAuditLine(event, fields));
+  };
+  let running: RunningTransport | undefined;
+  let stopping = false;
+  // With a store, every row goes to it, and options.audit (the core's tests) observes. Without one
+  // (seam-only), options.audit replaces the stderr line, as before -2002. A row that cannot be written
+  // stops the node: before start it refuses start; after, the transport is closed, so the node never
+  // serves unrecorded (N4).
+  const audit = (event: string, fields: Record<string, string | number>): void => {
+    if (store === undefined) {
+      (options.audit ?? stderr)(event, fields);
+      return;
+    }
+    try {
+      store.append(event, fields);
+    } catch (err) {
+      stderr("audit-store-failed", { event, reason: err instanceof Error ? err.name : "error" });
+      if (running === undefined) throw err;
+      if (!stopping) {
+        stopping = true;
+        void running.close();
+      }
+      return;
+    }
+    options.audit?.(event, fields);
+  };
   try {
-    registry = new PinnedRegistry(gate.admit(edition.definitions), { compile: pool.compile, limits });
+    if (auditConfig.mode === "seam-only") audit("audit-unanchored", { mode: "seam-only" });
+    audit("manifest-loaded", { path: file.path, sha256 });
+    const gate = PinGate.load(file.bytes.toString("utf8"));
+    const key = requestStateKeyFromEnv();
+    const limits = DEFAULT_LIMITS;
+    const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
+    let registry: PinnedRegistry;
+    try {
+      registry = new PinnedRegistry(gate.admit(edition.definitions), { compile: pool.compile, limits });
+    } catch (err) {
+      await pool.close();
+      throw err;
+    }
+    const t = await startTransport({
+      registry,
+      serverInfo: SERVER_INFO,
+      config: { host: config.host, port: config.port, resourceUrl: config.resourceUrl },
+      validationPool: pool,
+      ...(key === undefined ? {} : { requestStateKey: key }),
+      audit,
+      ...(store === undefined ? {} : { argumentDigest: store.digester.args }),
+    });
+    // Closing the node closes the store after the transport: its last rows, then a final checkpoint.
+    running = Object.freeze({
+      port: t.port,
+      url: t.url,
+      config: t.config,
+      inFlight: () => t.inFlight(),
+      close: async (): Promise<void> => {
+        try {
+          await t.close();
+        } finally {
+          await store?.close();
+        }
+      },
+    });
+    return running;
   } catch (err) {
-    await pool.close();
+    await store?.close();
     throw err;
   }
-  return startTransport({
-    registry,
-    serverInfo: SERVER_INFO,
-    config: { host: config.host, port: config.port, resourceUrl: config.resourceUrl },
-    validationPool: pool,
-    ...(key === undefined ? {} : { requestStateKey: key }),
-    audit,
-  });
 }

@@ -1,0 +1,10 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -305,7 +305,6 @@ async function runHandler(tool: RegisteredTool, args: Record<string, unknown>, c
+     outcome.value = isPlainObject(result) && (result as Record<string, unknown>)["isError"] === true ? "tool-error" : "ok";
+     return result;
+   } finally {
+-    ctx.audit("tool-call", { tool: tool.definition.name, outcome: outcome.value, args: ctx.digestArgs(args) });
+   }
+ }
+ 

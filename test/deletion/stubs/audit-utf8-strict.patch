@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -56,7 +56,7 @@ interface ParsedRow {
+ 
+ /** Decodes a file's bytes as UTF-8, strictly: an invalid sequence is a finding, never a replacement
+  *  character, so the text hashed is the bytes on disk and no row has two byte spellings (AU-1, AU-16). */
+-const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
++const UTF8 = new TextDecoder("utf-8", { fatal: false, ignoreBOM: true });
+ export function decodeStrict(input: string | Uint8Array): string | undefined {
+   if (typeof input === "string") return input;
+   try {

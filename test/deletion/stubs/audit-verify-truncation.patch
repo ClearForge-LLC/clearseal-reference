@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -195,7 +195,7 @@ export function verifyAudit(logInput: string | Uint8Array, anchorInput: string |
+     if (c.seq !== expectedSeq || c.count < lastCount) add("checkpoint-replayed", where, `checkpoint seq ${String(c.seq)} (count ${String(c.count)}) where seq ${String(expectedSeq)} (count at least ${String(lastCount)}) was expected: a checkpoint was replayed, removed or reordered`);
+     expectedSeq = Math.max(expectedSeq, c.seq + 1);
+     lastCount = Math.max(lastCount, c.count);
+-    if (c.count > log.complete.length) add("truncated-behind-checkpoint", where, `checkpoint ${String(c.seq)} covers ${String(c.count)} rows; the log has ${String(log.complete.length)}: the log was truncated behind it`);
++    if (c.count > log.complete.length) void where; else if (c.count < 0) add("truncated-behind-checkpoint", where, `checkpoint ${String(c.seq)} covers ${String(c.count)} rows; the log has ${String(log.complete.length)}: the log was truncated behind it`);
+     else if (c.count > 0 && lineHash(log.complete[c.count - 1] as string) !== c.head) add("head-mismatch", where, `checkpoint ${String(c.seq)}'s head is not the hash of row ${String(c.count - 1)}: the log was edited or re-chained behind it`);
+     lastCovered = Math.max(lastCovered, c.count);
+   });

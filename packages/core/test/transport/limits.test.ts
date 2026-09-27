@@ -89,7 +89,8 @@ void describe("result cap and handler timeout at their edges", () => {
       const r = await modern(s.t, "tools/call", { name: "slow", arguments: {} });
       assert.equal(r.status, 500);
       assert.ok(Date.now() - started < 2000);
-      assert.deepEqual(s.audits, ["handler-timeout"]);
+      // The timeout's line, then the call's one tool-call row (CSR-WO-2002 §1.2).
+      assert.deepEqual(s.audits, ["handler-timeout", "tool-call"]);
       assert.equal((await modern(s.t, "server/discover")).status, 200, "the in-flight slot was released");
     } finally {
       await s.close();

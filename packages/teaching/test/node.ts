@@ -14,6 +14,7 @@ import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 
 import { buildManifest, type PinnableTool, type RunningTransport, serializeManifest, startNode as coreStartNode } from "@clearseal/core";
 
+import { type AuditKit, auditKit } from "../../core/test/audit/keys.ts";
 import { AUDIENCE, ISSUER, TestIssuer } from "../../core/test/auth/issuer.ts";
 import { configSchema } from "../src/index.ts";
 import { toolsFor } from "../src/notes.ts";
@@ -37,6 +38,8 @@ export function pin(definitions: PinnableTool[], root: string, name = "teaching-
 export interface Node {
   t: RunningTransport;
   lines: string[];
+  /** The node's own audit store: a real JSON-lines log and file anchor (CSR-WO-2002). */
+  kit: AuditKit;
   close(): Promise<void>;
 }
 
@@ -59,7 +62,12 @@ export function restoreEnv(): void {
 
 /** Starts a teaching node through the core's startNode, configured only by the environment, as a
  *  deployment is: the edition's definitions for this root, and the manifest pinned for them. */
+/** Every audit kit a started (or refused) node was given, in order: the canary scans all of them. */
+export const kits: AuditKit[] = [];
+
 export async function startNode(issuer: TestIssuer, root: string, manifest: string, extra: Record<string, string | undefined> = {}): Promise<Node> {
+  // Each node its own store: two nodes appending one log would interleave two chains.
+  const kit = auditKit();
   const caFile = join(mkdtempSync(join(tmpdir(), "clearseal-teaching-ca-")), "issuer-ca.pem");
   writeFileSync(caFile, issuer.ca);
   setEnv({
@@ -72,11 +80,14 @@ export async function startNode(issuer: TestIssuer, root: string, manifest: stri
     AUTH_JWKS_CA_FILE: caFile,
     CLEARSEAL_MANIFEST: manifest,
     PIN_STRICT: undefined,
+    AUDIT_STORE: undefined,
+    ...kit.env,
     ...extra,
   });
   const lines: string[] = [];
+  kits.push(kit);
   const t = await coreStartNode({ definitions: toolsFor(root), configSchema }, { audit: (e, f) => lines.push(`${e} ${JSON.stringify(f)}`) });
-  return { t, lines, close: () => t.close() };
+  return { t, lines, kit, close: () => t.close() };
 }
 
 export function cleanup(root: string): void {
@@ -92,8 +103,8 @@ export interface Reply {
 
 let id = 1;
 /** A modern-era MCP request to the node, as a conforming client sends it. */
-export function mcp(t: RunningTransport, method: string, params: Record<string, unknown>, opts: { token?: string; headers?: Record<string, string>; name?: string } = {}): Promise<Reply> {
-  const body = JSON.stringify({ jsonrpc: "2.0", id: id++, method, params: { ...params, _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} } } });
+export function mcp(t: RunningTransport, method: string, params: Record<string, unknown>, opts: { token?: string; headers?: Record<string, string>; name?: string; id?: string | number } = {}): Promise<Reply> {
+  const body = JSON.stringify({ jsonrpc: "2.0", id: opts.id ?? id++, method, params: { ...params, _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} } } });
   const headers: Record<string, string> = {
     accept: "application/json, text/event-stream",
     "content-type": "application/json",
@@ -104,7 +115,9 @@ export function mcp(t: RunningTransport, method: string, params: Record<string, 
     ...opts.headers,
   };
   return new Promise((resolve, reject) => {
-    const req = httpRequest({ host: "127.0.0.1", port: t.port, method: "POST", path: "/mcp", headers }, (res) => {
+    // A fresh connection per request: a pooled keep-alive socket the server has since closed would
+    // reset the next request after a long pause in a suite.
+    const req = httpRequest({ host: "127.0.0.1", port: t.port, method: "POST", path: "/mcp", headers, agent: false }, (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (c: Buffer) => chunks.push(c));
       res.on("end", () => {

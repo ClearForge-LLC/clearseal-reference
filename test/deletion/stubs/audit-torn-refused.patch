@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/store.ts
++++ b/packages/core/src/audit/store.ts
+@@ -135,7 +135,7 @@ export class JsonLinesStore implements AuditStore {
+       const logText = decodeStrict(readFileSync(this.#fd));
+       if (logText === undefined) throw new AuditConfigError("AUDIT_LOG is not valid UTF-8: run `npm run audit -- verify` and decide before the node writes more");
+       const { rows, torn } = tail(logText);
+-      if (torn) throw new AuditConfigError("the audit log's final line is torn (a crash mid-write, or an edit): run `npm run audit -- verify` and decide before the node writes more");
++      if (torn && rows.length < 0) throw new AuditConfigError("the audit log's final line is torn (a crash mid-write, or an edit): run `npm run audit -- verify` and decide before the node writes more");
+       const lastRow = rows[rows.length - 1];
+       if (lastRow !== undefined) {
+         let parsed: unknown;

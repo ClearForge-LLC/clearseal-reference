@@ -41,6 +41,24 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     `EXEC_TOOLS_FORBIDDEN` is on, which is the default.
   - `tools/call` runs every handler inside a per-call cage and refuses an undeclared reach.
   - A reusable reach harness for editions.
+- **CSR-WO-2002:** the audit store behind the audit seam.
+  - `packages/core/src/audit/`: the `AuditStore`, `AnchorSink` and `Signer` interfaces; a
+    JSON-lines store whose rows (`{ seq, time, event, principal, fields, prev }`, canonical JSON)
+    each hash their predecessor and carry a principal; a file anchor and an in-memory anchor.
+    `RULES.md` lists each rule (AU-1 to AU-24) with its red-proof and the event/field table.
+  - Arguments never enter a row. Every call that reaches a handler writes one `tool-call` row with
+    `args: "hmac-sha256:<kid>:<base64url>"`, keyed by the operator's digest key over the core's
+    canonical argument digest. Every field is written bare only if the event table lists it and its
+    value is of the listed kind; anything else is a keyed digest, including a containment sink.
+  - Signed Ed25519 checkpoints go to the anchor every N rows or T seconds (defaults 100 and 300)
+    and on close. `npm run audit -- verify` names every edited, removed, reordered or inserted row,
+    a non-canonical row, a truncation behind a checkpoint, a head mismatch, an unknown kid, a key
+    used outside its window, a bad signature and a replayed checkpoint; a torn final line is its
+    own kind (exit 3).
+  - `startNode` refuses to start without the `AUDIT_*` configuration (the same file checks as the
+    manifest); `AUDIT_STORE=seam-only` is the development exception and writes a loud
+    `audit-unanchored` row. `manifest-loaded` is the run's first row. A development key script,
+    `scripts/audit-dev-keys.mjs`, is labelled not for production.
 - **CSR-WO-1007a:** the operator names the manifest (the H1 re-test's F1 and F2).
   - `startNode({ definitions, configSchema })` reads the approved manifest from `CLEARSEAL_MANIFEST`
     (required; an absolute path or `file:` URL to a regular file with no link on the way), reads it

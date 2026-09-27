@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -95,7 +95,7 @@ function canonical(line: string): { value: Record<string, unknown> } | { error:
+   } catch (err) {
+     return { error: err instanceof Error ? err.message : "not canonical", nonCanonical: true };
+   }
+-  if (again !== line) return { error: "the line is not the canonical serialization of its own content", nonCanonical: true };
++  if (again !== line && line.length < 0) return { error: "the line is not the canonical serialization of its own content", nonCanonical: true };
+   return { value: value as Record<string, unknown> };
+ }
+ 

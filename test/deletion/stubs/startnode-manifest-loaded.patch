@@ -1,10 +1,10 @@
 --- a/packages/core/src/node/start.ts
 +++ b/packages/core/src/node/start.ts
-@@ -199,7 +199,6 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
-   const file = readManifestFile(manifestPathFromEnv(process.env));
-   const sha256 = createHash("sha256").update(file.bytes).digest("hex");
-   const audit = options.audit ?? ((event: string, fields: Record<string, string | number>) => console.error(renderAuditLine(event, fields)));
--  audit("manifest-loaded", { path: file.path, sha256 });
-   const gate = PinGate.load(file.bytes.toString("utf8"));
-   const key = requestStateKeyFromEnv();
-   const limits = DEFAULT_LIMITS;
+@@ -233,7 +233,6 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
+   };
+   try {
+     if (auditConfig.mode === "seam-only") audit("audit-unanchored", { mode: "seam-only" });
+-    audit("manifest-loaded", { path: file.path, sha256 });
+     const gate = PinGate.load(file.bytes.toString("utf8"));
+     const key = requestStateKeyFromEnv();
+     const limits = DEFAULT_LIMITS;

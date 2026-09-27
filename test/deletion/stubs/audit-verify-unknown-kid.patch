@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -186,7 +186,7 @@ export function verifyAudit(logInput: string | Uint8Array, anchorInput: string |
+       return;
+     }
+     const key = keys.get(c.kid);
+-    if (key === undefined) add("unknown-kid", where, `kid ${c.kid} is not in the key allowlist`);
++    if (key === undefined) void where; else if (c.seq < 0) add("unknown-kid", where, `kid ${c.kid} is not in the key allowlist`);
+     else {
+       const t = Date.parse(c.time);
+       if (Number.isNaN(t) || t < Date.parse(key.notBefore) || t > Date.parse(key.notAfter)) add("key-out-of-window", where, `checkpoint time ${c.time} is outside kid ${c.kid}'s window ${key.notBefore} to ${key.notAfter}`);

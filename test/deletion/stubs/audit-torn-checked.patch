@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -77,7 +77,7 @@ function lines(text: string): { complete: string[]; torn: string | undefined } {
+   const last = parts.pop() as string;
+   if (last === "") return { complete: parts, torn: undefined };
+   const whole = canonical(last);
+-  return { complete: "value" in whole ? [...parts, last] : parts, torn: last };
++  return { complete: parts, torn: last };
+ }
+ 
+ /** Parses a line as canonical JSON and checks it is the one serialization of its content (AU-16). */

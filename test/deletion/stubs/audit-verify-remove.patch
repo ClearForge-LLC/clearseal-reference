@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -150,7 +150,7 @@ export function verifyAudit(logInput: string | Uint8Array, anchorInput: string |
+       if (r.seq !== i) add("reordered-rows", `log line ${String(i + 1)}`, `seq ${String(r.seq)} at position ${String(i)}, after seq ${String(before)}: rows were reordered`);
+     } else if (repeated) add("inserted-rows", `log line ${String(i + 1)}`, `seq ${String(r.seq)} follows seq ${String(before)} and appears twice: rows were inserted or spliced`);
+     else if (r.seq <= before) add("reordered-rows", `log line ${String(i + 1)}`, `seq ${String(r.seq)} follows seq ${String(before)}: rows were reordered`);
+-    else add("removed-rows", `log line ${String(i + 1)}`, `seq ${String(r.seq)} follows seq ${String(before)}: ${String(r.seq - before - 1)} row(s) removed`);
++    else if (r.seq < 0) add("removed-rows", `log line ${String(i + 1)}`, `seq ${String(r.seq)} follows seq ${String(before)}: ${String(r.seq - before - 1)} row(s) removed`);
+   }
+   if (rows[0] !== undefined && rows[0].seq !== 0 && !findings.some((f) => f.where === "log line 1")) add("removed-rows", "log line 1", `the log starts at seq ${String(rows[0].seq)}: ${String(rows[0].seq)} row(s) removed from its start`);
+ 

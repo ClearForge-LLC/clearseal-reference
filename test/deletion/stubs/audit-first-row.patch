@@ -1,0 +1,10 @@
+--- a/packages/core/src/node/start.ts
++++ b/packages/core/src/node/start.ts
+@@ -235,6 +235,7 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
+   };
+   try {
+     if (auditConfig.mode === "seam-only") audit("audit-unanchored", { mode: "seam-only" });
++    audit("pin-non-strict", { admitted: 0, refused: 0 });
+     audit("manifest-loaded", { path: file.path, sha256 });
+     const gate = PinGate.load(file.bytes.toString("utf8"));
+     const key = requestStateKeyFromEnv();

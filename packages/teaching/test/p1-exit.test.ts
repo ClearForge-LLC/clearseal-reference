@@ -27,7 +27,11 @@ import { DEFAULT_LIMITS, loadPinnedRegistry, type PinnableTool, startTransport, 
 
 import { checkEdition } from "../../core/test/boundary/supply-boundary.ts";
 import { COMMITTED_MANIFEST, plant, removeTree, scratchTree, startBin } from "./hostile.ts";
-import { AUDIENCE, cleanup, definitionsFor, ISSUER, mcp, type Node, notesRoot, pin, restoreEnv, startNode, TestIssuer } from "./node.ts";
+import { readFileSync } from "node:fs";
+
+import { verifyAudit } from "@clearseal/core";
+
+import { AUDIENCE, cleanup, definitionsFor, ISSUER, kits, mcp, type Node, notesRoot, pin, restoreEnv, startNode, TestIssuer } from "./node.ts";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
 const exit: string[] = [];
@@ -144,7 +148,7 @@ void describe("P1 exit gate: against a real teaching node", () => {
     const scratch = scratchTree();
     const caFile = join(mkdtempSync(join(tmpdir(), "clearseal-p1-ca-")), "issuer-ca.pem");
     writeFileSync(caFile, issuer.ca);
-    const env = { TEACHING_RESOURCE_URL: AUDIENCE, TEACHING_HOST: "127.0.0.1", TEACHING_PORT: "0", AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: caFile, CLEARSEAL_MANIFEST: COMMITTED_MANIFEST };
+    const env = { TEACHING_RESOURCE_URL: AUDIENCE, TEACHING_HOST: "127.0.0.1", TEACHING_PORT: "0", AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: caFile, CLEARSEAL_MANIFEST: COMMITTED_MANIFEST, AUDIT_STORE: "seam-only" };
     const rows: string[] = [];
     try {
       for (const route of ["f1", "f2"] as const) {
@@ -279,4 +283,65 @@ void describe("P1 exit gate: the core's own suites, each with its red case", () 
       record(sentence, `${file}: ${result}`);
     });
   }
+});
+
+// CSR-WO-2002 §3.2, audit/RULES.md AU-8: every node this suite started wrote a real JSON-lines log. Its
+// calls carry planted values: an argument that reaches the handler, one that is refused, a JSON-RPC id,
+// a forged header, a token, a tool name, a method. No row of any log may contain one.
+void describe("keyed, never bare (CSR-WO-2002)", () => {
+  void it("keyed, never bare: no audit row carries a planted value", async () => {
+    const t = live().t;
+    const tag = `canary${String(Date.now()).slice(-6)}`;
+    const planted = {
+      argument: `${tag}arg.md`,
+      refused: `${tag}-refused-value`,
+      id: `${tag}-jsonrpc-id`,
+      origin: `https://${tag}-origin.example`,
+      token: `${tag}-token`,
+      tool: `${tag}-tool`,
+      method: `${tag}/method`,
+    };
+    const sent: string[] = [];
+    const send = async (label: string, p: Promise<{ status: number }>): Promise<void> => {
+      try {
+        sent.push(`${label} → ${String((await p).status)}`);
+      } catch (err) {
+        sent.push(`${label} → ${err instanceof Error ? err.message : "error"}`);
+      }
+    };
+    await send("an argument reaching the handler", mcp(t, "tools/call", { name: "notes.read", arguments: { name: planted.argument } }, { token: token(), name: "notes.read", id: planted.id }));
+    await send("a refused extra argument", mcp(t, "tools/call", { name: "notes.read", arguments: { name: "today.md", smuggled: planted.refused } }, { token: token(), name: "notes.read" }));
+    await send("a forged Origin", mcp(t, "tools/call", { name: "notes.read", arguments: { name: "today.md" } }, { token: token(), name: "notes.read", headers: { origin: planted.origin } }));
+    await send("a planted token", mcp(t, "tools/list", {}, { token: planted.token }));
+    await send("an unknown tool name", mcp(t, "tools/call", { name: planted.tool, arguments: {} }, { token: token(), name: planted.tool }));
+    await send("an unknown method", mcp(t, planted.method, {}, { token: token() }));
+    console.log(`CANARY requests: ${sent.join("; ")}`);
+    assert.match(sent[0] ?? "", /→ 200$/, "the planted argument reached the handler (a tool error: no such note)");
+    let rows = 0;
+    const logs: string[] = [];
+    for (const kit of kits) {
+      let text: string;
+      try {
+        text = readFileSync(kit.log, "utf8");
+      } catch {
+        continue; // a refused start may never have opened its log
+      }
+      logs.push(kit.log);
+      for (const [what, value] of Object.entries(planted)) assert.ok(!text.includes(value) && !text.includes(tag), `${what} (${value}) reached a row of ${kit.log}`);
+      const lines = text.trimEnd().split("\n").filter((l) => l !== "");
+      rows += lines.length;
+      for (const l of lines) assert.equal(typeof (JSON.parse(l) as { principal?: unknown }).principal, "string", "every row carries a principal");
+      let anchor: string;
+      try {
+        anchor = readFileSync(kit.anchor, "utf8");
+      } catch {
+        anchor = "";
+      }
+      const report = verifyAudit(text, anchor, kit.allowlist);
+      assert.equal(report.exitCode, 0, `${kit.log}: ${JSON.stringify(report.findings)}`);
+    }
+    const toolCalls = readFileSync(live().kit.log, "utf8").split("\n").filter((l) => l.includes('"event":"tool-call"'));
+    assert.ok(toolCalls.length > 0, "calls that reached the handler wrote tool-call rows");
+    record("keyed, never bare: no audit row carries a planted argument, id, header, token, tool name or method (CSR-WO-2002)", `${String(Object.keys(planted).length)} planted values; ${String(logs.length)} logs, ${String(rows)} rows scanned: none carries one; every row has a principal; every log verifies`);
+  });
 });

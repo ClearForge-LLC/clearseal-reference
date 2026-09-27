@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/policy.ts
++++ b/packages/core/src/audit/policy.ts
+@@ -34,7 +34,7 @@ export const EVENTS: Readonly<Record<string, EventRule>> = Object.freeze({
+   "result-over-cap": { principal: "caller", fields: { method: "method", limit: "int" } },
+   "validation-timeout": { principal: "caller", fields: { tool: "tool", limitMs: "int" } },
+   "validation-error": { principal: "caller", fields: TOOL_FIELDS },
+-  "containment-refused": { principal: "caller", fields: { tool: "tool", kind: "code", sink: "digest", fileType: "code" } },
++  "containment-refused": { principal: "caller", fields: { tool: "tool", kind: "code", sink: "config", fileType: "code" } },
+   "handler-timeout": { principal: "caller", fields: { tool: "tool", limitMs: "int" } },
+   "client-disconnect": { principal: "caller", fields: { tool: "tool", limitMs: "int" } },
+   "handler-error": { principal: "caller", fields: TOOL_FIELDS },

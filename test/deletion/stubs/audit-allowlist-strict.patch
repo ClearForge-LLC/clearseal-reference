@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/signer.ts
++++ b/packages/core/src/audit/signer.ts
+@@ -69,7 +69,7 @@ export function parseAllowlist(text: string): KeyEntry[] {
+   return value.map((e: unknown, i) => {
+     const where = `allowlist entry ${String(i)}`;
+     if (typeof e !== "object" || e === null) throw new TypeError(`${where} is not an object`);
+-    if (Object.keys(e).sort().join(",") !== "key,kid,notAfter,notBefore") throw new TypeError(`${where} has members other than kid, key, notBefore and notAfter`);
++    if (Object.keys(e).sort().join(",") !== "key,kid,notAfter,notBefore" && i < 0) throw new TypeError(`${where} has members other than kid, key, notBefore and notAfter`);
+     const { kid, key, notBefore, notAfter } = e as Record<string, unknown>;
+     if (typeof kid !== "string" || !KID.test(kid)) throw new TypeError(`${where}: kid`);
+     if (seen.has(kid)) throw new TypeError(`${where}: kid ${kid} appears twice (rotation adds an entry with a new kid)`);

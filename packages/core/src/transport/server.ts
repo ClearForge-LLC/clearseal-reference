@@ -30,6 +30,7 @@ import { AUDITED_REFUSALS, audited, classify, INTERNAL_ERROR, INVALID_REQUEST, P
 import { PinnedRegistry, PinRefusedError } from "../pinning/registry.ts";
 import type { Principal, Verdict, Verifier } from "./verifier.ts";
 import { JwtVerifier, jwtVerifierFromEnv } from "../auth/verifier.ts";
+import { ephemeralDigester } from "../audit/digest.ts";
 
 export interface TransportOptions {
   config?: Parameters<typeof resolveConfig>[0];
@@ -45,8 +46,11 @@ export interface TransportOptions {
    *  it: close() closes it, and resolves only after its workers have exited. An open pool's worker
    *  message ports keep a process alive despite unref() (CSR-WO-1005a, from -0101's finding). */
   validationPool?: { close(): Promise<void> };
-  /** The audit seam (-2002). A log line until then. */
+  /** The audit seam: the node's audit store behind it (CSR-WO-2002), or a stderr line by default. */
   audit?: (event: string, fields: Record<string, string | number>) => void;
+  /** The keyed digest of a call's arguments for the tool-call row: the audit store's digester
+   *  (CSR-WO-2002 §1.2). Default: a key made for this process and never stored. */
+  argumentDigest?: (args: unknown) => string;
   /** Server identity for serverInfo and /health: the package's name and version, nothing else. */
   serverInfo: { name: string; version: string };
   /** The clock, for tests. */
@@ -210,6 +214,8 @@ export async function startTransport(options: TransportOptions): Promise<Running
   const { limits } = config;
   const now = options.now ?? Date.now;
   const audit = options.audit ?? ((event, fields) => console.error(renderAuditLine(event, fields)));
+  // Captured once, at start, like the audit seam: arguments reach the audit only as this digest.
+  const digestArgs = options.argumentDigest ?? ephemeralDigester().args;
 
   // CSR-WO-1001 §1.4: the pin gate's decision is read before anything binds. Only a pinned
   // registry is served; every refusal is logged once at the audit seam; under the strict default
@@ -429,6 +435,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
         audit: (event, fields) => {
           audit(event, { ...fields, principal: principal.id });
         },
+        digestArgs,
         trackHandler: (running) => {
           handlerSettled = false;
           const settled = (): void => {

@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -128,7 +128,7 @@ export function verifyAudit(logInput: string | Uint8Array, anchorInput: string |
+     }
+     return { seq, prev };
+   });
+-  if (log.torn !== undefined) {
++  if (log.torn !== undefined && log.torn.length < 0) {
+     const checked = log.complete[log.complete.length - 1] === log.torn;
+     add("torn-final-line", `log line ${String(checked ? log.complete.length : log.complete.length + 1)}`, checked ? "the log does not end with a newline, though its last line is a complete row: it is checked like the rest" : "the log does not end with a newline: its last line is incomplete (a crash mid-write), and is not part of the chain");
+   }

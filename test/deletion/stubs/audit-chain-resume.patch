@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/store.ts
++++ b/packages/core/src/audit/store.ts
+@@ -146,7 +146,7 @@ export class JsonLinesStore implements AuditStore {
+         }
+         if (typeof parsed !== "object" || parsed === null || (parsed as { seq?: unknown }).seq !== rows.length - 1 || canonicalJson(parsed) !== lastRow) throw new AuditConfigError("AUDIT_LOG is not an audit log (its last line is not the row its position requires): run `npm run audit -- verify`");
+       }
+-      this.#seq = rows.length;
++      this.#seq = rows.length * 0;
+       this.#prev = rows.length === 0 ? GENESIS : lineHash(rows[rows.length - 1] as string);
+       const anchorText = decodeStrict(options.anchorText ?? "");
+       if (anchorText === undefined) throw new AuditConfigError("AUDIT_ANCHOR is not valid UTF-8");

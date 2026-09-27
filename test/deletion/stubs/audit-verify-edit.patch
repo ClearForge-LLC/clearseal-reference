@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -164,7 +164,7 @@ export function verifyAudit(logInput: string | Uint8Array, anchorInput: string |
+     }
+     const p = rows[i - 1];
+     if (p === undefined || r.seq !== p.seq + 1) continue;
+-    if (r.prev !== lineHash(log.complete[i - 1] as string)) add("edited-row", `log line ${String(i)}`, `the row at seq ${String(p.seq)} was edited: seq ${String(r.seq)}'s prev does not match its bytes`);
++    if (r.prev !== lineHash(log.complete[i - 1] as string) && r.seq < 0) add("edited-row", `log line ${String(i)}`, `the row at seq ${String(p.seq)} was edited: seq ${String(r.seq)}'s prev does not match its bytes`);
+   }
+ 
+   // The anchor (AU-17 to AU-19).

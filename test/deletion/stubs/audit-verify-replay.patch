@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -192,7 +192,7 @@ export function verifyAudit(logInput: string | Uint8Array, anchorInput: string |
+       if (Number.isNaN(t) || t < Date.parse(key.notBefore) || t > Date.parse(key.notAfter)) add("key-out-of-window", where, `checkpoint time ${c.time} is outside kid ${c.kid}'s window ${key.notBefore} to ${key.notAfter}`);
+       if (!verifyWith(key, checkpointPayload({ kid: c.kid, seq: c.seq, head: c.head, count: c.count, time: c.time }), Buffer.from(c.sig, "base64url"))) add("bad-signature", where, `the signature does not verify under kid ${c.kid}`);
+     }
+-    if (c.seq !== expectedSeq || c.count < lastCount) add("checkpoint-replayed", where, `checkpoint seq ${String(c.seq)} (count ${String(c.count)}) where seq ${String(expectedSeq)} (count at least ${String(lastCount)}) was expected: a checkpoint was replayed, removed or reordered`);
++    if ((c.seq !== expectedSeq || c.count < lastCount) && c.seq < 0) add("checkpoint-replayed", where, `checkpoint seq ${String(c.seq)} (count ${String(c.count)}) where seq ${String(expectedSeq)} (count at least ${String(lastCount)}) was expected: a checkpoint was replayed, removed or reordered`);
+     expectedSeq = Math.max(expectedSeq, c.seq + 1);
+     lastCount = Math.max(lastCount, c.count);
+     if (c.count > log.complete.length) add("truncated-behind-checkpoint", where, `checkpoint ${String(c.seq)} covers ${String(c.count)} rows; the log has ${String(log.complete.length)}: the log was truncated behind it`);

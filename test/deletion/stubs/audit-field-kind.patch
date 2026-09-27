@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/policy.ts
++++ b/packages/core/src/audit/policy.ts
+@@ -61,7 +61,7 @@ const PRINCIPAL = /^[^\p{Cc}\p{Cs}]{1,512}$/u;
+ function ofKind(kind: Kind, v: unknown): boolean {
+   switch (kind) {
+     case "code":
+-      return typeof v === "string" && CODE.test(v);
++      return typeof v === "string";
+     case "errname":
+       return typeof v === "string" && ERROR_NAMES.has(v);
+     case "int":
