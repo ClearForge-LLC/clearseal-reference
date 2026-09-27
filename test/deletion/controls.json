@@ -1141,9 +1141,9 @@
     {
       "id": "startnode-operator-manifest-required",
       "section8": "Verify-before-register; drift and unpinned refused",
-      "control": "CSR-WO-1007a §1.1: CLEARSEAL_MANIFEST is required; no default stands in for the operator's manifest",
+      "control": "CSR-WO-1007a §1.1: CLEARSEAL_MANIFEST is required; no default stands in for the operator's manifest (the read moved into the settings snapshot, CSR-WO-1007b §1.1)",
       "touches": [
-        "packages/core/src/node/start.ts"
+        "packages/core/src/node/settings.ts"
       ],
       "stub": "stubs/startnode-operator-manifest-required.patch",
       "tests": [
@@ -1690,9 +1690,9 @@
     {
       "id": "audit-start-wired",
       "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
-      "control": "AU-21: startNode reads the audit configuration and refuses start without it",
+      "control": "AU-21: startNode reads the audit configuration and refuses start without it (the read moved into the settings snapshot, CSR-WO-1007b §1.1)",
       "touches": [
-        "packages/core/src/node/start.ts"
+        "packages/core/src/node/settings.ts"
       ],
       "stub": "stubs/audit-start-wired.patch",
       "tests": [
