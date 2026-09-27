@@ -1,11 +1,11 @@
 --- a/packages/core/src/node/start.ts
 +++ b/packages/core/src/node/start.ts
-@@ -196,7 +196,7 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
+@@ -304,7 +304,7 @@ export async function startNode(edition: Edition, prepared: PreparedNode): Promi
      throw new NodeStartError("startNode takes an edition's definitions and configSchema");
    }
    const extra = Reflect.ownKeys(edition).filter((k) => typeof k !== "string" || !EDITION_KEYS.includes(k));
 -  if (extra.length > 0) throw new NodeStartError(`startNode takes an edition's definitions and configSchema, nothing else (not ${extra.map(String).join(", ")}): the operator names the manifest in CLEARSEAL_MANIFEST`);
 +  if (extra.length > 0 && extra.length < 0) throw new NodeStartError(`startNode takes an edition's definitions and configSchema, nothing else (not ${extra.map(String).join(", ")}): the operator names the manifest in CLEARSEAL_MANIFEST`);
-   const config = readEditionConfig(edition.configSchema, process.env);
-   // The audit store is configured before anything else is read, so a node never starts unrecorded
-   // (CSR-WO-2002 §1.5; audit/RULES.md AU-21, AU-22).
+   const { settings } = prepared;
+   // The edition's own variables, from the snapshot's frozen copy: never from process.env (§1.2).
+   const config = readEditionConfig(edition.configSchema, settings.env);

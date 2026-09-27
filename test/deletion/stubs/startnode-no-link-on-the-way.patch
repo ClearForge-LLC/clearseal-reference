@@ -1,11 +1,11 @@
 --- a/packages/core/src/node/start.ts
 +++ b/packages/core/src/node/start.ts
-@@ -123,7 +123,7 @@ export function readManifestFile(manifestPath: string | URL): ManifestFile {
+@@ -141,7 +141,7 @@ export function readManifestFile(manifestPath: string | URL): ManifestFile {
        } catch {
          real = undefined;
        }
--      if (real !== resolve(path)) throw new ManifestError("the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way");
-+      if (real !== resolve(path) && real === undefined) throw new ManifestError("the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way");
+-      if (real !== resolve(path)) throw new ManifestError(manifestPathFault(real, path));
++      if (real !== resolve(path) && real === undefined) throw new ManifestError(manifestPathFault(real, path));
      }
      return { path: resolve(path), bytes: readFileSync(fd) };
    } finally {

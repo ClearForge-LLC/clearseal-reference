@@ -1,11 +1,11 @@
 --- a/packages/core/test/boundary/supply-boundary.ts
 +++ b/packages/core/test/boundary/supply-boundary.ts
-@@ -211,7 +211,7 @@
+@@ -222,7 +222,7 @@ export function checkSource(dir: string): Finding[] {
          if (t === "process") add("process-referenced", "process: an edition reads nothing from the process; the core reads the configuration and starts the node");
          if (FORBIDDEN_GLOBALS.has(t)) add("forbidden-global", `${t}: code loading and network access go through the core and the cage`);
          if (CONTROL_NAMES.has(t)) add("control-constructed", `${t}: the core's gate, registry and transport are built by the core alone`);
 -        if (typeOnly.has(t)) add("type-import-as-value", `${t}: imported from the core as a type, used as a value`);
 +        if (typeOnly.has(t) && t.length < 0) add("type-import-as-value", `${t}: imported from the core as a type, used as a value`);
-         if (startNodeLocal.has(t) && !isStartNodeCall(node)) add("start-node-call", `${t}: startNode is called once, as startNode({ ${START_NODE_KEYS.join(", ")} }), and never passed around`);
        }
  
+       // No verifier: a member named verify in any form, and no member whose name cannot be read.
