@@ -163,7 +163,7 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   adversarial pass: admitted tools deeply frozen so nothing in the process changes what `tools/list`
   serves (N2); the cage opens without blocking and admits regular files only; the Windows cage
   resolves symlinks and junctions, measured on `windows-latest`.
-- `CSR-WO-1007b` — (WO written 2026-09-27; **P1 exits after it** and a clean H1 re-test) the core owns
+- `CSR-WO-1007b` — (built, merged `9421cce` 2026-09-27; **P1 exits after** a clean H1 re-test of it) the core owns
   the process entry: `clearseal-node` reads every operator setting and the manifest into a frozen
   snapshot before it imports the edition named by `CLEARSEAL_EDITION`; editions have no `bin/`. From
   the re-test's H-1 against `31a2bf3`: `startNode` read the environment after edition code had run.
@@ -202,7 +202,7 @@ by deleting the control it guards; a hand-edited description leaves that tool ab
 `tools/list` on restart; `curl -i` unauthenticated returns `401` with a `WWW-Authenticate` header
 carrying `resource_metadata`, and a token with a different audience also returns `401`; the
 enumeration detector goes red when a local copy of the standard's field list is edited; every
-committed cross-language vector hashes identically in the core; the supply-boundary test exists and goes red on each planted edition-side control in its corpus, including the P1 exit red-team's (static reading is best-effort against a hostile author — `architecture.md` §4; the guarantee is that the node serves only tools whose definitions hash to the manifest the operator configured — `-1007a`); a forged `Origin` and an extra request property are each
+committed cross-language vector hashes identically in the core; the supply-boundary test exists and goes red on each planted edition-side control in its corpus, including the P1 exit red-team's (static reading is best-effort against a hostile author — `architecture.md` §4; the guarantee is that the node serves only tools whose definitions hash to the manifest the operator configured — `-1007a`, and every setting that decides it is read before any edition code runs — `-1007b`); a forged `Origin` and an extra request property are each
 refused before any handler runs.
 
 ### P2 · The rest of the core, and a teaching edition a reader can hold
