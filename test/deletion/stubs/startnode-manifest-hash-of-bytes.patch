@@ -1,11 +1,11 @@
 --- a/packages/core/src/node/start.ts
 +++ b/packages/core/src/node/start.ts
-@@ -197,7 +197,7 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
-   if (extra.length > 0) throw new NodeStartError(`startNode takes an edition's definitions and configSchema, nothing else (not ${extra.map(String).join(", ")}): the operator names the manifest in CLEARSEAL_MANIFEST`);
-   const config = readEditionConfig(edition.configSchema, process.env);
+@@ -202,7 +202,7 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
+   // (CSR-WO-2002 §1.5; audit/RULES.md AU-21, AU-22).
+   const auditConfig = auditFromEnv(process.env);
    const file = readManifestFile(manifestPathFromEnv(process.env));
 -  const sha256 = createHash("sha256").update(file.bytes).digest("hex");
 +  const sha256 = createHash("sha256").update(file.path).digest("hex");
-   const audit = options.audit ?? ((event: string, fields: Record<string, string | number>) => console.error(renderAuditLine(event, fields)));
-   audit("manifest-loaded", { path: file.path, sha256 });
-   const gate = PinGate.load(file.bytes.toString("utf8"));
+   const store = openAuditStore(auditConfig);
+   const stderr = (event: string, fields: Record<string, string | number>): void => {
+     console.error(renderAuditLine(event, fields));
