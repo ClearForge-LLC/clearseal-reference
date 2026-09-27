@@ -42,7 +42,7 @@ function refused(label: string, overrides: Partial<CapabilityTag>, rule: RuleId,
 }
 
 /** "served", or the refusal's text: compared as a string, so a failure's diff carries no stack. */
-const outcome = (err: unknown): string => (err === undefined ? "served" : String(err));
+const outcome = (err: unknown): string => (err === undefined ? "served" : err instanceof Error ? `${err.name}: ${err.message}` : "a throw that is not an Error");
 
 function served(label: string, overrides: Partial<CapabilityTag>): void {
   assert.equal(outcome(construct(overrides)), "served", label);
