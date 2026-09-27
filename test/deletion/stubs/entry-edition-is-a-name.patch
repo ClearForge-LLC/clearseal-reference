@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/settings.ts
++++ b/packages/core/src/node/settings.ts
+@@ -72,7 +72,7 @@ function manifestPathFrom(env: Readonly<Record<string, string>>): string | URL {
+ function editionNameFrom(env: Readonly<Record<string, string>>): string {
+   const value = env["CLEARSEAL_EDITION"];
+   if (value === undefined || value === "") throw new SettingsError("CLEARSEAL_EDITION is required: the package name of the edition this node serves");
+-  if (!PACKAGE_NAME.test(value)) throw new SettingsError(`CLEARSEAL_EDITION must be a package name, not a path or a URL (got ${JSON.stringify(value)}): the operator's install decides what it resolves to`);
++  if (!PACKAGE_NAME.test(value) && value.length < 0) throw new SettingsError(`CLEARSEAL_EDITION must be a package name, not a path or a URL (got ${JSON.stringify(value)}): the operator's install decides what it resolves to`);
+   return value;
+ }
+ 

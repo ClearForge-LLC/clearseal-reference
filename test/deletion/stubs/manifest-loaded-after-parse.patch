@@ -1,0 +1,10 @@
+--- a/packages/core/src/node/start.ts
++++ b/packages/core/src/node/start.ts
+@@ -275,6 +275,7 @@ export class PreparedNode {
+     };
+     try {
+       if (settings.audit.mode === "seam-only") audit("audit-unanchored", { mode: "seam-only" });
++      audit("manifest-loaded", { path: file.path, sha256 });
+       let gate: PinGate;
+       try {
+         gate = PinGate.load(file.bytes.toString("utf8"));

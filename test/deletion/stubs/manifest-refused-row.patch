@@ -1,0 +1,10 @@
+--- a/packages/core/src/node/start.ts
++++ b/packages/core/src/node/start.ts
+@@ -280,7 +280,6 @@ export class PreparedNode {
+         gate = PinGate.load(file.bytes.toString("utf8"));
+       } catch (err) {
+         // Read, hashed, and refused: the operator sees which file was rejected, and its hash.
+-        audit("manifest-refused", { path: file.path, sha256, reason: err instanceof Error ? err.name : "error" });
+         throw err;
+       }
+       audit("manifest-loaded", { path: file.path, sha256 });
