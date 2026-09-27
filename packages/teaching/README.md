@@ -4,8 +4,8 @@ The ClearSeal teaching edition: a notes store as the carrier (architecture §3.3
 rule (N1): it exports tool definitions and a configuration schema, and assembles nothing. The core's
 `startNode` reads the configuration and the manifest the operator names, and builds the pin gate, the
 registry and the transport (CSR-WO-1007, CSR-WO-1007a); the verifier and the cage are the core's too.
-The edition imports only types from the core; `bin/` imports only `startNode` and this package's own
-entry, by name. The core's supply-boundary test holds this package to that.
+The edition imports only types from the core, and holds no core value. The core's supply-boundary
+test holds this package to that.
 
 **The operator names the manifest.** Set `CLEARSEAL_MANIFEST` to the approved manifest, an absolute
 path or a `file:` URL; for these definitions that is `pins/teaching.json` at the repository root. The
@@ -23,9 +23,18 @@ There is no `bin/`: the node's entry is the core's own `clearseal-node` (CSR-WO-
 operator setting and the manifest **before** it imports this package, so nothing this package runs at
 load time can choose what approves it.
 
+**Installing.** Install editions with install scripts disabled: `npm install --ignore-scripts`, or
+`ignore-scripts=true` in the operator's `.npmrc`. An install script is code that runs before any
+node exists, so no check at start can see it. This package declares none, and the core's
+supply-boundary check makes any edition that declares one (or ships a `binding.gyp`, which npm turns
+into one) a finding, so an edition that needs install-time code is visible before it is installed
+(CSR-WO-1007c).
+
 **Starting a node.** `CLEARSEAL_EDITION=@clearseal/teaching clearseal-node`, with the settings in
 `.env.example`. The edition is named, never pathed: the operator's own install decides what the name
-resolves to.
+resolves to. Start it without a module-loading flag: `clearseal-node` refuses to start when
+`NODE_OPTIONS` or the command line carries `--import`, `--require`/`-r`, a loader, a config file, a
+startup snapshot or a package map, because each runs code before the node reads its settings.
 
 **The operator names the audit store too.** A node records every refusal and every call that
 reaches a handler, in a hash-chained JSON-lines log with signed checkpoints to a separate anchor
