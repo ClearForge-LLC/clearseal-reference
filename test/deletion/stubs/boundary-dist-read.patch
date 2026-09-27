@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -71,7 +71,7 @@ const CONTROL_NAMES = new Set(["PinGate", "PinnedRegistry", "buildManifest", "se
+ /** Not read: dependencies and the edition's own tests. dist/ IS read (CSR-WO-1007a adversarial pass,
+  *  F3): the package entry an edition's bin/ loads is usually dist/index.js, and code the checker never
+  *  reads is code that runs unchecked, before startNode, in the node's process. */
+-const SKIP_TOP = new Set(["node_modules", "test"]);
++const SKIP_TOP = new Set(["node_modules", "dist", "test"]);
+ 
+ /** The edition's source files: everything under its directory except the top-level test/ and
+  *  node_modules/, dist/ included. A symbolic link anywhere in the tree is itself a finding. */
