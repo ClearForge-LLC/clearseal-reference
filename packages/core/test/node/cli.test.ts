@@ -131,7 +131,9 @@ void describe("CSR-WO-1007b §1.2: the snapshot is the only environment the core
         else if (entry.name.endsWith(".ts")) {
           const rel = relative(SRC, p).split("\\").join("/");
           const text = code(readFileSync(p, "utf8"));
-          const d = (text.match(/process\.env/g) ?? []).length;
+          // `process.env`, and the two forms that would reach it without naming it: a computed read off
+          // `process`, and destructuring `env` from it (CSR-WO-1007b adversarial pass, L2).
+          const d = (text.match(/process\.env|\bprocess\s*\[|\{[^}]*\benv\b[^}]*\}\s*=\s*process\b/g) ?? []).length;
           if (d > 0) direct[rel] = d;
           const i2 = READERS.reduce((n, r) => n + (text.match(new RegExp(`\\b${r}\\(\\s*\\)`, "g")) ?? []).length, 0);
           if (i2 > 0) indirect[rel] = i2;

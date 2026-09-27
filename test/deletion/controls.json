@@ -247,7 +247,7 @@
     {
       "id": "boundary-startnode-bin-only",
       "section8": "Verify-before-register; drift and unpinned refused",
-      "control": "the supply-boundary checker allows the startNode import in bin/ only",
+      "control": "CSR-WO-1007b §1.3: an edition imports no core value at all (the node's entry is the core's own)",
       "touches": [
         "packages/core/test/boundary/supply-boundary.ts"
       ],
@@ -256,22 +256,7 @@
         "packages/core/test/boundary/supply-boundary.test.ts"
       ],
       "mustFail": [
-        "red-proof H1 variant: startNode imported outside bin/"
-      ]
-    },
-    {
-      "id": "boundary-startnode-call",
-      "section8": "Verify-before-register; drift and unpinned refused",
-      "control": "the supply-boundary checker allows startNode only as startNode({ definitions, manifestPath, configSchema })",
-      "touches": [
-        "packages/core/test/boundary/supply-boundary.ts"
-      ],
-      "stub": "stubs/boundary-startnode-call.patch",
-      "tests": [
-        "packages/core/test/boundary/supply-boundary.test.ts"
-      ],
-      "mustFail": [
-        "red-proof H1 variant: startNode in bin/ given something more, or passed around"
+        "red-proof H1 variant: startNode imported at all (an edition holds no core value)"
       ]
     },
     {
@@ -1197,7 +1182,7 @@
       ],
       "mustFail": [
         "started, the node writes manifest-loaded with the file's path and the SHA-256 of the bytes it admitted from, and serves exactly what that file pins",
-        "the H1 re-test's F1 and F2, end to end: each hostile edition's own bin/, started against the operator's manifest, is refused at start"
+        "the H1 re-test's H-1, end to end: each of the four variants, started by clearseal-node against the operator's manifest, is refused"
       ]
     },
     {
@@ -1228,38 +1213,6 @@
       ],
       "mustFail": [
         "an edition's schema may not claim the core's own variables' prefix"
-      ]
-    },
-    {
-      "id": "boundary-bin-imports",
-      "section8": "Verify-before-register; drift and unpinned refused",
-      "control": "CSR-WO-1007a §1.4(a): bin/ imports only the core's startNode and the edition's own package entry by name",
-      "touches": [
-        "packages/core/test/boundary/supply-boundary.ts"
-      ],
-      "stub": "stubs/boundary-bin-imports.patch",
-      "tests": [
-        "packages/core/test/boundary/supply-boundary.test.ts"
-      ],
-      "mustFail": [
-        "red-proof F1: bin/ imports its definitions and its own manifest from dist/, which the checker never reads",
-        "red-proof F1 variant: bin/ imports a built-in",
-        "red-proof F1 variant: bin/ imports another package"
-      ]
-    },
-    {
-      "id": "boundary-bin-no-reexport",
-      "section8": "Verify-before-register; drift and unpinned refused",
-      "control": "CSR-WO-1007a §1.4(a): bin/ re-exports nothing",
-      "touches": [
-        "packages/core/test/boundary/supply-boundary.ts"
-      ],
-      "stub": "stubs/boundary-bin-no-reexport.patch",
-      "tests": [
-        "packages/core/test/boundary/supply-boundary.test.ts"
-      ],
-      "mustFail": [
-        "red-proof F1 variant: bin/ re-exports from dist/"
       ]
     },
     {

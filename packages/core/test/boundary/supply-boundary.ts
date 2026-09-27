@@ -100,7 +100,9 @@ function sourceFiles(dir: string, findings: Finding[]): string[] {
       // A file with no extension is a module Node loads when it is imported by that exact name (measured on
       // 24.21.0, with the package "type": "module"), so it is read like any other. A file with some other
       // extension (.json, .md) is data these rules do not cover.
-      else if (/\.(ts|mts|cts|js|mjs|cjs|tsx|jsx)$/.test(name) ? !name.endsWith(".d.ts") : !name.includes(".")) out.push(p);
+      // Case-insensitively: a file named .JS is a module on a case-insensitive file system, and reading
+      // it costs nothing (CSR-WO-1007b adversarial pass, L1).
+      else if (/\.(ts|mts|cts|js|mjs|cjs|tsx|jsx)$/i.test(name) ? !/\.d\.ts$/i.test(name) : !name.includes(".")) out.push(p);
     }
   };
   walk(dir, true);
