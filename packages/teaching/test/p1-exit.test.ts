@@ -26,7 +26,7 @@ import { after, before, describe, it } from "node:test";
 import { DEFAULT_LIMITS, loadPinnedRegistry, type PinnableTool, startTransport, ValidationPool } from "@clearseal/core";
 
 import { checkEdition } from "../../core/test/boundary/supply-boundary.ts";
-import { COMMITTED_MANIFEST, plant, removeTree, scratchTree, startBin } from "./hostile.ts";
+import { caFileFor, COMMITTED_MANIFEST, install, ROUTES, startNodeProcess, uninstall } from "./hostile.ts";
 import { readFileSync } from "node:fs";
 
 import { verifyAudit } from "@clearseal/core";
@@ -144,46 +144,47 @@ void describe("P1 exit gate: against a real teaching node", () => {
     record("N4: a missing manifest or an unpinned tool refuses to start", `missing: ${String((missing as Error).name)}; unpinned: ${String((unpinned as Error).name)}`);
   });
 
-  void it("the H1 re-test's F1 and F2, end to end: each hostile edition's own bin/, started against the operator's manifest, is refused at start", { timeout: 120_000 }, async () => {
-    const scratch = scratchTree();
-    const caFile = join(mkdtempSync(join(tmpdir(), "clearseal-p1-ca-")), "issuer-ca.pem");
-    writeFileSync(caFile, issuer.ca);
-    const env = { TEACHING_RESOURCE_URL: AUDIENCE, TEACHING_HOST: "127.0.0.1", TEACHING_PORT: "0", AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: caFile, CLEARSEAL_MANIFEST: COMMITTED_MANIFEST, AUDIT_STORE: "seam-only" };
+  void it("the H1 re-test's H-1, end to end: each of the four variants, started by clearseal-node against the operator's manifest, is refused", { timeout: 180_000 }, async () => {
+    const caFile = caFileFor(issuer.ca);
+    const base = { TEACHING_RESOURCE_URL: AUDIENCE, TEACHING_HOST: "127.0.0.1", TEACHING_PORT: "0", AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: caFile, CLEARSEAL_MANIFEST: COMMITTED_MANIFEST, AUDIT_STORE: "seam-only" };
     const rows: string[] = [];
-    try {
-      for (const route of ["f1", "f2"] as const) {
-        const p = await plant(scratch, route, "definitions, configSchema");
-        // Defense in depth: the checker now refuses both. The guarantee below does not depend on it.
-        const findings = checkEdition(p.dir).map((f) => `${f.file}: ${f.rule}`);
+    for (const route of ROUTES) {
+      const h = await install(route);
+      try {
+        // Defense in depth: the checker reads every file an import can reach, so each variant is a
+        // finding. The guarantee below does not depend on it.
+        const findings = checkEdition(h.dir).map((f) => `${f.file}: ${f.rule}`);
         assert.ok(findings.length > 0, `${route}: the checker refuses it`);
+        const env = { ...base, CLEARSEAL_EDITION: h.name };
         // The strict default: the node refuses to start, after logging the manifest it read.
-        const strict = await startBin(p.dir, env);
+        const strict = await startNodeProcess(env);
         strict.stop();
-        console.log(`F1F2 ${route} strict output:\n${strict.output.trim()}`);
+        console.log(`H-1 ${route} strict output:\n${strict.output.trim()}`);
         assert.equal(strict.port, undefined, `${route}: under the strict default the node does not start`);
         assert.match(strict.output, /manifest-loaded/);
-        assert.ok(strict.output.includes(COMMITTED_MANIFEST.replace(/\\/g, "\\\\")), `${route}: manifest-loaded names the operator's file`);
+        assert.ok(strict.output.includes(COMMITTED_MANIFEST), `${route}: manifest-loaded names the operator's file, not the edition's`);
+        assert.ok(!strict.output.includes(h.ownManifest), `${route}: the edition's own manifest is never read`);
         assert.match(strict.output, /notes\.exfil \(unpinned\)/);
         // PIN_STRICT=false: the node starts, and the unpinned tool is absent and uncallable.
-        const lax = await startBin(p.dir, { ...env, PIN_STRICT: "false" });
+        const lax = await startNodeProcess({ ...env, PIN_STRICT: "false" });
         try {
           assert.ok(lax.port !== undefined, `${route}: with PIN_STRICT=false the node starts: ${lax.output}`);
           const t = { port: lax.port } as Parameters<typeof mcp>[0];
           const list = await mcp(t, "tools/list", {}, { token: token() });
           const names = ((list.json as { result?: { tools?: { name: string }[] } }).result?.tools ?? []).map((x) => x.name);
           const exfil = await mcp(t, "tools/call", { name: "notes.exfil", arguments: {} }, { token: token(), name: "notes.exfil" });
-          console.log(`F1F2 ${route} PIN_STRICT=false: tools/list ${JSON.stringify(names)}; tools/call notes.exfil → ${String(exfil.status)} ${exfil.text}`);
+          console.log(`H-1 ${route} PIN_STRICT=false: tools/list ${JSON.stringify(names)}; tools/call notes.exfil → ${String(exfil.status)} ${exfil.text}`);
           assert.ok(!names.includes("notes.exfil"), `${route}: the unpinned tool is absent`);
           assert.ok(!exfil.text.includes("SERVED BY AN UNPINNED TOOL"), `${route}: the unpinned tool never runs`);
-          rows.push(`${route.toUpperCase()}: checker ${JSON.stringify(findings)}; strict: start refused (notes.exfil unpinned), after manifest-loaded ${COMMITTED_MANIFEST.slice(REPO.length)}; PIN_STRICT=false: tools/list ${JSON.stringify(names)}, notes.exfil not served`);
+          rows.push(`${route}: checker ${JSON.stringify(findings)}; strict: refused (notes.exfil unpinned) after manifest-loaded pins/teaching.json; PIN_STRICT=false: tools/list ${JSON.stringify(names)}, notes.exfil not served`);
         } finally {
           lax.stop();
         }
+      } finally {
+        uninstall(h);
       }
-    } finally {
-      removeTree(scratch);
     }
-    record("the node serves only tools whose definitions hash to the manifest the operator configured (the H1 re-test's F1 and F2, end to end)", rows.join("; "));
+    record("the node serves only tools whose definitions hash to the manifest the operator configured, and every setting is read before any edition code runs (the H1 re-test's H-1, all four variants, end to end)", rows.join(" | "));
   });
 
   void it("a forged Origin and an extra request property are each refused before any handler runs", async () => {

@@ -6,14 +6,16 @@
 // *Core ↔ edition*).
 //
 // The operator names the manifest (CSR-WO-1007a §1.1): CLEARSEAL_MANIFEST, from the environment, is
-// the only source of the manifest's path. The trust root for "what is approved" is the operator, never
+// the only source of the manifest's path, and it is read into the settings snapshot before any edition
+// module loads (CSR-WO-1007b; node/settings.ts, node/cli.ts). Nothing here reads `process.env`: every
+// setting arrives in the snapshot, the edition's own variables included. The trust root for "what is approved" is the operator, never
 // the edition being approved, so nothing an edition exports can choose it; a hostile edition's
 // definitions fail to hash against the operator's manifest and are refused at start. The file is read
 // once, and the SHA-256 in the manifest-loaded audit line is of the same bytes the gate parses.
 //
-// Configuration is read here, from the environment, as data with a schema (architecture §3.1): the
-// core's own settings (PIN_STRICT, EXEC_TOOLS_FORBIDDEN, AUTH_*, CLEARSEAL_REQUEST_STATE_KEY) by their
-// own readers, and the edition's variables through its configSchema. The schema names the variables'
+// Configuration is data with a schema (architecture §3.1): the core's own settings (PIN_STRICT,
+// EXEC_TOOLS_FORBIDDEN, AUTH_*, AUDIT_*, CLEARSEAL_REQUEST_STATE_KEY) are read by the snapshot, and the
+// edition's variables from the snapshot's frozen copy of the environment, through its configSchema. The schema names the variables'
 // prefix ("x-clearseal-env-prefix") and which of them carries each transport setting
 // ("x-clearseal-setting": "host", "port" or "resource-url"). A value outside the schema, an unknown
 // variable with the edition's prefix included, refuses start (N4).
@@ -27,11 +29,13 @@ import { PinGate } from "../pinning/gate.ts";
 import { ManifestError, type PinnableTool } from "../pinning/manifest.ts";
 import { PinnedRegistry } from "../pinning/registry.ts";
 import { DEFAULT_LIMITS } from "../transport/config.ts";
-import { requestStateKeyFromEnv } from "../transport/request-state.ts";
 import { compileSchema } from "../transport/schema.ts";
 import { ValidationPool } from "../transport/schema-pool.ts";
 import { renderAuditLine, type RunningTransport, startTransport } from "../transport/server.ts";
-import { auditFromEnv, openAuditStore } from "../audit/config.ts";
+import { openAuditStore } from "../audit/config.ts";
+import { captureSettings, NodeStartError, type Settings } from "./settings.ts";
+
+export { NodeStartError, SettingsError, type Settings } from "./settings.ts";
 
 /** What an edition hands the core: nothing else. Not the manifest: the operator names it. */
 export interface Edition {
@@ -48,14 +52,9 @@ const EDITION_KEYS: readonly string[] = ["definitions", "configSchema"];
 const CORE_PREFIXES: readonly string[] = ["CLEARSEAL_", "AUTH_", "PIN_", "EXEC_"];
 
 export interface StartNodeOptions {
-  /** The audit seam; defaults to the core's line on stderr. For the core's callers and tests: an
-   *  edition's bin/ passes the three values and nothing else. */
+  /** The audit seam; observes every row when a store is configured, and replaces the stderr line when
+   *  one is not. For the core's own tests: a node's entry passes none. */
   audit?: (event: string, fields: Record<string, string | number>) => void;
-}
-
-/** A node that refuses to start for its configuration or its edition's shape (N4). */
-export class NodeStartError extends Error {
-  override name = "NodeStartError";
 }
 
 /** The identity every node reports: the core's, not the edition's, so an edition cannot claim one. */
@@ -124,7 +123,19 @@ export function readManifestFile(manifestPath: string | URL): ManifestFile {
       } catch {
         real = undefined;
       }
-      if (real !== resolve(path)) throw new ManifestError("the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way");
+      if (real !== resolve(path)) {
+        // Two different faults, told apart rather than guessed (CSR-WO-1007b §1.6): if the path still
+        // resolves to the file we opened, the difference is a link on the way; if it does not, the file
+        // was renamed or replaced between the open and this check.
+        let resolved: string | undefined;
+        try {
+          resolved = realpathSync(resolve(path));
+        } catch {
+          resolved = undefined;
+        }
+        if (resolved === real) throw new ManifestError("the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way");
+        throw new ManifestError("the manifest file changed while it was being opened (it was renamed, replaced or removed): a node reads one file, once");
+      }
     }
     return { path: resolve(path), bytes: readFileSync(fd) };
   } finally {
@@ -166,98 +177,38 @@ export function readEditionConfig(schema: Readonly<Record<string, unknown>>, env
   return { host: value("host") ?? "127.0.0.1", port, resourceUrl: value("resource-url") ?? "" };
 }
 
-/** CLEARSEAL_MANIFEST: the operator's manifest, an absolute path or a `file:` URL. Required. */
-export function manifestPathFromEnv(env: NodeJS.ProcessEnv): string | URL {
-  const value = env["CLEARSEAL_MANIFEST"];
-  if (value === undefined || value === "") throw new NodeStartError("CLEARSEAL_MANIFEST is required: the operator names the approved manifest (an absolute path or a file: URL); a node without one does not start");
-  if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) || value.startsWith("file:")) {
-    let url: URL;
-    try {
-      url = new URL(value);
-    } catch {
-      throw new NodeStartError("CLEARSEAL_MANIFEST is not a valid URL");
-    }
-    return url;
-  }
-  return value;
-}
-
 /**
- * Starts a node for an edition: its configuration from the environment, the manifest the operator
- * names in CLEARSEAL_MANIFEST, the gate and the registry built here, the transport started. Refuses to
- * start (throws) on a configuration outside the schema, a missing CLEARSEAL_MANIFEST, a manifest that
- * is not a regular file or does not parse, a drifted, unpinned or removed tool under the strict
- * default, missing AUTH_* settings, or a missing or invalid audit configuration (AUDIT_*; the
- * development exception is AUDIT_STORE=seam-only). Writes one manifest-loaded audit row, with the
- * file's path and SHA-256, before the gate admits anything: the first row of the run's chain.
+ * A node prepared to start: the settings snapshot, the manifest read and parsed, the audit store open,
+ * the audit seam ready. Everything here happens **before** the edition is imported (CSR-WO-1007b §1.1),
+ * so no edition code can change a setting, a manifest or a store that has already been read.
  */
-export async function startNode(edition: Edition, options: StartNodeOptions = {}): Promise<RunningTransport> {
-  if (typeof edition !== "object" || edition === null || !Array.isArray(edition.definitions) || typeof edition.configSchema !== "object" || edition.configSchema === null) {
-    throw new NodeStartError("startNode takes an edition's definitions and configSchema");
+export class PreparedNode {
+  readonly settings: Settings;
+  /** The manifest's resolved path and the SHA-256 of the bytes the gate parsed. */
+  readonly manifest: Readonly<{ path: string; sha256: string }>;
+  readonly gate: PinGate;
+  readonly audit: (event: string, fields: Record<string, string | number>) => void;
+  readonly #store: ReturnType<typeof openAuditStore>;
+  #running: RunningTransport | undefined;
+  #stopping = false;
+
+  private constructor(settings: Settings, manifest: Readonly<{ path: string; sha256: string }>, gate: PinGate, store: ReturnType<typeof openAuditStore>, audit: (event: string, fields: Record<string, string | number>) => void) {
+    this.settings = settings;
+    this.manifest = manifest;
+    this.gate = gate;
+    this.#store = store;
+    this.audit = audit;
   }
-  const extra = Reflect.ownKeys(edition).filter((k) => typeof k !== "string" || !EDITION_KEYS.includes(k));
-  if (extra.length > 0) throw new NodeStartError(`startNode takes an edition's definitions and configSchema, nothing else (not ${extra.map(String).join(", ")}): the operator names the manifest in CLEARSEAL_MANIFEST`);
-  const config = readEditionConfig(edition.configSchema, process.env);
-  // The audit store is configured before anything else is read, so a node never starts unrecorded
-  // (CSR-WO-2002 §1.5; audit/RULES.md AU-21, AU-22).
-  const auditConfig = auditFromEnv(process.env);
-  const file = readManifestFile(manifestPathFromEnv(process.env));
-  const sha256 = createHash("sha256").update(file.bytes).digest("hex");
-  // The log and the anchor are never the manifest (nor the key files: the store checks those).
-  const manifestStat = statSync(file.path, { bigint: true });
-  const store = openAuditStore(auditConfig, undefined, [{ setting: "CLEARSEAL_MANIFEST", identity: `${String(manifestStat.dev)}:${String(manifestStat.ino)}` }]);
-  const stderr = (event: string, fields: Record<string, string | number>): void => {
-    console.error(renderAuditLine(event, fields));
-  };
-  let running: RunningTransport | undefined;
-  let stopping = false;
-  // With a store, every row goes to it, and options.audit (the core's tests) observes. Without one
-  // (seam-only), options.audit replaces the stderr line, as before -2002. A row that cannot be written
-  // stops the node: before start it refuses start; after, the transport is closed, so the node never
-  // serves unrecorded (N4).
-  const audit = (event: string, fields: Record<string, string | number>): void => {
-    if (store === undefined) {
-      (options.audit ?? stderr)(event, fields);
-      return;
-    }
-    try {
-      store.append(event, fields);
-    } catch (err) {
-      stderr("audit-store-failed", { event, reason: err instanceof Error ? err.name : "error" });
-      if (running === undefined) throw err;
-      if (!stopping) {
-        stopping = true;
-        void running.close();
-      }
-      return;
-    }
-    options.audit?.(event, fields);
-  };
-  try {
-    if (auditConfig.mode === "seam-only") audit("audit-unanchored", { mode: "seam-only" });
-    audit("manifest-loaded", { path: file.path, sha256 });
-    const gate = PinGate.load(file.bytes.toString("utf8"));
-    const key = requestStateKeyFromEnv();
-    const limits = DEFAULT_LIMITS;
-    const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
-    let registry: PinnedRegistry;
-    try {
-      registry = new PinnedRegistry(gate.admit(edition.definitions), { compile: pool.compile, limits });
-    } catch (err) {
-      await pool.close();
-      throw err;
-    }
-    const t = await startTransport({
-      registry,
-      serverInfo: SERVER_INFO,
-      config: { host: config.host, port: config.port, resourceUrl: config.resourceUrl },
-      validationPool: pool,
-      ...(key === undefined ? {} : { requestStateKey: key }),
-      audit,
-      ...(store === undefined ? {} : { argumentDigest: store.digester.args }),
-    });
+
+  /** The store, for the transport's argument digester; undefined in the seam-only development mode. */
+  get store(): ReturnType<typeof openAuditStore> {
+    return this.#store;
+  }
+
+  /** Records the transport this node is serving on, so a failed audit row can close it. */
+  hold(t: RunningTransport): RunningTransport {
     // Closing the node closes the store after the transport: its last rows, then a final checkpoint.
-    running = Object.freeze({
+    this.#running = Object.freeze({
       port: t.port,
       url: t.url,
       config: t.config,
@@ -266,13 +217,126 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
         try {
           await t.close();
         } finally {
-          await store?.close();
+          await this.#store?.close();
         }
       },
     });
-    return running;
+    return this.#running;
+  }
+
+  /** Closes the store; for a start that failed after prepare. */
+  async close(): Promise<void> {
+    await this.#store?.close();
+  }
+
+  /**
+   * Reads the manifest the snapshot names, opens the audit store, and parses the manifest. The
+   * manifest-loaded row is written only after the parse succeeds (CSR-WO-1007b §1.6); a manifest that
+   * is read but refused writes manifest-refused with the same path and hash, and start is refused.
+   */
+  static prepare(settings: Settings, options: StartNodeOptions = {}): PreparedNode {
+    const file = readManifestFile(settings.manifestPath);
+    const sha256 = createHash("sha256").update(file.bytes).digest("hex");
+    // The log and the anchor are never the manifest (nor the key files: the store checks those).
+    const manifestStat = statSync(file.path, { bigint: true });
+    const store = openAuditStore(settings.audit, undefined, [{ setting: "CLEARSEAL_MANIFEST", identity: `${String(manifestStat.dev)}:${String(manifestStat.ino)}` }]);
+    const stderr = (event: string, fields: Record<string, string | number>): void => {
+      console.error(renderAuditLine(event, fields));
+    };
+    const prepared = { value: undefined as PreparedNode | undefined };
+    // With a store, every row goes to it, and options.audit (the core's tests) observes. Without one
+    // (seam-only), options.audit replaces the stderr line, as before -2002. A row that cannot be written
+    // stops the node: before start it refuses start; after, the transport is closed, so the node never
+    // serves unrecorded (N4).
+    const audit = (event: string, fields: Record<string, string | number>): void => {
+      if (store === undefined) {
+        (options.audit ?? stderr)(event, fields);
+        return;
+      }
+      try {
+        store.append(event, fields);
+      } catch (err) {
+        stderr("audit-store-failed", { event, reason: err instanceof Error ? err.name : "error" });
+        const self = prepared.value;
+        if (self === undefined || self.#running === undefined) throw err;
+        if (!self.#stopping) {
+          self.#stopping = true;
+          void self.#running.close();
+        }
+        return;
+      }
+      options.audit?.(event, fields);
+    };
+    try {
+      if (settings.audit.mode === "seam-only") audit("audit-unanchored", { mode: "seam-only" });
+      let gate: PinGate;
+      try {
+        gate = PinGate.load(file.bytes.toString("utf8"));
+      } catch (err) {
+        // Read, hashed, and refused: the operator sees which file was rejected, and its hash.
+        audit("manifest-refused", { path: file.path, sha256, reason: err instanceof Error ? err.name : "error" });
+        throw err;
+      }
+      audit("manifest-loaded", { path: file.path, sha256 });
+      const node = new PreparedNode(settings, Object.freeze({ path: file.path, sha256 }), gate, store, audit);
+      prepared.value = node;
+      return node;
+    } catch (err) {
+      void store?.close();
+      throw err;
+    }
+  }
+}
+
+/**
+ * Starts a node for an edition, from a prepared node: the edition's two values, the snapshot's
+ * settings, the manifest already read and parsed. Refuses to start (throws) on a configuration outside
+ * the edition's schema, or a drifted, unpinned or removed tool under the strict default.
+ */
+export async function startNode(edition: Edition, prepared: PreparedNode): Promise<RunningTransport> {
+  if (typeof edition !== "object" || edition === null || !Array.isArray(edition.definitions) || typeof edition.configSchema !== "object" || edition.configSchema === null) {
+    throw new NodeStartError("startNode takes an edition's definitions and configSchema");
+  }
+  const extra = Reflect.ownKeys(edition).filter((k) => typeof k !== "string" || !EDITION_KEYS.includes(k));
+  if (extra.length > 0) throw new NodeStartError(`startNode takes an edition's definitions and configSchema, nothing else (not ${extra.map(String).join(", ")}): the operator names the manifest in CLEARSEAL_MANIFEST`);
+  const { settings } = prepared;
+  // The edition's own variables, from the snapshot's frozen copy: never from process.env (§1.2).
+  const config = readEditionConfig(edition.configSchema, settings.env);
+  const limits = DEFAULT_LIMITS;
+  const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
+  let registry: PinnedRegistry;
+  try {
+    registry = new PinnedRegistry(prepared.gate.admit(edition.definitions), { compile: pool.compile, limits, strict: settings.pinStrict, execToolsForbidden: settings.execToolsForbidden });
   } catch (err) {
-    await store?.close();
+    await pool.close();
+    throw err;
+  }
+  const key = settings.requestStateKey;
+  return prepared.hold(
+    await startTransport({
+      registry,
+      serverInfo: SERVER_INFO,
+      config: { host: config.host, port: config.port, resourceUrl: config.resourceUrl },
+      validationPool: pool,
+      verifier: settings.verifier,
+      ...(key === undefined ? {} : { requestStateKey: key }),
+      audit: prepared.audit,
+      ...(prepared.store === undefined ? {} : { argumentDigest: prepared.store.digester.args }),
+    }),
+  );
+}
+
+/**
+ * Captures the settings, prepares the node and starts it, in that order, for a caller that already
+ * holds the edition's values: the core's own tests. A deployed node uses the entry (node/cli.ts), which
+ * takes the snapshot before it imports the edition — the ordering this function cannot prove.
+ */
+export async function startNodeFromEnv(edition: Edition, env: NodeJS.ProcessEnv = process.env, options: StartNodeOptions = {}): Promise<RunningTransport> {
+  const prepared = PreparedNode.prepare(captureSettings(env), options);
+  try {
+    return await startNode(edition, prepared);
+  } catch (err) {
+    await prepared.close();
     throw err;
   }
 }

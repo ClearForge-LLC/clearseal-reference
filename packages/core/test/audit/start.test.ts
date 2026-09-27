@@ -10,7 +10,7 @@ import { after, before, describe, it } from "node:test";
 
 import { AuditConfigError } from "../../src/audit/files.ts";
 import { verifyAudit } from "../../src/audit/verify.ts";
-import { startNode } from "../../src/node/start.ts";
+import { startNodeFromEnv } from "../../src/node/start.ts";
 import { buildManifest, type PinnableTool, serializeManifest } from "../../src/pinning/manifest.ts";
 import { AUDIENCE, ISSUER, TestIssuer } from "../auth/issuer.ts";
 import { tag } from "../fixtures/tools.ts";
@@ -40,7 +40,7 @@ before(async () => {
   issuer = await TestIssuer.start();
   const ca = join(DIR, "ca.pem");
   writeFileSync(ca, issuer.ca);
-  Object.assign(process.env, { CLEARSEAL_MANIFEST: MANIFEST, AST_RESOURCE_URL: AUDIENCE, AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: ca });
+  Object.assign(process.env, { CLEARSEAL_EDITION: "@clearseal/fixture", CLEARSEAL_MANIFEST: MANIFEST, AST_RESOURCE_URL: AUDIENCE, AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: ca });
 });
 after(async () => {
   await issuer.close();
@@ -59,7 +59,7 @@ function auditEnv(vars: Record<string, string | undefined>): void {
 async function refused(label: string, vars: Record<string, string | undefined>, rule: RegExp): Promise<void> {
   auditEnv(vars);
   try {
-    const node = await startNode(edition, { audit: () => undefined });
+    const node = await startNodeFromEnv(edition, process.env, { audit: () => undefined });
     await node.close();
   } catch (err) {
     assert.ok(err instanceof AuditConfigError, `${label}: ${String(err)}`);
@@ -123,7 +123,7 @@ void describe("startNode refuses to start without its audit configuration (AU-21
   void it("seam-only starts with its audit-unanchored row", async () => {
     auditEnv({ AUDIT_STORE: "seam-only" });
     const seen: string[] = [];
-    const node = await startNode(edition, { audit: (e, f) => seen.push(`${e} ${JSON.stringify(f)}`) });
+    const node = await startNodeFromEnv(edition, process.env, { audit: (e, f) => seen.push(`${e} ${JSON.stringify(f)}`) });
     await node.close();
     assert.match(seen[0] ?? "", /^audit-unanchored \{"mode":"seam-only"\}$/);
     assert.match(seen[1] ?? "", /^manifest-loaded /);
@@ -138,7 +138,7 @@ void describe("with a store (AU-5, AU-23)", () => {
   void it("manifest-loaded is the first row of the run", async () => {
     kit = auditKit();
     auditEnv(kit.env);
-    const node = await startNode(edition);
+    const node = await startNodeFromEnv(edition);
     await node.close();
     const rows = readFileSync(kit.log, "utf8").trimEnd().split("\n").map((l) => JSON.parse(l) as { event: string; principal: string; seq: number });
     assert.equal(rows[0]?.event, "manifest-loaded");
@@ -150,7 +150,7 @@ void describe("with a store (AU-5, AU-23)", () => {
   void it("a call that reaches its handler writes one tool-call row with a keyed digest", async () => {
     kit = auditKit();
     auditEnv(kit.env);
-    const node = await startNode(edition);
+    const node = await startNodeFromEnv(edition);
     try {
       const r = await modern(node, "tools/call", { name: "echo", arguments: { text: CANARY } }, { headers: { authorization: `Bearer ${token()}` } });
       assert.equal(r.status, 200, r.text);

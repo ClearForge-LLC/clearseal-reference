@@ -4,11 +4,12 @@
 // It assembles nothing and names no manifest: the core's startNode builds the gate, the registry and
 // the transport from the edition's definitions and configuration schema, against the manifest the
 // operator names in CLEARSEAL_MANIFEST. So its source rules are short enough to hold:
-//   (a) imports from @clearseal/core are type-only, except startNode, in bin/ only, called as
-//       startNode({ definitions, configSchema }) and in no other way;
-//   (b) bin/ imports nothing but the core's startNode (and its types) and the edition's own package
-//       entry, by its package name: no relative import (into dist/ or anywhere), no built-in, no other
-//       package. So what bin/ starts is the entry the export check loads;
+//   (a) imports from @clearseal/core are type-only: an edition holds no core value at all. The node's
+//       entry is the core's own (`clearseal-node`), so an edition ships no scaffold (CSR-WO-1007b §1.3);
+//   (b) every file an import can reach is read: the walk covers the whole tree, extensions or none, and an
+//       import that reaches the edition's own test/ or node_modules/, or any file the walk did not read, is
+//       a finding; so is a package entry or exports target it did not read. There is nowhere left to hide
+//       code that runs when the entry is imported (CSR-WO-1007b §1.5);
 //   (c) `process` and `import.meta` are not referenced at all (by name, alias, destructuring,
 //       parentheses or computed access);
 //   (d) no property of a namespace import of the core is read, even a type-only one's;
@@ -56,10 +57,8 @@ export const KINDS: Readonly<Record<string, "checked" | null>> = Object.freeze({
   "audit-store": null,
 });
 
-/** The one core value an edition imports, and where: startNode, in bin/ only. */
-export const BIN_CORE_IMPORTS: ReadonlySet<string> = new Set(["startNode"]);
-/** The keys startNode is given: the edition's three values, nothing else. */
-export const START_NODE_KEYS: readonly string[] = ["definitions", "configSchema"];
+/** The core values an edition may import: none. The node's entry is the core's own (CSR-WO-1007b §1.3). */
+export const BIN_CORE_IMPORTS: ReadonlySet<string> = new Set<string>();
 
 /** Node built-ins an edition's source may import: pure helpers with no reach outside the process. */
 export const ALLOWED_BUILTINS: ReadonlySet<string> = new Set(["node:path", "node:url"]);
@@ -68,12 +67,21 @@ const BUILTINS = new Set([...builtinModules, ...builtinModules.map((m) => `node:
 /** Globals that load code or reach out without an import: refused wherever they are referenced. */
 const FORBIDDEN_GLOBALS = new Set(["eval", "Function", "fetch", "WebSocket", "XMLHttpRequest", "EventSource", "globalThis", "global", "require", "module", "Proxy", "Reflect"]);
 /** The core's controls by name: an edition that names one is building its own. */
-const CONTROL_NAMES = new Set(["PinGate", "PinnedRegistry", "buildManifest", "serializeManifest", "parseManifest", "Admission", "loadPinnedRegistry", "startTransport"]);
+const CONTROL_NAMES = new Set(["PinGate", "PinnedRegistry", "buildManifest", "serializeManifest", "parseManifest", "Admission", "loadPinnedRegistry", "startTransport", "startNode", "startNodeFromEnv", "captureSettings", "PreparedNode", "runNode"]);
 
 /** Not read: dependencies and the edition's own tests. dist/ IS read (CSR-WO-1007a adversarial pass,
  *  F3): the package entry an edition's bin/ loads is usually dist/index.js, and code the checker never
  *  reads is code that runs unchecked, before startNode, in the node's process. */
-const SKIP_TOP = new Set(["node_modules", "test"]);
+/**
+ * The edition's shipped tree: everything but its own tests and its dependencies' trees. Those two are not
+ * held to these rules (a test imports node:test; a dependency is its own author's), and nothing shipped
+ * may import into them (UNSHIPPED), so no code there ever runs when the node imports the edition. Every
+ * other file is read, `dist/` included (CSR-WO-1007a's F3) and extensions or none (CSR-WO-1007b's H-1),
+ * and an import that resolves to a file outside the read set is a finding: reachability is closed.
+ */
+const SKIP_TOP: ReadonlySet<string> = new Set(["test", "node_modules"]);
+/** Directories an import from shipped code may not reach, named for a clearer finding than "unread". */
+const UNSHIPPED: readonly string[] = ["test", "node_modules"];
 
 /** The edition's source files: everything under its directory except the top-level test/ and
  *  node_modules/, dist/ included. A symbolic link anywhere in the tree is itself a finding. */
@@ -89,7 +97,10 @@ function sourceFiles(dir: string, findings: Finding[]): string[] {
         continue;
       }
       if (st.isDirectory()) walk(p, false);
-      else if (/\.(ts|mts|cts|js|mjs|cjs|tsx|jsx)$/.test(name) && !name.endsWith(".d.ts")) out.push(p);
+      // A file with no extension is a module Node loads when it is imported by that exact name (measured on
+      // 24.21.0, with the package "type": "module"), so it is read like any other. A file with some other
+      // extension (.json, .md) is data these rules do not cover.
+      else if (/\.(ts|mts|cts|js|mjs|cjs|tsx|jsx)$/.test(name) ? !name.endsWith(".d.ts") : !name.includes(".")) out.push(p);
     }
   };
   walk(dir, true);
@@ -114,16 +125,19 @@ function isReference(id: ts.Identifier): boolean {
 export function checkSource(dir: string): Finding[] {
   const findings: Finding[] = [];
   const edition = realpathSync(dir);
-  const ownName = packageName(dir);
-  for (const file of sourceFiles(dir, findings)) {
+  const files = sourceFiles(dir, findings);
+  // Every file the walk read, by its real path: an import that reaches anything else reaches code these
+  // rules never saw (CSR-WO-1007b §1.5).
+  const read = new Set(files.map((f) => realpathSync(f)));
+  // An import must land on a file these rules read, so every module the entry can reach is checked.
+  entryFilesChecked(dir, edition, read, findings);
+  for (const file of files) {
     const rel = relative(dir, file).split(sep).join("/");
-    const inBin = rel.startsWith("bin/");
     const add = (rule: string, detail: string): void => {
       findings.push({ file: rel, rule, detail });
     };
     const src = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
-    /** Local names bound to startNode (in bin/), to a type-only core import, and to a core namespace. */
-    const startNodeLocal = new Set<string>();
+    /** Local names bound to a type-only core import, and to a core namespace. */
     const typeOnly = new Set<string>();
     const namespaces = new Set<string>();
 
@@ -139,7 +153,16 @@ export function checkSource(dir: string): Finding[] {
         add("import-outside-exports", `"${spec}" does not resolve to a file in the edition`);
         return;
       }
-      if (target !== edition && !target.startsWith(`${edition}${sep}`)) add("import-outside-exports", `"${spec}" resolves outside the edition (${relative(edition, target).split(sep).join("/")})`);
+      if (target !== edition && !target.startsWith(`${edition}${sep}`)) {
+        add("import-outside-exports", `"${spec}" resolves outside the edition (${relative(edition, target).split(sep).join("/")})`);
+        return;
+      }
+      const inside = relative(edition, target).split(sep);
+      if (inside.length > 1 && UNSHIPPED.includes(inside[0] as string)) {
+        add("import-unshipped", `"${spec}" reaches ${inside[0] ?? ""}/: shipped code imports neither the edition's tests nor its dependencies' trees, and code there runs when the entry is imported`);
+        return;
+      }
+      if (!read.has(target)) add("import-unread", `"${spec}" resolves to ${relative(edition, target).split(sep).join("/")}, which these rules did not read: every file an import can reach is read`);
     };
 
     // First pass: imports and re-exports, so local names are known before they are used.
@@ -148,11 +171,6 @@ export function checkSource(dir: string): Finding[] {
       if (ts.isImportDeclaration(stmt) && ts.isStringLiteral(stmt.moduleSpecifier)) {
         const spec = stmt.moduleSpecifier.text;
         const clause = stmt.importClause;
-        // (b) bin/ imports the core's startNode and the edition's own entry, by name, and nothing else.
-        if (inBin && spec !== "@clearseal/core") {
-          if (ownName === undefined || spec !== ownName) add("bin-import", `"${spec}": bin/ imports only the core's startNode and the edition's own package entry by name${ownName === undefined ? " (package.json has no name)" : ` ("${ownName}")`}, so what it starts is the entry the export check loads`);
-          continue;
-        }
         if (spec === "@clearseal/core") {
           const bindings = clause?.namedBindings;
           if (clause?.isTypeOnly === true) {
@@ -161,10 +179,10 @@ export function checkSource(dir: string): Finding[] {
             if (bindings !== undefined && ts.isNamedImports(bindings)) for (const el of bindings.elements) typeOnly.add(el.name.text);
             continue;
           }
-          if (clause?.name !== undefined) add("core-import", "a default import of the core: an edition imports only types from the core, and startNode in bin/");
+          if (clause?.name !== undefined) add("core-import", "a default import of the core: an edition imports only types from the core");
           if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
             namespaces.add(bindings.name.text);
-            add("core-import", `import * as ${bindings.name.text}: a namespace reaches every control; an edition imports only types from the core, and startNode in bin/`);
+            add("core-import", `import * as ${bindings.name.text}: a namespace reaches every control; an edition imports only types from the core`);
           }
           if (bindings !== undefined && ts.isNamedImports(bindings)) {
             for (const el of bindings.elements) {
@@ -173,8 +191,7 @@ export function checkSource(dir: string): Finding[] {
                 continue;
               }
               const imported = (el.propertyName ?? el.name).text;
-              if (BIN_CORE_IMPORTS.has(imported) && inBin) startNodeLocal.add(el.name.text);
-              else add("core-import", `${imported}: an edition imports only types from the core, and ${[...BIN_CORE_IMPORTS].join(", ")} in bin/`);
+              add("core-import", `${imported}: an edition imports only types from the core; the node's entry is the core's own (clearseal-node)`);
             }
           }
         } else if (spec.startsWith("@clearseal/core/")) add("import-outside-exports", `"${spec}": the core is reached only through its package entry`);
@@ -185,31 +202,10 @@ export function checkSource(dir: string): Finding[] {
       }
       if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier !== undefined && ts.isStringLiteral(stmt.moduleSpecifier)) {
         const spec = stmt.moduleSpecifier.text;
-        if (inBin) {
-          add("bin-import", `re-exports from "${spec}": bin/ starts the node and exports nothing`);
-          continue;
-        }
         if (spec.startsWith(".")) relativeSpecifier(spec);
         else if (!stmt.isTypeOnly) add("core-reexport", `re-exports from "${spec}": an edition exports its own kinds, never the core's values`);
       }
     }
-
-    /** Is this startNode reference the one allowed call: startNode({ definitions, configSchema })? */
-    const isStartNodeCall = (id: ts.Identifier): boolean => {
-      const call = id.parent;
-      if (!ts.isCallExpression(call) || call.expression !== id || call.arguments.length !== 1) return false;
-      const arg = call.arguments[0];
-      if (arg === undefined || !ts.isObjectLiteralExpression(arg)) return false;
-      const keys: string[] = [];
-      for (const p of arg.properties) {
-        if (!ts.isShorthandPropertyAssignment(p) && !ts.isPropertyAssignment(p)) return false;
-        if (ts.isComputedPropertyName(p.name)) return false;
-        const k = nameOf(p.name);
-        if (k === undefined) return false;
-        keys.push(k);
-      }
-      return keys.length === START_NODE_KEYS.length && START_NODE_KEYS.every((k) => keys.includes(k));
-    };
 
     const visit = (node: ts.Node): void => {
       if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) add("dynamic-import", "import(): an edition's imports are static and checked");
@@ -225,7 +221,6 @@ export function checkSource(dir: string): Finding[] {
         if (FORBIDDEN_GLOBALS.has(t)) add("forbidden-global", `${t}: code loading and network access go through the core and the cage`);
         if (CONTROL_NAMES.has(t)) add("control-constructed", `${t}: the core's gate, registry and transport are built by the core alone`);
         if (typeOnly.has(t)) add("type-import-as-value", `${t}: imported from the core as a type, used as a value`);
-        if (startNodeLocal.has(t) && !isStartNodeCall(node)) add("start-node-call", `${t}: startNode is called once, as startNode({ ${START_NODE_KEYS.join(", ")} }), and never passed around`);
       }
 
       // No verifier: a member named verify in any form, and no member whose name cannot be read.
@@ -247,6 +242,38 @@ export function checkSource(dir: string): Finding[] {
 }
 
 const CHILD = fileURLToPath(new URL("./supply-boundary-child.ts", import.meta.url));
+
+/**
+ * Every file the package's `exports` names must be one the walk read (CSR-WO-1007b §1.5): an entry the
+ * rules never read is code that runs, unchecked, the moment the node imports the edition.
+ */
+function entryFilesChecked(dir: string, edition: string, read: ReadonlySet<string>, findings: Finding[]): void {
+  let exp: unknown;
+  try {
+    exp = (JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { exports?: unknown }).exports;
+  } catch {
+    return; // A missing or unreadable package.json is the export check's finding, not this one's.
+  }
+  const targets: string[] = [];
+  const collect = (v: unknown): void => {
+    if (typeof v === "string") targets.push(v);
+    else if (typeof v === "object" && v !== null) for (const inner of Object.values(v as Record<string, unknown>)) collect(inner);
+  };
+  collect(exp);
+  for (const t of targets) {
+    // A "types" target is a declaration file: types, not code, and never loaded by a node.
+    if (!t.startsWith(".") || t.endsWith(".d.ts")) continue;
+    let target: string;
+    try {
+      target = realpathSync(join(dir, t));
+    } catch {
+      findings.push({ file: "package.json", rule: "entry-unread", detail: `exports names "${t}", which does not resolve to a file` });
+      continue;
+    }
+    if (target !== edition && !target.startsWith(`${edition}${sep}`)) findings.push({ file: "package.json", rule: "entry-unread", detail: `exports names "${t}", which resolves outside the edition` });
+    else if (!read.has(target)) findings.push({ file: "package.json", rule: "entry-unread", detail: `exports names "${t}", which these rules did not read: an entry the checker cannot read is code that runs unchecked when the node imports the edition` });
+  }
+}
 
 /** The edition's package name, or undefined when package.json has none. */
 function packageName(dir: string): string | undefined {

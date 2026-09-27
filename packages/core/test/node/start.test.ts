@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, before, describe, it } from "node:test";
 
-import { NodeStartError, startNode } from "../../src/node/start.ts";
+import { NodeStartError, startNodeFromEnv } from "../../src/node/start.ts";
 import { buildManifest, ManifestError, type PinnableTool, serializeManifest } from "../../src/pinning/manifest.ts";
 import { PinRefusedError } from "../../src/pinning/registry.ts";
 import { AUDIENCE, ISSUER, TestIssuer } from "../auth/issuer.ts";
@@ -46,7 +46,7 @@ before(async () => {
   const ca = join(DIR, "ca.pem");
   writeFileSync(ca, issuer.ca);
   // The audit store's own start tests are in test/audit/; these run with the development seam.
-  Object.assign(process.env, { AUDIT_STORE: "seam-only", CLEARSEAL_MANIFEST: MANIFEST, SNT_RESOURCE_URL: AUDIENCE, AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: ca });
+  Object.assign(process.env, { AUDIT_STORE: "seam-only", CLEARSEAL_EDITION: "@clearseal/fixture", CLEARSEAL_MANIFEST: MANIFEST, SNT_RESOURCE_URL: AUDIENCE, AUTH_ISSUER: ISSUER, AUTH_JWKS_URL: issuer.jwksUrl, AUTH_AUDIENCE: AUDIENCE, AUTH_JWKS_CA_FILE: ca });
 });
 after(async () => {
   await issuer.close();
@@ -57,12 +57,12 @@ after(async () => {
 
 /** A start that must be refused, with CLEARSEAL_MANIFEST set to `manifest` (unset when null): the
  *  error, or a failure if a node started. */
-async function refused(edition: Parameters<typeof startNode>[0], manifest: string | null = MANIFEST): Promise<Error> {
+async function refused(edition: Parameters<typeof startNodeFromEnv>[0], manifest: string | null = MANIFEST): Promise<Error> {
   if (manifest === null) delete process.env["CLEARSEAL_MANIFEST"];
   else process.env["CLEARSEAL_MANIFEST"] = manifest;
   const t0 = performance.now();
   try {
-    const node = await startNode(edition, { audit: () => undefined });
+    const node = await startNodeFromEnv(edition, process.env, { audit: () => undefined });
     await node.close();
   } catch (err) {
     assert.ok(performance.now() - t0 < 2_000, "refused at once, never waited on");
@@ -161,7 +161,7 @@ void describe("CSR-WO-1007a §1.1: startNode reads the manifest the operator nam
   void it("started, the node writes manifest-loaded with the file's path and the SHA-256 of the bytes it admitted from, and serves exactly what that file pins", async () => {
     process.env["CLEARSEAL_MANIFEST"] = MANIFEST;
     const audits: [string, Record<string, string | number>][] = [];
-    const node = await startNode(edition, { audit: (e, f) => audits.push([e, f]) });
+    const node = await startNodeFromEnv(edition, process.env, { audit: (e, f) => audits.push([e, f]) });
     try {
       const loaded = audits.filter(([e]) => e === "manifest-loaded");
       assert.equal(loaded.length, 1, "one manifest-loaded line");
