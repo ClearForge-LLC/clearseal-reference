@@ -6,10 +6,15 @@
 // core's in-process issuer. The clauses that are properties of the core (the subset test, the
 // cross-language vectors, the enumeration detector, the supply-boundary test) are the core's own
 // suites, each carrying its red case, and run here as child processes.
+//
+// CSR-WO-1007 §1.4: the node is started as the edition's bin/ starts it, by the core's startNode; each
+// refusal also writes its audit line; a containment clause refuses a planted link and a FIFO in the
+// notes root at the cage; and the supply-boundary suite carries the red-team's H1 plant and its
+// aliasing variants.
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { after, before, describe, it } from "node:test";
 
@@ -143,6 +148,12 @@ void describe("P1 exit gate: against a real teaching node", () => {
         const extra = await mcp(t, "tools/call", { name: "notes.read", arguments: { name: "today.md", path: "/etc/passwd" } }, { name: "notes.read", token: token() });
         assert.equal(origin.status, 403, label);
         assert.equal(extra.status, 400, label);
+        if (t === live().t) {
+          // Each refusal also writes its audit line (CSR-WO-1007 §1.4).
+          const lines = live().lines;
+          assert.ok(lines.some((l) => l.startsWith('http-refused {"status":403,"reason":"origin-not-allowed"')), `a forged Origin writes http-refused: ${lines.slice(-4).join(" | ")}`);
+          assert.ok(lines.some((l) => l.startsWith('rpc-refused {"code":-32602,"method":"tools/call"')), `an extra property writes rpc-refused: ${lines.slice(-4).join(" | ")}`);
+        }
         assert.match(extra.text, /Invalid arguments for tool notes\.read/);
         rows.push(`${label}: forged Origin → ${String(origin.status)}, extra property → ${String(extra.status)}`);
       }
@@ -150,10 +161,41 @@ void describe("P1 exit gate: against a real teaching node", () => {
       const control = await mcp(countingNode, "tools/call", { name: "notes.read", arguments: { name: "today.md" } }, { name: "notes.read", token: token() });
       assert.equal(control.status, 200);
       assert.equal(runs, 1, "the counter does count: a valid call runs the handler once");
-      record("a forged Origin and an extra request property are each refused before any handler runs", `${rows.join("; ")}; handler runs during both refusals: 0 (a valid call: 1)`);
+      record("a forged Origin and an extra request property are each refused before any handler runs, each with its audit line", `${rows.join("; ")}; handler runs during both refusals: 0 (a valid call: 1); teaching node audit: http-refused 403 origin-not-allowed, rpc-refused -32602`);
     } finally {
       await countingNode.close();
     }
+  });
+
+  void it("containment: a name that climbs out, a planted link and a FIFO in the notes root are each refused, each with its audit line", async () => {
+    const rows: string[] = [];
+    // A name that climbs out never reaches the cage: the pinned schema's name pattern refuses it first.
+    const climb = await call("notes.read", { name: "../outside.md" }, { token: token() });
+    assert.equal(climb.status, 400);
+    assert.ok(live().lines.some((l) => l.startsWith('rpc-refused {"code":-32602,"method":"tools/call"')));
+    rows.push(`"../outside.md" → ${String(climb.status)} (the pinned schema, before the cage; rpc-refused)`);
+    // A link planted in the root, to a file outside it: refused at the cage, every platform.
+    mkdirSync(`${root}/../outside`, { recursive: true });
+    writeFileSync(`${root}/../outside/secret.md`, "SECRET OUTSIDE THE ROOT\n");
+    symlinkSync(`${root}/../outside/secret.md`, `${root}/planted-link.md`);
+    const link = await call("notes.read", { name: "planted-link.md" }, { token: token() });
+    assert.equal(link.status, 500);
+    assert.match(link.text, /reached outside its containment domain/);
+    assert.doesNotMatch(link.text, /SECRET/);
+    assert.ok(live().lines.some((l) => l.startsWith('containment-refused {"tool":"notes.read","kind":"fs","sink":"') && l.includes("planted-link.md")));
+    rows.push(`a planted link → ${String(link.status)} containment-refused`);
+    if (process.platform !== "win32") {
+      execFileSync("mkfifo", [`${root}/planted-fifo.md`]);
+      const t0 = performance.now();
+      const fifo = await call("notes.read", { name: "planted-fifo.md" }, { token: token() });
+      assert.equal(fifo.status, 500);
+      assert.ok(performance.now() - t0 < 2_000, "refused at once, never waited on");
+      assert.ok(live().lines.some((l) => l.startsWith('containment-refused {"tool":"notes.read","kind":"fs","sink":"') && l.includes('"fileType":"fifo"')));
+      rows.push(`a FIFO → ${String(fifo.status)} containment-refused fileType fifo, in ${(performance.now() - t0).toFixed(0)} ms`);
+    } else {
+      rows.push("a FIFO: not creatable on Windows");
+    }
+    record("containment: an escape by name, by link and by FIFO is refused, each with its audit line", rows.join("; "));
   });
 });
 
@@ -169,7 +211,10 @@ function suite(file: string): string {
     const e = err as { stdout?: string; stderr?: string };
     throw new Error(`${file} failed:\n${(e.stdout ?? "").slice(-2000)}\n${(e.stderr ?? "").slice(-2000)}`, { cause: err });
   }
-  return /test: \d+ file\(s\), \d+ test\(s\) passed/.exec(out)?.[0] ?? "passed";
+  const summary = /test: \d+ file\(s\), \d+ test\(s\) passed/.exec(out)?.[0] ?? "passed";
+  // The H1 plant and its variants each ran and went red in that suite (CSR-WO-1007 §1.4).
+  const h1 = out.match(/✔ red-proof H1/g)?.length ?? 0;
+  return file.endsWith("supply-boundary.test.ts") ? (assert.ok(h1 >= 10, `the H1 plant and its variants ran: ${String(h1)}`), `${summary}; H1 plant and variants red: ${String(h1)}`) : summary;
 }
 
 void describe("P1 exit gate: the core's own suites, each with its red case", () => {
@@ -177,7 +222,7 @@ void describe("P1 exit gate: the core's own suites, each with its red case", () 
     ["N3: every gate-read field is in the hash, and the subset test can go red", "packages/core/test/pinning/subset.test.ts"],
     ["every committed cross-language vector hashes identically in the core", "packages/core/test/pinning/vectors.test.ts"],
     ["the enumeration detector goes red when a local copy of the standard's field list is edited", "packages/core/test/pinning/spec-check.test.ts"],
-    ["the supply-boundary test exists and goes red on a planted edition-side control", "packages/core/test/boundary/supply-boundary.test.ts"],
+    ["the supply-boundary test exists and goes red on a planted edition-side control, the red-team's H1 plant and each of its aliasing variants", "packages/core/test/boundary/supply-boundary.test.ts"],
   ];
   for (const [sentence, file] of clauses) {
     void it(sentence, { timeout: 180_000 }, () => {

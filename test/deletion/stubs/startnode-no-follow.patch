@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/start.ts
++++ b/packages/core/src/node/start.ts
+@@ -88,7 +88,7 @@
+   }
+   let fd: number;
+   try {
+-    fd = openSync(path, constants.O_RDONLY | (win ? 0 : constants.O_NOFOLLOW | constants.O_NONBLOCK));
++    fd = openSync(path, constants.O_RDONLY | (win ? 0 : constants.O_NONBLOCK));
+   } catch (err) {
+     const code = err instanceof Error && "code" in err ? String(err.code) : "error";
+     throw new ManifestError(`the manifest cannot be read (${code}): a node without a manifest does not start`, { cause: err });

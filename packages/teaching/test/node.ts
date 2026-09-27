@@ -1,8 +1,10 @@
-// Test harness: a real teaching node, started by the edition's own scaffold (start()), against the
-// core's in-process test issuer over loopback HTTPS. The notes root is a temporary directory under a
-// POSIX-style path, pinned by a manifest built for it (the pinForTest pattern), because the root is
-// part of the pinned contract. On Windows a POSIX-style path names a directory on the current drive
-// (CSR-WO-1004 §1.3).
+// Test harness: a real teaching node, started by the core's startNode exactly as the edition's bin/
+// starts it (CSR-WO-1007 §1.2), against the core's in-process test issuer over loopback HTTPS. The one
+// difference is the definitions and the manifest: the committed ones pin /srv/clearseal/teaching/notes,
+// so a test builds the edition's definitions for a temporary root (toolsFor, the list the exported
+// definitions come from) and writes an approved manifest for them (the pinForTest pattern), because
+// the root is part of the pinned contract. On Windows a POSIX-style path names a directory on the
+// current drive (CSR-WO-1004 §1.3).
 
 import { randomBytes } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -10,11 +12,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 
-import { buildManifest, type PinnableTool, type RunningTransport, serializeManifest } from "@clearseal/core";
+import { buildManifest, type PinnableTool, type RunningTransport, serializeManifest, startNode as coreStartNode } from "@clearseal/core";
 
 import { AUDIENCE, ISSUER, TestIssuer } from "../../core/test/auth/issuer.ts";
+import { configSchema } from "../src/index.ts";
 import { toolsFor } from "../src/notes.ts";
-import { start } from "../src/start.ts";
 
 export { AUDIENCE, ISSUER, TestIssuer };
 
@@ -55,7 +57,8 @@ export function restoreEnv(): void {
   saved.clear();
 }
 
-/** Starts a teaching node through start(), configured only by the environment, as a deployment is. */
+/** Starts a teaching node through the core's startNode, configured only by the environment, as a
+ *  deployment is: the edition's definitions for this root, and the manifest pinned for them. */
 export async function startNode(issuer: TestIssuer, root: string, manifest: string, extra: Record<string, string | undefined> = {}): Promise<Node> {
   const caFile = join(mkdtempSync(join(tmpdir(), "clearseal-teaching-ca-")), "issuer-ca.pem");
   writeFileSync(caFile, issuer.ca);
@@ -63,8 +66,6 @@ export async function startNode(issuer: TestIssuer, root: string, manifest: stri
     TEACHING_RESOURCE_URL: AUDIENCE,
     TEACHING_HOST: "127.0.0.1",
     TEACHING_PORT: "0",
-    TEACHING_NOTES_ROOT: root,
-    TEACHING_MANIFEST: manifest,
     AUTH_ISSUER: ISSUER,
     AUTH_JWKS_URL: issuer.jwksUrl,
     AUTH_AUDIENCE: AUDIENCE,
@@ -73,7 +74,7 @@ export async function startNode(issuer: TestIssuer, root: string, manifest: stri
     ...extra,
   });
   const lines: string[] = [];
-  const t = await start({ audit: (e, f) => lines.push(`${e} ${JSON.stringify(f)}`) });
+  const t = await coreStartNode({ definitions: toolsFor(root), manifestPath: manifest, configSchema }, { audit: (e, f) => lines.push(`${e} ${JSON.stringify(f)}`) });
   return { t, lines, close: () => t.close() };
 }
 

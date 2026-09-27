@@ -30,12 +30,13 @@ void describe("the committed manifest (pins/teaching.json)", () => {
 });
 
 void describe("what the scaffold registers is what is pinned", () => {
-  void it("start() with the committed manifest and the default root admits every tool under the strict default", async () => {
-    // start() and the exported definitions share one list (toolsFor); starting the real scaffold
-    // against the committed manifest proves it, and fails here, not at a first deploy.
+  void it("startNode with the committed manifest and the default root admits every tool under the strict default", async () => {
+    // The exported definitions are toolsFor(the default root); starting a node through the core's
+    // startNode against the committed manifest, as bin/ does, proves they are what is pinned, and
+    // fails here, not at a first deploy.
     const issuer = await TestIssuer.start();
     try {
-      const node = await startNode(issuer, "/srv/clearseal/teaching/notes", fileURLToPath(manifestPath), { TEACHING_NOTES_ROOT: undefined });
+      const node = await startNode(issuer, "/srv/clearseal/teaching/notes", fileURLToPath(manifestPath));
       try {
         const health = await fetch(`${node.t.url.replace(/\/mcp$/, "")}/health`);
         const body = (await health.json()) as { pinned: unknown };

@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -442,7 +442,7 @@
+       if (outcome.kind === "accepted") send(res, 202, undefined);
+       else if (outcome.kind === "refused") {
+         // One line per JSON-RPC error, unless dispatch already wrote a specific one (§1.7).
+-        if (!AUDITED_REFUSALS.has(outcome.refusal)) audit("rpc-refused", { code: outcome.refusal.code, method: loggableMethod(classified.message.method), principal: principal.id });
++        if (!AUDITED_REFUSALS.has(outcome.refusal) && outcome.refusal.code > 0) audit("rpc-refused", { code: outcome.refusal.code, method: loggableMethod(classified.message.method), principal: principal.id });
+         refuse(res, outcome.refusal, outcome.id);
+       }
+       else send(res, 200, outcome.body);

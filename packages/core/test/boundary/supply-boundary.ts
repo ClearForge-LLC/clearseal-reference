@@ -1,14 +1,22 @@
 // The supply boundary (N1; architecture §4 *Core ↔ edition*, §5 *Where OS primitives live*;
-// CSR-WO-1004 §1.5). An edition may export only the kinds in KINDS, each declared by name in its
-// package.json ("clearseal": { "exports": { <export>: <kind> } }). Its source may use the core only
-// through a short list of named imports, and may build none of the core's controls. The kinds and the
-// allowed imports are data in this one place: the next edition extends them by argument.
+// CSR-WO-1004 §1.5, CSR-WO-1007 §1.3). An edition may export only the kinds in KINDS, each declared by
+// name in its package.json ("clearseal": { "exports": { <export>: <kind> } }). It assembles nothing:
+// the core's startNode builds the gate, the registry and the transport from the edition's
+// definitions, manifest path and configuration schema. So its source rules are short enough to hold:
+//   (a) imports from @clearseal/core are type-only, except startNode, in bin/ only, called as
+//       startNode({ definitions, manifestPath, configSchema }) and in no other way;
+//   (b) `process` and `import.meta` are not referenced at all (by name, alias, destructuring,
+//       parentheses or computed access), except the one `new URL(<literal>, import.meta.url)` form;
+//   (c) no property of a namespace import of the core is read, even a type-only one's;
+//   (d) so process.getBuiltinModule, createRequire, loadEnvFile and every other process member are
+//       unreachable: (b) removes process itself.
+// The kinds and the one allowed value import are data in this one place.
 //
-// What this is and is not. The export rules run in a fresh child process per edition, so an edition
-// cannot patch the checker's own built-ins. The source rules read the syntax tree; they are a strict
-// allowlist, but a static reading of JavaScript is best effort, not a sandbox. The boundaries that
-// hold at run time are the core's: the transport serves only a genuine PinnedRegistry (its brand),
-// and a tool reaches out only through its cage, whose OS-level form is the edition's to supply.
+// What this is and is not. Static reading of JavaScript is best effort against a hostile author, not
+// a sandbox: the boundaries that hold at run time are the core's (the transport serves only a genuine
+// PinnedRegistry, startNode reads only the committed manifest file, a tool reaches out only through
+// its cage). The export rules run in a fresh child process per edition, so an edition cannot patch
+// the checker's own built-ins.
 
 import { execFileSync } from "node:child_process";
 import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
@@ -27,25 +35,21 @@ export interface Finding {
 
 /** The kinds an edition may export. The structural check for each runs in the child
  *  (supply-boundary-child.ts); `null` marks a kind the architecture names but the core does not define
- *  yet, so nothing can be that kind today. */
+ *  yet, so nothing can be that kind today. A deploy scaffold is bin/ and its configuration, not an
+ *  export (CSR-WO-1007 §1.2). */
 export const KINDS: Readonly<Record<string, "checked" | null>> = Object.freeze({
   "tool-definitions": "checked",
   "manifest-path": "checked",
   "configuration-schema": "checked",
-  "deploy-scaffold": "checked",
   cage: "checked",
   "approval-notifier": null,
   "audit-store": null,
 });
 
-/** The core's values an edition's source may import by name: what a deploy scaffold needs to admit
- *  its tools through the gate and start the transport. Type-only imports are unrestricted. */
-export const CORE_IMPORTS: ReadonlySet<string> = new Set(["loadPinnedRegistry", "startTransport", "ValidationPool", "compileSchema", "DEFAULT_LIMITS", "requestStateKeyFromEnv"]);
-
-/** The keys an edition may pass to startTransport and to loadPinnedRegistry. No verifier, no clock,
- *  no exec switch, no strictness override, no cage factory: those are the core's. */
-export const TRANSPORT_OPTIONS: ReadonlySet<string> = new Set(["registry", "serverInfo", "config", "validationPool", "requestStateKey", "audit"]);
-export const REGISTRY_OPTIONS: ReadonlySet<string> = new Set(["compile", "limits"]);
+/** The one core value an edition imports, and where: startNode, in bin/ only. */
+export const BIN_CORE_IMPORTS: ReadonlySet<string> = new Set(["startNode"]);
+/** The keys startNode is given: the edition's three values, nothing else. */
+export const START_NODE_KEYS: readonly string[] = ["definitions", "manifestPath", "configSchema"];
 
 /** Node built-ins an edition's source may import: pure helpers with no reach outside the process. */
 export const ALLOWED_BUILTINS: ReadonlySet<string> = new Set(["node:path", "node:url"]);
@@ -53,10 +57,8 @@ const BUILTINS = new Set([...builtinModules, ...builtinModules.map((m) => `node:
 
 /** Globals that load code or reach out without an import: refused wherever they are referenced. */
 const FORBIDDEN_GLOBALS = new Set(["eval", "Function", "fetch", "WebSocket", "XMLHttpRequest", "EventSource", "globalThis", "global", "require", "module", "Proxy", "Reflect"]);
-/** process members that reach native code or other modules. process.env, .on and .exit are allowed. */
-const FORBIDDEN_PROCESS = new Set(["getBuiltinModule", "binding", "_linkedBinding", "dlopen", "mainModule", "execve", "kill"]);
 /** The core's controls by name: an edition that names one is building its own. */
-const CONTROL_NAMES = new Set(["PinGate", "PinnedRegistry", "buildManifest", "serializeManifest", "parseManifest", "Admission"]);
+const CONTROL_NAMES = new Set(["PinGate", "PinnedRegistry", "buildManifest", "serializeManifest", "parseManifest", "Admission", "loadPinnedRegistry", "startTransport"]);
 
 const SKIP_TOP = new Set(["node_modules", "dist", "test"]);
 
@@ -95,8 +97,14 @@ function isReference(id: ts.Identifier): boolean {
   return true;
 }
 
-function isLoadCall(e: ts.Expression, coreLocal: ReadonlyMap<string, string>): boolean {
-  return ts.isCallExpression(e) && ts.isIdentifier(e.expression) && coreLocal.get(e.expression.text) === "loadPinnedRegistry";
+/** Is this `import.meta` the one allowed form: the second argument of `new URL(<literal>, import.meta.url)`? */
+function isManifestUrlForm(meta: ts.MetaProperty): boolean {
+  const access = meta.parent;
+  if (!ts.isPropertyAccessExpression(access) || access.expression !== meta || access.name.text !== "url") return false;
+  const call = access.parent;
+  if (!ts.isNewExpression(call) || !ts.isIdentifier(call.expression) || call.expression.text !== "URL") return false;
+  const args = call.arguments ?? ts.factory.createNodeArray();
+  return args.length === 2 && args[1] === access && args[0] !== undefined && (ts.isStringLiteral(args[0]) || ts.isNoSubstitutionTemplateLiteral(args[0]));
 }
 
 /** The static rules, over every source file of the edition. */
@@ -105,13 +113,15 @@ export function checkSource(dir: string): Finding[] {
   const edition = realpathSync(dir);
   for (const file of sourceFiles(dir, findings)) {
     const rel = relative(dir, file).split(sep).join("/");
+    const inBin = rel.startsWith("bin/");
     const add = (rule: string, detail: string): void => {
       findings.push({ file: rel, rule, detail });
     };
     const src = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
-    /** Local names bound to the allowed core values, and to a registry from loadPinnedRegistry. */
-    const coreLocal = new Map<string, string>();
-    const registries = new Set<string>();
+    /** Local names bound to startNode (in bin/), to a type-only core import, and to a core namespace. */
+    const startNodeLocal = new Set<string>();
+    const typeOnly = new Set<string>();
+    const namespaces = new Set<string>();
 
     const relativeSpecifier = (spec: string): void => {
       if (spec.includes("%")) {
@@ -128,46 +138,34 @@ export function checkSource(dir: string): Finding[] {
       if (target !== edition && !target.startsWith(`${edition}${sep}`)) add("import-outside-exports", `"${spec}" resolves outside the edition (${relative(edition, target).split(sep).join("/")})`);
     };
 
-    const checkOptions = (obj: ts.Expression | undefined, allowed: ReadonlySet<string>, what: string): void => {
-      if (obj === undefined) return;
-      if (!ts.isObjectLiteralExpression(obj)) {
-        add("options-not-literal", `${what}'s options are an object literal, so their keys can be read`);
-        return;
-      }
-      for (const p of obj.properties) {
-        if (ts.isSpreadAssignment(p)) {
-          // Only a conditional of object literals with allowed keys: the `...(x ? {} : { k })` idiom.
-          const e = ts.isParenthesizedExpression(p.expression) ? p.expression.expression : p.expression;
-          const branches = ts.isConditionalExpression(e) ? [e.whenTrue, e.whenFalse] : [e];
-          for (const b of branches) checkOptions(ts.isParenthesizedExpression(b) ? b.expression : b, allowed, what);
-          continue;
-        }
-        const key = p.name !== undefined && !ts.isComputedPropertyName(p.name) ? nameOf(p.name) : undefined;
-        if (key === undefined || !allowed.has(key)) add("option-forbidden", `${what} is given "${key ?? "(computed)"}": an edition may pass only ${[...allowed].join(", ")}`);
-        if (what === "startTransport" && key === "registry") {
-          const v = ts.isShorthandPropertyAssignment(p) ? p.name : ts.isPropertyAssignment(p) ? p.initializer : undefined;
-          const ok = v !== undefined && ((ts.isIdentifier(v) && registries.has(v.text)) || isLoadCall(v, coreLocal));
-          if (!ok) add("ungated-registry", "startTransport is given a registry that is not loadPinnedRegistry's: the gate is the only registration path");
-        }
-      }
-    };
-
     // First pass: imports and re-exports, so local names are known before they are used.
     for (const stmt of src.statements) {
+      if (ts.isImportEqualsDeclaration(stmt) && ts.isExternalModuleReference(stmt.moduleReference)) add("core-import", "import = require(): an edition's imports are ES imports, checked by name");
       if (ts.isImportDeclaration(stmt) && ts.isStringLiteral(stmt.moduleSpecifier)) {
         const spec = stmt.moduleSpecifier.text;
         const clause = stmt.importClause;
         if (spec === "@clearseal/core") {
-          if (clause?.isTypeOnly === true) continue;
-          if (clause?.name !== undefined) add("core-import", "a default import of the core: import the allowed names");
           const bindings = clause?.namedBindings;
-          if (bindings !== undefined && ts.isNamespaceImport(bindings)) add("core-import", `import * as ${bindings.name.text}: a namespace reaches every control; import the allowed names`);
+          if (clause?.isTypeOnly === true) {
+            if (clause.name !== undefined) typeOnly.add(clause.name.text);
+            if (bindings !== undefined && ts.isNamespaceImport(bindings)) namespaces.add(bindings.name.text);
+            if (bindings !== undefined && ts.isNamedImports(bindings)) for (const el of bindings.elements) typeOnly.add(el.name.text);
+            continue;
+          }
+          if (clause?.name !== undefined) add("core-import", "a default import of the core: an edition imports only types from the core, and startNode in bin/");
+          if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
+            namespaces.add(bindings.name.text);
+            add("core-import", `import * as ${bindings.name.text}: a namespace reaches every control; an edition imports only types from the core, and startNode in bin/`);
+          }
           if (bindings !== undefined && ts.isNamedImports(bindings)) {
             for (const el of bindings.elements) {
-              if (el.isTypeOnly) continue;
+              if (el.isTypeOnly) {
+                typeOnly.add(el.name.text);
+                continue;
+              }
               const imported = (el.propertyName ?? el.name).text;
-              if (!CORE_IMPORTS.has(imported)) add("core-import", `${imported}: an edition imports only ${[...CORE_IMPORTS].join(", ")} from the core`);
-              else coreLocal.set(el.name.text, imported);
+              if (BIN_CORE_IMPORTS.has(imported) && inBin) startNodeLocal.add(el.name.text);
+              else add("core-import", `${imported}: an edition imports only types from the core, and ${[...BIN_CORE_IMPORTS].join(", ")} in bin/`);
             }
           }
         } else if (spec.startsWith("@clearseal/core/")) add("import-outside-exports", `"${spec}": the core is reached only through its package entry`);
@@ -183,38 +181,39 @@ export function checkSource(dir: string): Finding[] {
       }
     }
 
-    const visit = (node: ts.Node): void => {
-      if (ts.isCallExpression(node)) {
-        const callee = node.expression;
-        if (callee.kind === ts.SyntaxKind.ImportKeyword) add("dynamic-import", "import(): an edition's imports are static and checked");
-        if (ts.isIdentifier(callee) && coreLocal.get(callee.text) === "startTransport") checkOptions(node.arguments[0], TRANSPORT_OPTIONS, "startTransport");
-        if (ts.isIdentifier(callee) && coreLocal.get(callee.text) === "loadPinnedRegistry") checkOptions(node.arguments[2], REGISTRY_OPTIONS, "loadPinnedRegistry");
+    /** Is this startNode reference the one allowed call: startNode({ definitions, manifestPath, configSchema })? */
+    const isStartNodeCall = (id: ts.Identifier): boolean => {
+      const call = id.parent;
+      if (!ts.isCallExpression(call) || call.expression !== id || call.arguments.length !== 1) return false;
+      const arg = call.arguments[0];
+      if (arg === undefined || !ts.isObjectLiteralExpression(arg)) return false;
+      const keys: string[] = [];
+      for (const p of arg.properties) {
+        if (!ts.isShorthandPropertyAssignment(p) && !ts.isPropertyAssignment(p)) return false;
+        if (ts.isComputedPropertyName(p.name)) return false;
+        const k = nameOf(p.name);
+        if (k === undefined) return false;
+        keys.push(k);
       }
-      if (ts.isPropertyAccessExpression(node) && ts.isMetaProperty(node.expression) && node.name.text !== "url") add("forbidden-global", `import.meta.${node.name.text}: only import.meta.url`);
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer !== undefined && isLoadCall(node.initializer, coreLocal)) registries.add(node.name.text);
-      if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(node.left) && isLoadCall(node.right, coreLocal)) registries.add(node.left.text);
+      return keys.length === START_NODE_KEYS.length && START_NODE_KEYS.every((k) => keys.includes(k));
+    };
+
+    const visit = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) add("dynamic-import", "import(): an edition's imports are static and checked");
+      // (b) import.meta, in any form but new URL(<literal>, import.meta.url).
+      if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword && !isManifestUrlForm(node)) add("import-meta", "import.meta: an edition uses it only as new URL(<literal>, import.meta.url)");
+      // (c) a property of a core namespace, read in an expression.
+      if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression) && namespaces.has(node.expression.text)) add("core-namespace-access", `${node.expression.text}${ts.isPropertyAccessExpression(node) ? `.${node.name.text}` : "[...]"}: an edition reads nothing from the core's namespace`);
 
       if (ts.isIdentifier(node) && isReference(node)) {
         const t = node.text;
-        if (FORBIDDEN_GLOBALS.has(t) && !coreLocal.has(t)) add("forbidden-global", `${t}: code loading and network access go through the core and the cage`);
-        if (CONTROL_NAMES.has(t)) add("control-constructed", `${t}: the core's gate and registry are built by the core alone`);
-        const core = coreLocal.get(t);
-        const isCallee = ts.isCallExpression(node.parent) && node.parent.expression === node;
-        const isNew = ts.isNewExpression(node.parent) && node.parent.expression === node;
-        if ((core === "startTransport" || core === "loadPinnedRegistry") && !isCallee) add("core-aliased", `${t}: the core's entry points are called by name, never passed around or renamed`);
-        if (core === "ValidationPool" && !isNew) add("core-aliased", `${t}: constructed, never passed around`);
-        // A registry from loadPinnedRegistry is handed to startTransport and touched nowhere else.
-        if (registries.has(t)) {
-          const p = node.parent;
-          const inTransportCall = (prop: ts.Node): boolean => ts.isObjectLiteralExpression(prop.parent) && ts.isCallExpression(prop.parent.parent) && prop.parent.parent.arguments[0] === prop.parent && ts.isIdentifier(prop.parent.parent.expression) && coreLocal.get(prop.parent.parent.expression.text) === "startTransport";
-          const asOption = ((ts.isPropertyAssignment(p) && p.initializer === node && nameOf(p.name) === "registry") || (ts.isShorthandPropertyAssignment(p) && p.name.text === "registry")) && inTransportCall(p);
-          const asAssignment = ts.isBinaryExpression(p) && p.left === node && p.operatorToken.kind === ts.SyntaxKind.EqualsToken && isLoadCall(p.right, coreLocal);
-          if (!asOption && !asAssignment) add("registry-touched", `${t}: an admitted registry goes to startTransport untouched`);
-        }
+        // (b) process, by any name: every alias starts from a reference to process itself.
+        if (t === "process") add("process-referenced", "process: an edition reads nothing from the process; the core reads the configuration and starts the node");
+        if (FORBIDDEN_GLOBALS.has(t)) add("forbidden-global", `${t}: code loading and network access go through the core and the cage`);
+        if (CONTROL_NAMES.has(t)) add("control-constructed", `${t}: the core's gate, registry and transport are built by the core alone`);
+        if (typeOnly.has(t)) add("type-import-as-value", `${t}: imported from the core as a type, used as a value`);
+        if (startNodeLocal.has(t) && !isStartNodeCall(node)) add("start-node-call", `${t}: startNode is called once, as startNode({ ${START_NODE_KEYS.join(", ")} }), and never passed around`);
       }
-      if (ts.isShorthandPropertyAssignment(node) && registries.has(node.name.text) && node.name.text !== "registry") add("registry-touched", `${node.name.text}: an admitted registry goes to startTransport untouched`);
-      if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "process" && FORBIDDEN_PROCESS.has(node.name.text)) add("forbidden-global", `process.${node.name.text}: reaches native code or another module`);
-      if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "process") add("forbidden-global", "process[...]: a computed member of process cannot be checked");
 
       // No verifier: a member named verify in any form, and no member whose name cannot be read.
       const memberName = ts.isMethodDeclaration(node) || ts.isPropertyAssignment(node) || ts.isPropertyDeclaration(node) || ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node) || ts.isShorthandPropertyAssignment(node) ? node.name : undefined;

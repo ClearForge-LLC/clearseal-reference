@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -165,7 +165,7 @@
+               }
+               const imported = (el.propertyName ?? el.name).text;
+               if (BIN_CORE_IMPORTS.has(imported) && inBin) startNodeLocal.add(el.name.text);
+-              else add("core-import", `${imported}: an edition imports only types from the core, and ${[...BIN_CORE_IMPORTS].join(", ")} in bin/`);
++              else if (imported.length < 0) add("core-import", `${imported}: an edition imports only types from the core, and ${[...BIN_CORE_IMPORTS].join(", ")} in bin/`);
+             }
+           }
+         } else if (spec.startsWith("@clearseal/core/")) add("import-outside-exports", `"${spec}": the core is reached only through its package entry`);

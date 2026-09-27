@@ -78,14 +78,6 @@ const CHECKS: Record<string, (v: unknown) => string | undefined> = {
     if (stringify(parse(stringify(v))) !== stringify(v)) return "plain JSON data";
     return undefined;
   },
-  "deploy-scaffold": (v) => {
-    if (typeof v !== "function") return "a function";
-    if (isClass(v)) return "a function, not a class";
-    const proto = (v as { prototype?: unknown }).prototype;
-    if (isObject(proto) && ownKeys(proto).some((k) => k !== "constructor")) return "a function with no prototype methods";
-    if (ownKeys(v).some((k) => !["length", "name", "prototype"].includes(String(k)))) return "a function with no properties of its own";
-    return undefined;
-  },
   cage: (v) => {
     if (!isClass(v)) return "a class implementing Cage";
     const members = ownKeys((v as { prototype: object }).prototype).filter((k) => k !== "constructor").map(String).sort();

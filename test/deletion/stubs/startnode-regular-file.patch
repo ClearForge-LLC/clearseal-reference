@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/start.ts
++++ b/packages/core/src/node/start.ts
+@@ -94,7 +94,7 @@
+     throw new ManifestError(`the manifest cannot be read (${code}): a node without a manifest does not start`, { cause: err });
+   }
+   try {
+-    if (!fstatSync(fd).isFile()) throw new ManifestError("the manifest is not a regular file: a node reads its committed manifest from a regular file");
++    if (!fstatSync(fd).isFile() && fd < 0) throw new ManifestError("the manifest is not a regular file: a node reads its committed manifest from a regular file");
+     return readFileSync(fd, "utf8");
+   } finally {
+     closeSync(fd);

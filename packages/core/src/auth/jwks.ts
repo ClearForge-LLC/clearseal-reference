@@ -52,7 +52,10 @@ function fetchText(url: URL, ca: string | undefined): Promise<string> {
     const done = (): void => {
       clearTimeout(deadline);
     };
-    const req = request(url, { method: "GET", headers: { accept: "application/json" }, ...(ca === undefined ? {} : { ca }) }, (res) => {
+    // rejectUnauthorized is stated, not defaulted: left out, Node reads NODE_TLS_REJECT_UNAUTHORIZED
+    // from the environment, and "0" there would turn off verification of the issuer's certificate
+    // for this request (CSR-WO-1007 §1.5, red-team L2).
+    const req = request(url, { method: "GET", headers: { accept: "application/json" }, rejectUnauthorized: true, ...(ca === undefined ? {} : { ca }) }, (res) => {
       if (res.statusCode !== 200) {
         res.resume();
         reject(new Error(`status ${String(res.statusCode)}`));
@@ -112,6 +115,8 @@ export class JwksClient {
       throw new JwksConfigError("AUTH_JWKS_URL is not a URL");
     }
     if (url.protocol !== "https:") throw new JwksConfigError("AUTH_JWKS_URL must be https:");
+    // A credential in the URL would travel with every fetch and into any log that names the URL.
+    if (url.username !== "" || url.password !== "") throw new JwksConfigError("AUTH_JWKS_URL must not carry a user name or password");
     if (!Number.isFinite(options.ttlMs) || options.ttlMs < JWKS_TTL_MIN_S * 1000 || options.ttlMs > JWKS_TTL_MAX_S * 1000) {
       throw new JwksConfigError(`AUTH_JWKS_TTL_S must be ${String(JWKS_TTL_MIN_S)} to ${String(JWKS_TTL_MAX_S)}`);
     }

@@ -1,0 +1,20 @@
+--- a/packages/core/src/node/start.ts
++++ b/packages/core/src/node/start.ts
+@@ -17,7 +17,7 @@
+ import { fileURLToPath } from "node:url";
+ 
+ import { PinGate } from "../pinning/gate.ts";
+-import { ManifestError, type PinnableTool } from "../pinning/manifest.ts";
++import { buildManifest, ManifestError, type PinnableTool, serializeManifest } from "../pinning/manifest.ts";
+ import { PinnedRegistry } from "../pinning/registry.ts";
+ import { DEFAULT_LIMITS } from "../transport/config.ts";
+ import { requestStateKeyFromEnv } from "../transport/request-state.ts";
+@@ -153,7 +153,7 @@
+   const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
+   let registry: PinnedRegistry;
+   try {
+-    registry = new PinnedRegistry(gate.admit(edition.definitions), { compile: pool.compile, limits });
++    registry = new PinnedRegistry((gate.admit(edition.definitions).refused.length > 0 ? PinGate.load(serializeManifest(buildManifest(edition.definitions))) : gate).admit(edition.definitions), { compile: pool.compile, limits });
+   } catch (err) {
+     await pool.close();
+     throw err;

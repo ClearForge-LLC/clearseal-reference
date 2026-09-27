@@ -154,19 +154,175 @@
       "stub": "stubs/supply-boundary-control-exported.patch"
     },
     {
-      "id": "supply-boundary-ungated-registry",
+      "id": "startnode-committed-file",
       "section8": "Verify-before-register; drift and unpinned refused",
-      "control": "the supply-boundary checker refuses an edition that serves a registry the gate did not build",
+      "control": "startNode admits only what the committed manifest file pins: no self-approval of the edition's own definitions (CSR-WO-1007 §1.1)",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/startnode-committed-file.patch",
+      "tests": [
+        "packages/core/test/node/start.test.ts"
+      ],
+      "mustFail": [
+        "the committed file decides: a tool it does not pin, or pins differently, refuses start under the strict default"
+      ]
+    },
+    {
+      "id": "startnode-regular-file",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "startNode reads the manifest only from a regular file: a directory or a FIFO refuses start, never waited on",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/startnode-regular-file.patch",
+      "tests": [
+        "packages/core/test/node/start.test.ts"
+      ],
+      "mustFail": [
+        "a manifest that is not an absolute path or file: URL to a regular file refuses start, before the gate"
+      ]
+    },
+    {
+      "id": "startnode-no-follow",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "startNode opens the manifest without following a link at the leaf (O_NOFOLLOW)",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/startnode-no-follow.patch",
+      "tests": [
+        "packages/core/test/node/start.test.ts"
+      ],
+      "mustFail": [
+        "a manifest that is not an absolute path or file: URL to a regular file refuses start, before the gate"
+      ]
+    },
+    {
+      "id": "startnode-file-scheme",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "startNode reads the manifest only from a file: URL or an absolute path, never a data: or network URL",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/startnode-file-scheme.patch",
+      "tests": [
+        "packages/core/test/node/start.test.ts"
+      ],
+      "mustFail": [
+        "a manifest that is not an absolute path or file: URL to a regular file refuses start, before the gate"
+      ]
+    },
+    {
+      "id": "boundary-core-imports",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the supply-boundary checker refuses every value import from the core but startNode",
       "touches": [
         "packages/core/test/boundary/supply-boundary.ts"
       ],
+      "stub": "stubs/boundary-core-imports.patch",
       "tests": [
         "packages/core/test/boundary/supply-boundary.test.ts"
       ],
       "mustFail": [
-        "red-proof (c) a tool served without the gate"
+        "red-proof (c) a tool served without the gate",
+        "red-proof A2: PinGate imported by name"
+      ]
+    },
+    {
+      "id": "boundary-startnode-bin-only",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the supply-boundary checker allows the startNode import in bin/ only",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
       ],
-      "stub": "stubs/supply-boundary-ungated-registry.patch"
+      "stub": "stubs/boundary-startnode-bin-only.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof H1 variant: startNode imported outside bin/"
+      ]
+    },
+    {
+      "id": "boundary-startnode-call",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the supply-boundary checker allows startNode only as startNode({ definitions, manifestPath, configSchema })",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-startnode-call.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof H1 variant: startNode in bin/ given something more, or passed around"
+      ]
+    },
+    {
+      "id": "boundary-process",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the supply-boundary checker refuses every reference to process, however aliased (red-team H1)",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-process.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof H1: the red-team's plant: the core reached through process, a manifest built in memory, its own tool admitted and served",
+        "red-proof H1 variant: (process).getBuiltinModule",
+        "red-proof H1 variant: const p = process",
+        "red-proof H1 variant: const { getBuiltinModule: g } = process",
+        "red-proof H1 variant: process[\"getBuiltin\" + \"Module\"], computed"
+      ]
+    },
+    {
+      "id": "boundary-import-meta",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the supply-boundary checker refuses import.meta in every form but new URL(<literal>, import.meta.url)",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-import-meta.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof H1 variant: const m = import.meta; m.resolve",
+        "red-proof H1 variant: import.meta.url outside new URL(<literal>, …)"
+      ]
+    },
+    {
+      "id": "boundary-namespace-access",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the supply-boundary checker refuses reading any property of a core namespace, type-only included",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-namespace-access.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof H1 variant: core.PinGate through a type-only namespace"
+      ]
+    },
+    {
+      "id": "boundary-type-as-value",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "the supply-boundary checker refuses a type-only core import used as a value",
+      "touches": [
+        "packages/core/test/boundary/supply-boundary.ts"
+      ],
+      "stub": "stubs/boundary-type-as-value.patch",
+      "tests": [
+        "packages/core/test/boundary/supply-boundary.test.ts"
+      ],
+      "mustFail": [
+        "red-proof H1 variant: a type import used as a value"
+      ]
     },
     {
       "id": "canonical-hash",
@@ -702,6 +858,51 @@
         "a cold cache with the issuer down, and a key set answering 200 with garbage: 503 each"
       ],
       "stub": "stubs/outage-503.patch"
+    },
+    {
+      "id": "jwks-reject-unauthorized",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "the key-set request states rejectUnauthorized: true, so NODE_TLS_REJECT_UNAUTHORIZED=0 cannot turn off its certificate check (red-team L2)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/jwks-reject-unauthorized.patch",
+      "tests": [
+        "packages/core/test/auth/l2.test.ts"
+      ],
+      "mustFail": [
+        "with NODE_TLS_REJECT_UNAUTHORIZED=0, an issuer whose certificate this verifier does not trust is still refused"
+      ]
+    },
+    {
+      "id": "jwks-no-credentials",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "an AUTH_JWKS_URL carrying a user name or password refuses start",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/jwks-no-credentials.patch",
+      "tests": [
+        "packages/core/test/auth/l2.test.ts"
+      ],
+      "mustFail": [
+        "an AUTH_JWKS_URL carrying a user name or password refuses construction"
+      ]
+    },
+    {
+      "id": "refusal-audit-lines",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "a refused JSON-RPC request writes its rpc-refused audit line (checked on the teaching node's P1 evidence)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/refusal-audit-lines.patch",
+      "tests": [
+        "packages/teaching/test/p1-exit.test.ts"
+      ],
+      "mustFail": [
+        "a forged Origin and an extra request property are each refused before any handler runs"
+      ]
     }
   ]
 }
