@@ -41,6 +41,21 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     `EXEC_TOOLS_FORBIDDEN` is on, which is the default.
   - `tools/call` runs every handler inside a per-call cage and refuses an undeclared reach.
   - A reusable reach harness for editions.
+- **CSR-WO-2000:** the capability obligation, enforced at registry construction (the first P2
+  control).
+  - `capability/ladder.ts` computes a frozen obligation from each tool's frozen tag: which
+    compensating controls it requires and forbids, each with its rule. It is pure and total over the
+    four rungs and three booleans, and a table test enumerates all 32 combinations.
+    `capability/RULES.md` quotes the standard's sentence for every rule.
+  - The pinned registry refuses construction when a tool does not meet its obligation, naming the
+    tool and the rule. Rule-of-Two is refused for an untrusted-facing `state_change` tool with
+    neither a non-empty containment domain nor approval, and for an untrusted-facing
+    `arbitrary_exec` tool without approval. `owned_state` auto-discharges it.
+  - `owned_state` must pin a one-line `recoverability_basis` of at most 120 code points: no line
+    terminator, control, format, invisible or unassigned character, and at least one letter or
+    digit. No other rung may carry a basis.
+  - Any `elevated` tool is refused, because no approval backend exists until CSR-WO-2001.
+  - Thirteen control-deletion rows, one or more per rule.
 - **CSR-WO-1007:** the core owns node assembly (the P1 exit red-team's H1).
   - `startNode` is the one public path from an edition's definitions to a serving node. It reads
     the configuration through the edition's schema, reads the committed manifest file (an absolute
