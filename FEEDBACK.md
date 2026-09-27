@@ -183,13 +183,18 @@ started by an edition's own `bin/`, or through real `startNode` calls:
 
 ## Gates
 
-- `npm run check` exits 0: 655 core and teaching tests (640 before), spike 0102 69, spike 0101 8,
+- `npm run check` exits 0 from a clean state (every `dist/` removed first): 655 core and teaching tests (640 before), spike 0102 69, spike 0101 8,
   `test:subset` 4. The supply-boundary suite has 48 tests, 14 of them H1 plants.
 - `control-deletion`: 85 rows (74 before, 11 new), all red by assertion, on the final code;
   `--self-test` passes.
 - `node scripts/leak-gate.mjs --tree` exit 0; `--history` exit 0, run unpiped before every push
   with the exit code checked directly.
-- CI: the pull request's checks, on both runners, with `control-deletion`.
+- CI: the pull request's checks, on both runners, with `control-deletion`. The first CI run failed
+  on the Windows test job, and I had run the check locally with `dist/` already built. `npm run
+  check` typechecks before it builds, and `bin/`'s import of `@clearseal/teaching` resolved to a
+  `dist/index.d.ts` that did not exist yet. The teaching tsconfig now maps the name to `src/` for
+  typecheck only, as it already did for `@clearseal/core`. At run time and in the build, the name
+  resolves through the package's exports.
 - Protected surfaces diff to empty against `4478a35`: the steering documents, `LICENSE`, `NOTICE`,
   `spikes/**`, `docs/canonical-form.md`, and everything under `packages/core/src/**` except
   `node/start.ts`. `index.ts` is unchanged. `test/deletion/controls.json` has only added rows
