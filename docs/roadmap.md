@@ -203,7 +203,7 @@ red-proof, and the teaching edition demonstrates every rung except exec.
 **Depends on:** P1; the P0 spikes for the two modules they gate.
 **Invariants in play:** N1, N5, N7.
 **Work orders:**
-- `CSR-WO-2000` — capability: the four-rung ladder, the orthogonal untrusted flag, Rule-of-Two
+- `CSR-WO-2000` — (WO written 2026-09-26; elevated refused at construction until `-2001` lands) capability: the four-rung ladder, the orthogonal untrusted flag, Rule-of-Two
   computed as an obligation, `owned_state` with a pinned one-line recoverability basis.
 - `CSR-WO-2001` — approval: the `ApprovalBackend` interface; grants bound to (principal, tool,
   argument digest, nonce, expiry) with the approver recorded, single-use, redemption a separate
