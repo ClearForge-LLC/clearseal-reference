@@ -92,7 +92,10 @@ void describe("CSR-WO-1007b §1.2: the snapshot is the only environment the core
         const list = await modern(t, "tools/list", {}, { headers: { authorization: `Bearer ${token}` } });
         const names = ((list.json as { result?: { tools?: { name: string }[] } }).result?.tools ?? []).map((x) => x.name);
         assert.deepEqual(names, ["echo"]);
-        pastes.push(`SNAPSHOT after rewriting CLEARSEAL_MANIFEST, CLEARSEAL_EDITION, PIN_STRICT, EXEC_TOOLS_FORBIDDEN, AUTH_ISSUER, AUTH_AUDIENCE, CLI_RESOURCE_URL and AUDIT_STORE: manifest ${relative(REPO, prepared.manifest.path) === "" ? prepared.manifest.path : "the operator's"}, tools/list ${JSON.stringify(names)}, resourceUrl unchanged`);
+        // The transport's own configuration came from the snapshot: the resource URL rewritten after
+        // capture never reached it (this is what a read of process.env inside startNode would change).
+        assert.equal(t.config.resourceUrl, AUDIENCE, "the resource URL is the captured one");
+        pastes.push(`SNAPSHOT after rewriting CLEARSEAL_MANIFEST, CLEARSEAL_EDITION, PIN_STRICT, EXEC_TOOLS_FORBIDDEN, AUTH_ISSUER, AUTH_AUDIENCE, CLI_RESOURCE_URL and AUDIT_STORE: manifest ${relative(REPO, prepared.manifest.path) === "" ? prepared.manifest.path : "the operator's"}, tools/list ${JSON.stringify(names)}, resourceUrl ${t.config.resourceUrl === AUDIENCE ? "unchanged" : "CHANGED"}`);
       } finally {
         await t.close();
       }
@@ -182,11 +185,12 @@ void describe("CSR-WO-1007b §1.1: the entry names the edition, and checks what 
     for (const [label, name, rule] of [["an extra export", extra, /exports manifestPath: an edition exports its definitions and its configSchema, and nothing else/], ["a missing export", short, /does not export configSchema/]] as const) {
       let caught: unknown;
       try {
-        await runNode({ ...base, CLEARSEAL_EDITION: name });
+        const started = await runNode({ ...base, CLEARSEAL_EDITION: name });
+        await started.close();
       } catch (err) {
         caught = err;
       }
-      assert.ok(caught instanceof SettingsError, `${label}: ${String(caught)}`);
+      assert.ok(caught instanceof SettingsError, `${label}: a node started instead of being refused (${String(caught)})`);
       assert.match(caught.message, rule, label);
       pastes.push(`ENTRY ${label}: ${caught.name}: ${caught.message}`);
     }
