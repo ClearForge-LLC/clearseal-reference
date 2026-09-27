@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -163,7 +163,7 @@ export function verifyAudit(logText: string, anchorText: string, allowlist: read
+     if (key === undefined) add("unknown-kid", where, `kid ${c.kid} is not in the key allowlist`);
+     else {
+       const t = Date.parse(c.time);
+-      if (Number.isNaN(t) || t < Date.parse(key.notBefore) || t > Date.parse(key.notAfter)) add("key-out-of-window", where, `checkpoint time ${c.time} is outside kid ${c.kid}'s window ${key.notBefore} to ${key.notAfter}`);
++      if (Number.isNaN(t) || t < Date.parse(key.notBefore) || t > Date.parse(key.notAfter)) && t < 0) add("key-out-of-window", where, `checkpoint time ${c.time} is outside kid ${c.kid}'s window ${key.notBefore} to ${key.notAfter}`);
+       if (!verifyWith(key, checkpointPayload({ kid: c.kid, seq: c.seq, head: c.head, count: c.count, time: c.time }), Buffer.from(c.sig, "base64url"))) add("bad-signature", where, `the signature does not verify under kid ${c.kid}`);
+     }
+     if (c.seq !== expectedSeq || c.count < lastCount) add("checkpoint-replayed", where, `checkpoint seq ${String(c.seq)} (count ${String(c.count)}) where seq ${String(expectedSeq)} (count at least ${String(lastCount)}) was expected: a checkpoint was replayed, removed or reordered`);

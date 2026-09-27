@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -122,7 +122,7 @@ export function verifyAudit(logText: string, anchorText: string, allowlist: read
+     // Every seq present exactly once, in the wrong order: reordered, and nothing is missing.
+     if (isPermutation) {
+       if (r.seq !== i) add("reordered-rows", `log line ${String(i + 1)}`, `seq ${String(r.seq)} at position ${String(i)}, after seq ${String(before)}: rows were reordered`);
+-    } else if (repeated) add("inserted-rows", `log line ${String(i + 1)}`, `seq ${String(r.seq)} follows seq ${String(before)} and appears twice: rows were inserted or spliced`);
++    } else if (repeated && r.seq < 0) add("inserted-rows", `log line ${String(i + 1)}`, `seq ${String(r.seq)} follows seq ${String(before)} and appears twice: rows were inserted or spliced`);
+     else if (r.seq <= before) add("reordered-rows", `log line ${String(i + 1)}`, `seq ${String(r.seq)} follows seq ${String(before)}: rows were reordered`);
+     else add("removed-rows", `log line ${String(i + 1)}`, `seq ${String(r.seq)} follows seq ${String(before)}: ${String(r.seq - before - 1)} row(s) removed`);
+   }

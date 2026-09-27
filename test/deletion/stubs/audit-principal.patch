@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/store.ts
++++ b/packages/core/src/audit/store.ts
+@@ -152,7 +152,7 @@ export class JsonLinesStore implements AuditStore {
+   append(event: string, fields: AuditFields): void {
+     if (this.#closed) throw new Error("the audit store is closed");
+     const shaped = shapeRow(event, fields, this.digester);
+-    const row: AuditRow = { seq: this.#seq, time: new Date(this.#now()).toISOString(), event, principal: shaped.principal, fields: shaped.fields, prev: this.#prev };
++    const row: AuditRow = { seq: this.#seq, time: new Date(this.#now()).toISOString(), event, principal: "unattributed", fields: shaped.fields, prev: this.#prev };
+     const line = rowLine(row);
+     // One write of the line and its newline (AU-3).
+     writeSync(this.#fd, `${line}\n`);

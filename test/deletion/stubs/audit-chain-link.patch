@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/store.ts
++++ b/packages/core/src/audit/store.ts
+@@ -157,7 +157,7 @@ export class JsonLinesStore implements AuditStore {
+     // One write of the line and its newline (AU-3).
+     writeSync(this.#fd, `${line}\n`);
+     this.#seq += 1;
+-    this.#prev = lineHash(line);
++    this.#prev = GENESIS;
+     if (this.#seq - this.#checkpointedCount >= this.#rowsEvery) this.#checkpoint();
+   }
+ 

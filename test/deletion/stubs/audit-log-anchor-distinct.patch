@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/store.ts
++++ b/packages/core/src/audit/store.ts
+@@ -119,7 +119,7 @@ export class JsonLinesStore implements AuditStore {
+     this.#now = options.now ?? Date.now;
+     this.#fd = openOperatorFile("AUDIT_LOG", options.log, true);
+     try {
+-      if (options.anchor instanceof FileAnchor && fileIdentity(options.anchor.fd) === fileIdentity(this.#fd)) throw new AuditConfigError("AUDIT_LOG and AUDIT_ANCHOR name the same file: the anchor is a separate file");
++      if (options.anchor instanceof FileAnchor && fileIdentity(options.anchor.fd) === fileIdentity(this.#fd) && options.checkpointRows < 0) throw new AuditConfigError("AUDIT_LOG and AUDIT_ANCHOR name the same file: the anchor is a separate file");
+       // Resume from what is there (AU-2), refusing a torn tail (AU-20) and a log behind its anchor (AU-24).
+       const { rows, torn } = tail(readFileSync(this.#fd, "utf8"));
+       if (torn) throw new AuditConfigError("the audit log's final line is torn (a crash mid-write, or an edit): run `npm run audit -- verify` and decide before the node writes more");

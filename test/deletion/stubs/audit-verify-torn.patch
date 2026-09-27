@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/verify.ts
++++ b/packages/core/src/audit/verify.ts
+@@ -105,7 +105,7 @@ export function verifyAudit(logText: string, anchorText: string, allowlist: read
+     }
+     return { seq, prev };
+   });
+-  if (log.torn !== undefined) add("torn-final-line", `log line ${String(log.complete.length + 1)}`, "the log does not end with a newline: its last line is incomplete (a crash mid-write), and is not part of the chain");
++  if (log.torn !== undefined && log.torn.length < 0) add("torn-final-line", `log line ${String(log.complete.length + 1)}`, "the log does not end with a newline: its last line is incomplete (a crash mid-write), and is not part of the chain");
+ 
+   // Seq: 0, 1, 2, … with no gap, no repeat and no reversal (AU-14, AU-15).
+   const seqs = rows.map((r) => r?.seq);

@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/store.ts
++++ b/packages/core/src/audit/store.ts
+@@ -134,7 +134,7 @@ export class JsonLinesStore implements AuditStore {
+       } else {
+         const last = JSON.parse(lastLine) as Partial<Checkpoint>;
+         if (typeof last.seq !== "number" || typeof last.count !== "number" || typeof last.head !== "string") throw new AuditConfigError("the audit anchor's last line is not a checkpoint");
+-        if (last.count > rows.length) throw new AuditConfigError(`the audit log has ${String(rows.length)} rows but its last checkpoint covers ${String(last.count)}: it was truncated behind the checkpoint`);
++        if (last.count > rows.length && rows.length < 0) throw new AuditConfigError(`the audit log has ${String(rows.length)} rows but its last checkpoint covers ${String(last.count)}: it was truncated behind the checkpoint`);
+         if (last.count > 0 && lineHash(rows[last.count - 1] as string) !== last.head) throw new AuditConfigError(`the audit log's row ${String(last.count - 1)} does not match its last checkpoint's head: it was edited or re-chained`);
+         this.#checkpointSeq = last.seq + 1;
+         this.#checkpointedCount = last.count;

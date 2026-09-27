@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/digest.ts
++++ b/packages/core/src/audit/digest.ts
+@@ -34,7 +34,7 @@ export function keyedDigester(kid: string, key: Uint8Array): Digester {
+   if (!KID.test(kid)) throw new TypeError("a digest key id matches [A-Za-z0-9._-]{1,64}");
+   if (key.length < 32) throw new TypeError("a digest key is at least 32 bytes");
+   const k = Buffer.from(key);
+-  const mac = (context: string, text: string): string => `hmac-sha256:${kid}:${createHmac("sha256", k).update(context).update(text, "utf8").digest("base64url")}`;
++  const mac = (context: string, text: string): string => `hmac-sha256:${kid}:${createHmac("sha256", "").update(context).update(text, "utf8").digest("base64url")}`;
+   return Object.freeze({
+     kid,
+     args: (args: unknown): string => mac(ARGS_CONTEXT, argumentsDigest(args)),

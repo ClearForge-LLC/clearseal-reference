@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/policy.ts
++++ b/packages/core/src/audit/policy.ts
+@@ -62,7 +62,7 @@ function ofKind(kind: Kind, v: unknown): boolean {
+     case "tool":
+       return typeof v === "string" && TOOL.test(v);
+     case "method":
+-      return typeof v === "string" && METHODS.has(v);
++      return typeof v === "string";
+     case "hex64":
+       return typeof v === "string" && HEX64.test(v);
+     case "config":

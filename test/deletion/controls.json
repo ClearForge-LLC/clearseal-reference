@@ -1324,6 +1324,509 @@
       "mustFail": [
         "red-proof F3: a dist/ entry that points CLEARSEAL_MANIFEST at its own manifest before startNode reads it"
       ]
+    },
+    {
+      "id": "audit-chain-link",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-1: every row's prev is the SHA-256 of the previous row's line",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-chain-link.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "every row's prev is the SHA-256 of the line before it"
+      ]
+    },
+    {
+      "id": "audit-chain-resume",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-2: a restarted store continues seq from the last row",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-chain-resume.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "a restarted store continues seq and prev from the last row"
+      ]
+    },
+    {
+      "id": "audit-principal",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-4: every row carries its principal, by the event table",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-principal.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "every row carries a principal"
+      ]
+    },
+    {
+      "id": "audit-tool-call-row",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-5: a call that reaches its handler writes one tool-call row",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/audit-tool-call-row.patch",
+      "tests": [
+        "packages/core/test/audit/start.test.ts",
+        "packages/core/test/transport/limits.test.ts"
+      ],
+      "mustFail": [
+        "a call that reaches its handler writes one tool-call row with a keyed digest",
+        "a handler that never returns is ended by the timeout, its signal is aborted, and the slot is released"
+      ]
+    },
+    {
+      "id": "audit-keyed-digest",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-5: the argument digest is keyed by the operator's digest key",
+      "touches": [
+        "packages/core/src/audit/digest.ts"
+      ],
+      "stub": "stubs/audit-keyed-digest.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "equal arguments give equal digests, and the digest depends on the key"
+      ]
+    },
+    {
+      "id": "audit-field-policy",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-6: a field the event table does not list is never written under its own name, only inside the keyed unlisted digest",
+      "touches": [
+        "packages/core/src/audit/policy.ts"
+      ],
+      "stub": "stubs/audit-field-policy.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "a field outside the table, or of the wrong kind, is written as a keyed digest"
+      ]
+    },
+    {
+      "id": "audit-field-kind",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-6: a listed field of the wrong kind is written as a keyed digest",
+      "touches": [
+        "packages/core/src/audit/policy.ts"
+      ],
+      "stub": "stubs/audit-field-kind.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "a field outside the table, or of the wrong kind, is written as a keyed digest"
+      ]
+    },
+    {
+      "id": "audit-sink-digest",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-7: a containment sink is always a keyed digest",
+      "touches": [
+        "packages/core/src/audit/policy.ts"
+      ],
+      "stub": "stubs/audit-sink-digest.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "a containment sink is written as a keyed digest"
+      ]
+    },
+    {
+      "id": "audit-canary",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-8: a method name is written bare only if the transport knows it (the P1 canary suite)",
+      "touches": [
+        "packages/core/src/audit/policy.ts"
+      ],
+      "stub": "stubs/audit-canary.patch",
+      "tests": [
+        "packages/teaching/test/p1-exit.test.ts",
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "keyed, never bare: no audit row carries a planted value",
+        "a field outside the table, or of the wrong kind, is written as a keyed digest"
+      ]
+    },
+    {
+      "id": "audit-checkpoint-rows",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-9: a checkpoint every N rows",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-checkpoint-rows.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "a checkpoint is written every N rows"
+      ]
+    },
+    {
+      "id": "audit-checkpoint-time",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-9: a checkpoint every T",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-checkpoint-time.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "a checkpoint is written after T"
+      ]
+    },
+    {
+      "id": "audit-checkpoint-close",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-9: close writes a final checkpoint",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-checkpoint-close.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "close writes a final checkpoint"
+      ]
+    },
+    {
+      "id": "audit-checkpoint-signed",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-10: a checkpoint is signed over its own canonical bytes",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-checkpoint-signed.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "a checkpoint is signed over its own canonical bytes"
+      ]
+    },
+    {
+      "id": "audit-verify-edit",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-13: verify names an edited row",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-edit.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify names an edited row"
+      ]
+    },
+    {
+      "id": "audit-verify-remove",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-14: verify names a removed row",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-remove.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify names a removed row"
+      ]
+    },
+    {
+      "id": "audit-verify-reorder",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-15: verify names reordered rows",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-reorder.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify names reordered rows"
+      ]
+    },
+    {
+      "id": "audit-verify-splice",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-15: verify names inserted or spliced rows",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-splice.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify names reordered rows"
+      ]
+    },
+    {
+      "id": "audit-verify-canonical",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-16: verify names a non-canonical row",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-canonical.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify names a non-canonical row"
+      ]
+    },
+    {
+      "id": "audit-verify-truncation",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-17: verify names a truncation behind a checkpoint",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-truncation.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify names a truncation behind a checkpoint"
+      ]
+    },
+    {
+      "id": "audit-verify-head",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-18: verify names a checkpoint whose head does not match the log",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-head.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify names a head mismatch"
+      ]
+    },
+    {
+      "id": "audit-verify-unknown-kid",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-19: verify names a checkpoint whose kid is not in the allowlist",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-unknown-kid.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify names an unknown kid"
+      ]
+    },
+    {
+      "id": "audit-verify-window",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-19: verify names a checkpoint outside its key's window",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-window.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify names a key used outside its window"
+      ]
+    },
+    {
+      "id": "audit-verify-signature",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-19: verify names a checkpoint whose signature does not verify",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-signature.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify names a bad signature"
+      ]
+    },
+    {
+      "id": "audit-verify-replay",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-19: verify names a replayed, removed or reordered checkpoint",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-replay.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify names a replayed checkpoint"
+      ]
+    },
+    {
+      "id": "audit-verify-torn",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-20: verify reports a torn final line as its own kind",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-verify-torn.patch",
+      "tests": [
+        "packages/core/test/audit/verify.test.ts"
+      ],
+      "mustFail": [
+        "verify reports a torn final line as its own kind"
+      ]
+    },
+    {
+      "id": "audit-torn-refused",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-20: the store refuses to start on a torn log",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-torn-refused.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "the store refuses to start on a torn log"
+      ]
+    },
+    {
+      "id": "audit-start-fail-closed",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-21: each missing AUDIT_* setting refuses start, naming it",
+      "touches": [
+        "packages/core/src/audit/config.ts"
+      ],
+      "stub": "stubs/audit-start-fail-closed.patch",
+      "tests": [
+        "packages/core/test/audit/start.test.ts"
+      ],
+      "mustFail": [
+        "start is refused for each missing or invalid AUDIT_* setting"
+      ]
+    },
+    {
+      "id": "audit-start-wired",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-21: startNode reads the audit configuration and refuses start without it",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/audit-start-wired.patch",
+      "tests": [
+        "packages/core/test/audit/start.test.ts"
+      ],
+      "mustFail": [
+        "start is refused for each missing or invalid AUDIT_* setting"
+      ]
+    },
+    {
+      "id": "audit-seam-only",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-22: seam-only writes its audit-unanchored row first",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/audit-seam-only.patch",
+      "tests": [
+        "packages/core/test/audit/start.test.ts",
+        "packages/core/test/node/start.test.ts"
+      ],
+      "mustFail": [
+        "seam-only starts with its audit-unanchored row",
+        "started, the node writes manifest-loaded with the file's path and the SHA-256 of the bytes it admitted from, and serves exactly what that file pins"
+      ]
+    },
+    {
+      "id": "audit-first-row",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-23: manifest-loaded is the first row of the run",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/audit-first-row.patch",
+      "tests": [
+        "packages/core/test/audit/start.test.ts"
+      ],
+      "mustFail": [
+        "manifest-loaded is the first row of the run"
+      ]
+    },
+    {
+      "id": "audit-start-anchor-count",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-24: a log shorter than its last checkpoint refuses start",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-start-anchor-count.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "the store refuses to start on a log behind its last checkpoint"
+      ]
+    },
+    {
+      "id": "audit-start-anchor-head",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-24: a log whose row at count - 1 does not match the last checkpoint's head refuses start",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-start-anchor-head.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "the store refuses to start on a log behind its last checkpoint"
+      ]
+    },
+    {
+      "id": "audit-log-anchor-distinct",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-21: the log and the anchor are never the same file",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-log-anchor-distinct.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts",
+        "packages/core/test/audit/start.test.ts"
+      ],
+      "mustFail": [
+        "the log and the anchor are never the same file",
+        "start is refused for each missing or invalid AUDIT_* setting"
+      ]
     }
   ]
 }

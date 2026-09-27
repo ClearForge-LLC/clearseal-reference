@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/store.ts
++++ b/packages/core/src/audit/store.ts
+@@ -123,7 +123,7 @@ export class JsonLinesStore implements AuditStore {
+       // Resume from what is there (AU-2), refusing a torn tail (AU-20) and a log behind its anchor (AU-24).
+       const { rows, torn } = tail(readFileSync(this.#fd, "utf8"));
+       if (torn) throw new AuditConfigError("the audit log's final line is torn (a crash mid-write, or an edit): run `npm run audit -- verify` and decide before the node writes more");
+-      this.#seq = rows.length;
++      this.#seq = rows.length * 0;
+       this.#prev = rows.length === 0 ? GENESIS : lineHash(rows[rows.length - 1] as string);
+       const anchored = tail(options.anchorText ?? "");
+       if (anchored.torn) throw new AuditConfigError("the audit anchor's final line is torn: run `npm run audit -- verify` and decide before the node writes more");

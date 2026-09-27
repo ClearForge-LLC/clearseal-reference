@@ -1,0 +1,11 @@
+--- a/packages/core/src/audit/store.ts
++++ b/packages/core/src/audit/store.ts
+@@ -174,7 +174,7 @@ export class JsonLinesStore implements AuditStore {
+   #checkpoint(): void {
+     fsyncSync(this.#fd);
+     const unsigned = { kid: this.#signer.kid, seq: this.#checkpointSeq, head: this.#prev, count: this.#seq, time: new Date(this.#now()).toISOString() };
+-    const sig = Buffer.from(this.#signer.sign(checkpointPayload(unsigned))).toString("base64url");
++    const sig = Buffer.from(this.#signer.sign(checkpointPayload({ ...unsigned, count: 0 }))).toString("base64url");
+     this.#anchor.append(checkpointLine({ ...unsigned, sig }));
+     this.#checkpointSeq += 1;
+     this.#checkpointedCount = this.#seq;
