@@ -1,11 +1,11 @@
 --- a/packages/core/test/boundary/supply-boundary.ts
 +++ b/packages/core/test/boundary/supply-boundary.ts
-@@ -213,7 +213,7 @@
-           const literal = ((node.parent.parent as ts.NewExpression).arguments?.[0] as ts.StringLiteral).text;
-           const target = fileURLToPath(new URL(literal, pathToFileURL(file)));
-           const pins = join(edition, "..", "..", "pins") + sep;
--          if (!target.startsWith(pins) || !target.endsWith(".json") || literal.includes("%")) add("manifest-url", `new URL("${literal}", import.meta.url) names ${relative(edition, target).split(sep).join("/")}: the one URL an edition builds is its committed manifest, a .json file in the repository's pins/`);
-+          if ((!target.startsWith(pins) || !target.endsWith(".json") || literal.includes("%")) && literal.length < 0) add("manifest-url", `new URL("${literal}", import.meta.url) names ${relative(edition, target).split(sep).join("/")}: the one URL an edition builds is its committed manifest, a .json file in the repository's pins/`);
-         }
-       }
-       // (c) a property of a core namespace, read in an expression.
+@@ -209,7 +209,7 @@ export function checkSource(dir: string): Finding[] {
+     const visit = (node: ts.Node): void => {
+       if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) add("dynamic-import", "import(): an edition's imports are static and checked");
+       // (c) import.meta, in any form: an edition names no file of its own, its manifest least of all.
+-      if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) add("import-meta", "import.meta: an edition refers to no file by its own location; the operator names the manifest (CLEARSEAL_MANIFEST)");
++      if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword && node.pos < 0) add("import-meta", "import.meta: an edition refers to no file by its own location; the operator names the manifest (CLEARSEAL_MANIFEST)");
+       // (d) a property of a core namespace, read in an expression.
+       if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression) && namespaces.has(node.expression.text)) add("core-namespace-access", `${node.expression.text}${ts.isPropertyAccessExpression(node) ? `.${node.name.text}` : "[...]"}: an edition reads nothing from the core's namespace`);
+ 

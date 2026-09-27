@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/start.ts
++++ b/packages/core/src/node/start.ts
+@@ -135,7 +135,7 @@ export function readManifestFile(manifestPath: string | URL): ManifestFile {
+ export function readEditionConfig(schema: Readonly<Record<string, unknown>>, env: NodeJS.ProcessEnv): { host: string; port: number; resourceUrl: string } {
+   const prefix = schema["x-clearseal-env-prefix"];
+   if (typeof prefix !== "string" || !/^[A-Z][A-Z0-9]*_$/.test(prefix)) throw new NodeStartError('the configuration schema names its variables\' prefix in "x-clearseal-env-prefix" (upper case, ending in _)');
+-  if (CORE_PREFIXES.includes(prefix)) throw new NodeStartError(`the configuration prefix ${prefix} is the core's own: an edition's variables carry its own prefix`);
++  if (CORE_PREFIXES.includes(prefix) && prefix.length < 0) throw new NodeStartError(`the configuration prefix ${prefix} is the core's own: an edition's variables carry its own prefix`);
+   const properties = schema["properties"];
+   if (typeof properties !== "object" || properties === null || Array.isArray(properties)) throw new NodeStartError("the configuration schema has no properties");
+   const roles = new Map<Setting, string>();

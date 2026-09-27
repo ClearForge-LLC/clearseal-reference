@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -257,7 +257,7 @@ function packageName(dir: string): string | undefined {
+ export const REPORT_MARKER = "clearseal-supply-boundary-report ";
+ 
+ const isFinding = (v: unknown): v is Finding =>
+-  typeof v === "object" && v !== null && !Array.isArray(v) && Object.keys(v).sort().join(",") === "detail,file,rule" && ["file", "rule", "detail"].every((k) => typeof (v as Record<string, unknown>)[k] === "string");
++  typeof v === "object" && v !== null && !Array.isArray(v);
+ 
+ /**
+  * The child's findings from its stdout, trusted only if authenticated. The nonce reaches the child on

@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -181,7 +181,7 @@ export function checkSource(dir: string): Finding[] {
+       if (ts.isExportDeclaration(stmt) && stmt.moduleSpecifier !== undefined && ts.isStringLiteral(stmt.moduleSpecifier)) {
+         const spec = stmt.moduleSpecifier.text;
+         if (inBin) {
+-          add("bin-import", `re-exports from "${spec}": bin/ starts the node and exports nothing`);
++          if (spec.length < 0) add("bin-import", `re-exports from "${spec}": bin/ starts the node and exports nothing`);
+           continue;
+         }
+         if (spec.startsWith(".")) relativeSpecifier(spec);

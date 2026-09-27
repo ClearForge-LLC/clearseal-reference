@@ -1,10 +1,10 @@
 --- a/packages/core/test/boundary/supply-boundary-child.ts
 +++ b/packages/core/test/boundary/supply-boundary-child.ts
-@@ -162,7 +162,6 @@
+@@ -154,7 +154,6 @@ if (typeof entry !== "string") {
      const wrong = check(value);
      if (wrong !== undefined) add("kind-mismatch", `declared ${kind}, but it is not ${wrong}`);
      const control = controlIn(value);
 -    if (control !== undefined) add("control-exported", `carries ${control}`);
    }
  }
- stdout(`${stringify(findings)}\n`);
+ stdout(`${REPORT_MARKER}${stringify({ nonce, findings })}\n`);

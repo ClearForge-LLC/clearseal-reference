@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/start.ts
++++ b/packages/core/src/node/start.ts
+@@ -167,7 +167,7 @@ export function readEditionConfig(schema: Readonly<Record<string, unknown>>, env
+ 
+ /** CLEARSEAL_MANIFEST: the operator's manifest, an absolute path or a `file:` URL. Required. */
+ export function manifestPathFromEnv(env: NodeJS.ProcessEnv): string | URL {
+-  const value = env["CLEARSEAL_MANIFEST"];
++  const value = env["CLEARSEAL_MANIFEST"] ?? "/";
+   if (value === undefined || value === "") throw new NodeStartError("CLEARSEAL_MANIFEST is required: the operator names the approved manifest (an absolute path or a file: URL); a node without one does not start");
+   if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) || value.startsWith("file:")) {
+     let url: URL;
