@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The ClearSeal teaching edition: a notes store as the carrier. Thin by rule: tool definitions, a manifest and a configuration schema, started by the core's startNode from bin/.",
+  "description": "The ClearSeal teaching edition: a notes store as the carrier. Thin by rule: tool definitions and a configuration schema, started by the core's startNode from bin/; the operator names the approved manifest.",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -23,7 +23,6 @@
   "clearseal": {
     "exports": {
       "definitions": "tool-definitions",
-      "manifestPath": "manifest-path",
       "configSchema": "configuration-schema"
     }
   }
