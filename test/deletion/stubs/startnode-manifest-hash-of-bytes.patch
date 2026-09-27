@@ -6,6 +6,6 @@
    const file = readManifestFile(manifestPathFromEnv(process.env));
 -  const sha256 = createHash("sha256").update(file.bytes).digest("hex");
 +  const sha256 = createHash("sha256").update(file.path).digest("hex");
-   const store = openAuditStore(auditConfig);
-   const stderr = (event: string, fields: Record<string, string | number>): void => {
-     console.error(renderAuditLine(event, fields));
+   // The log and the anchor are never the manifest (nor the key files: the store checks those).
+   const manifestStat = statSync(file.path, { bigint: true });
+   const store = openAuditStore(auditConfig, undefined, [{ setting: "CLEARSEAL_MANIFEST", identity: `${String(manifestStat.dev)}:${String(manifestStat.ino)}` }]);
