@@ -1,11 +1,11 @@
 --- a/packages/core/test/boundary/supply-boundary.ts
 +++ b/packages/core/test/boundary/supply-boundary.ts
-@@ -201,7 +201,7 @@
-     const visit = (node: ts.Node): void => {
+@@ -206,7 +206,7 @@
        if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) add("dynamic-import", "import(): an edition's imports are static and checked");
        // (b) import.meta, in any form but new URL(<literal>, import.meta.url).
--      if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword && !isManifestUrlForm(node)) add("import-meta", "import.meta: an edition uses it only as new URL(<literal>, import.meta.url)");
-+      if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword && !isManifestUrlForm(node) && node.pos < 0) add("import-meta", "import.meta: an edition uses it only as new URL(<literal>, import.meta.url)");
-       // (c) a property of a core namespace, read in an expression.
-       if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && ts.isIdentifier(node.expression) && namespaces.has(node.expression.text)) add("core-namespace-access", `${node.expression.text}${ts.isPropertyAccessExpression(node) ? `.${node.name.text}` : "[...]"}: an edition reads nothing from the core's namespace`);
- 
+       if (ts.isMetaProperty(node) && node.keywordToken === ts.SyntaxKind.ImportKeyword) {
+-        if (!isManifestUrlForm(node)) add("import-meta", "import.meta: an edition uses it only as new URL(<literal>, import.meta.url)");
++        if (!isManifestUrlForm(node) && node.pos < 0) add("import-meta", "import.meta: an edition uses it only as new URL(<literal>, import.meta.url)");
+         else {
+           // The one allowed form names the committed manifest: a .json file in the repository's pins/
+           // (an edition is packages/<name>), never a file anywhere the literal can climb to.
