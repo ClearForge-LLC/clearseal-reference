@@ -17,7 +17,9 @@ import { checkEdition, checkSource, editions, type Finding, KINDS } from "./supp
 
 const PACKAGES = fileURLToPath(new URL("../../../", import.meta.url));
 const FIXTURES = fileURLToPath(new URL("./fixtures/", import.meta.url));
-const SCRATCH = fileURLToPath(new URL("./.planted/", import.meta.url));
+// One scratch directory per run, removed on its own: two runs at once (the P1 evidence test runs this
+// suite as a child while it may also run directly) never delete each other's plants.
+const SCRATCH = fileURLToPath(new URL(`./.planted/run-${String(process.pid)}-${String(Date.now())}/`, import.meta.url));
 const show = (fs: Finding[]): string => fs.map((f) => `${f.file}: ${f.rule}: ${f.detail}`).join("\n");
 
 after(() => {
