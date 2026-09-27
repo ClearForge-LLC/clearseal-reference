@@ -41,6 +41,21 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     `EXEC_TOOLS_FORBIDDEN` is on, which is the default.
   - `tools/call` runs every handler inside a per-call cage and refuses an undeclared reach.
   - A reusable reach harness for editions.
+- **CSR-WO-1007:** the core owns node assembly (the P1 exit red-team's H1).
+  - `startNode` is the one public path from an edition's definitions to a serving node. It reads
+    the configuration through the edition's schema, reads the committed manifest file (an absolute
+    path or `file:` URL to a regular file, opened once with no link anywhere on the way), builds the
+    gate and the registry itself, and starts the transport.
+  - The teaching edition exports `definitions`, `manifestPath` and `configSchema`; its `bin/` calls
+    `startNode` with those three. The notes root and the manifest are no longer environment
+    variables.
+  - The supply-boundary checker's rules hold under aliasing. Editions import only types from the
+    core, and `startNode` in `bin/`. No reference to `process` in any form. `import.meta` only as
+    `new URL(<literal>, import.meta.url)` naming a `.json` in `pins/`. No property of a core namespace.
+    No type import used as a value. The H1 plant and fourteen variants each turn it red.
+  - The P1 evidence test audits each refusal and refuses a name, a link and a FIFO at the cage.
+  - The key-set request states `rejectUnauthorized`, so `NODE_TLS_REJECT_UNAUTHORIZED=0` cannot turn
+    off its certificate check, and an `AUTH_JWKS_URL` with a user name or password refuses start.
 - **CSR-WO-2008:** the control-deletion job (N5).
   - `test/deletion/controls.json` names 45 built controls. Each row has a reviewed stub (a patch
     that deletes the control) and the specific tests that must fail. The rows cover every *built*
