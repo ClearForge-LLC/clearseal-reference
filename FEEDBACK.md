@@ -246,7 +246,22 @@ I record the X7 disagreement rather than average it. It is the architect's rulin
 
 ## Gates
 
-GATES_PLACEHOLDER
+- `npm run check` exits 0: 640 core and teaching tests (626 before, plus the 14 in
+  `capability/ladder.test.ts`), spike 0102 69, spike 0101 8, `test:subset` 4.
+- `control-deletion`: 74 rows (61 before, 13 new), all red by assertion, on the final commit.
+  `--self-test` passes.
+- `node scripts/leak-gate.mjs --tree` exit 0; `--history` exit 0, run unpiped before every push
+  with the exit code checked directly.
+- CI: the pull request's checks, on both runners, with `control-deletion`.
+- Protected surfaces diff to empty against `9ce3fb4`: the steering documents, `LICENSE`, `NOTICE`,
+  `spikes/**`, the canonical form, `pinning/canonical.ts`, `gate.ts`, `manifest.ts`,
+  `capability/fields.ts`, `containment/**`, `auth/**`, `transport/**`, `node/**`,
+  `packages/core/test/boundary/**` and `packages/teaching/src/**`. The source changes are the new
+  `capability/ladder.ts` and `RULES.md`, and four lines in `pinning/registry.ts`.
+- `main` moved to `98c2fda` (the `-1007a` WO, docs only) while this was built. Nothing here touches
+  it, so the branch was not rebased.
+- The minted token lived in a mode-0600 scratch file, was never written to git config or a remote
+  URL, and was deleted after the pull request was opened.
 
 ## What was not built
 
