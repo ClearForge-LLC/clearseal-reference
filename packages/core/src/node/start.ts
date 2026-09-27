@@ -67,6 +67,24 @@ const SERVER_INFO: Readonly<{ name: string; version: string }> = Object.freeze({
 const SETTINGS = ["host", "port", "resource-url"] as const;
 type Setting = (typeof SETTINGS)[number];
 
+/**
+ * Why the file a descriptor holds is not the file at the path it was opened through: two different
+ * faults, told apart rather than guessed (CSR-WO-1007b §1.6). If the path still resolves to the file
+ * that was opened, the difference is a link on the way. If it does not, the file was renamed, replaced
+ * or removed between the open and the check, and saying "symbolic link" would send the operator looking
+ * for something that is not there.
+ */
+export function manifestPathFault(real: string | undefined, path: string): string {
+  let resolved: string | undefined;
+  try {
+    resolved = realpathSync(resolve(path));
+  } catch {
+    resolved = undefined;
+  }
+  if (resolved !== undefined && resolved === real) return "the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way";
+  return "the manifest file changed while it was being opened (it was renamed, replaced or removed): a node reads one file, once";
+}
+
 /** The manifest as read: the path opened, and its bytes, read once from one descriptor. */
 export interface ManifestFile {
   readonly path: string;
@@ -123,19 +141,7 @@ export function readManifestFile(manifestPath: string | URL): ManifestFile {
       } catch {
         real = undefined;
       }
-      if (real !== resolve(path)) {
-        // Two different faults, told apart rather than guessed (CSR-WO-1007b §1.6): if the path still
-        // resolves to the file we opened, the difference is a link on the way; if it does not, the file
-        // was renamed or replaced between the open and this check.
-        let resolved: string | undefined;
-        try {
-          resolved = realpathSync(resolve(path));
-        } catch {
-          resolved = undefined;
-        }
-        if (resolved === real) throw new ManifestError("the manifest's path passes through a symbolic link: a node reads its committed manifest from a path with no link on the way");
-        throw new ManifestError("the manifest file changed while it was being opened (it was renamed, replaced or removed): a node reads one file, once");
-      }
+      if (real !== resolve(path)) throw new ManifestError(manifestPathFault(real, path));
     }
     return { path: resolve(path), bytes: readFileSync(fd) };
   } finally {

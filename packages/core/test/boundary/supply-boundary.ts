@@ -275,16 +275,6 @@ function entryFilesChecked(dir: string, edition: string, read: ReadonlySet<strin
   }
 }
 
-/** The edition's package name, or undefined when package.json has none. */
-function packageName(dir: string): string | undefined {
-  try {
-    const name = (JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { name?: unknown }).name;
-    return typeof name === "string" && name.length > 0 ? name : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 /** The child's report line: its marker, then JSON { nonce, findings }. */
 export const REPORT_MARKER = "clearseal-supply-boundary-report ";
 
