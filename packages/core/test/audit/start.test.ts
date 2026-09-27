@@ -64,6 +64,7 @@ async function refused(label: string, vars: Record<string, string | undefined>, 
   } catch (err) {
     assert.ok(err instanceof AuditConfigError, `${label}: ${String(err)}`);
     assert.match(err.message, rule, label);
+    assert.ok(!err.message.includes("maybe a key"), `${label}: a file's content is never quoted`);
     pastes.push(`AUDIT START ${label}: ${err.name}: ${err.message}`);
     return;
   }
@@ -89,6 +90,23 @@ void describe("startNode refuses to start without its audit configuration (AU-21
     writeFileSync(rsa, generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({ format: "pem", type: "pkcs8" }));
     await refused("AUDIT_SIGNING_KEY_FILE an RSA key", { ...base, AUDIT_SIGNING_KEY_FILE: rsa }, /the signing key is rsa, not Ed25519/);
     await refused("AUDIT_SIGNING_KEY_FILE not a key", { ...base, AUDIT_SIGNING_KEY_FILE: base["AUDIT_DIGEST_KEY_FILE"] }, /not a PEM private key/);
+    // The adversarial pass (CSR-WO-2002 §5.5): the log and anchor never land on a key or the manifest;
+    // seam-only never silently overrides a configured store; each key its own id; no patterned key.
+    await refused("AUDIT_LOG the digest key file", { ...base, AUDIT_LOG: base["AUDIT_DIGEST_KEY_FILE"] }, /AUDIT_LOG is the same file as AUDIT_DIGEST_KEY_FILE/);
+    await refused("AUDIT_LOG the signing key file", { ...base, AUDIT_LOG: base["AUDIT_SIGNING_KEY_FILE"] }, /AUDIT_LOG is the same file as AUDIT_SIGNING_KEY_FILE/);
+    await refused("AUDIT_ANCHOR the manifest", { ...base, AUDIT_ANCHOR: MANIFEST }, /AUDIT_ANCHOR is the same file as CLEARSEAL_MANIFEST/);
+    await refused("AUDIT_LOG the manifest", { ...base, AUDIT_LOG: MANIFEST }, /AUDIT_LOG is the same file as CLEARSEAL_MANIFEST/);
+    await refused("AUDIT_STORE=seam-only with the store configured", { ...base, AUDIT_STORE: "seam-only" }, /AUDIT_STORE=seam-only while the store is configured/);
+    await refused("the same id for both keys", { ...base, AUDIT_SIGNING_KEY_ID: base["AUDIT_DIGEST_KEY_ID"] }, /are the same: each key has its own id/);
+    const zeros = join(kit.dir, "zeros.key");
+    writeFileSync(zeros, Buffer.alloc(32).toString("base64url"));
+    await refused("an all-zero digest key", { ...base, AUDIT_DIGEST_KEY_FILE: zeros }, /patterned key/);
+    const twoPems = join(kit.dir, "two.pem");
+    writeFileSync(twoPems, kit.signingPem + generateKeyPairSync("ed25519").privateKey.export({ format: "pem", type: "pkcs8" }).toString());
+    await refused("two PEM blocks in the signing key file", { ...base, AUDIT_SIGNING_KEY_FILE: twoPems }, /more than one PEM block/);
+    const notAnchor = join(kit.dir, "not-an-anchor.jsonl");
+    writeFileSync(notAnchor, "not json at all, maybe a key\n");
+    await refused("an AUDIT_ANCHOR whose last line is not a checkpoint (named, never quoted)", { ...base, AUDIT_ANCHOR: notAnchor }, /^AUDIT_ANCHOR's last line is not a checkpoint$/);
     await refused("AUDIT_CHECKPOINT_ROWS zero", { ...base, AUDIT_CHECKPOINT_ROWS: "0" }, /AUDIT_CHECKPOINT_ROWS must be an integer from 1 to 100000/);
     await refused("AUDIT_CHECKPOINT_SECONDS too large", { ...base, AUDIT_CHECKPOINT_SECONDS: "999999" }, /AUDIT_CHECKPOINT_SECONDS must be an integer from 1 to 86400/);
     if (POSIX) {

@@ -1827,6 +1827,157 @@
         "the log and the anchor are never the same file",
         "start is refused for each missing or invalid AUDIT_* setting"
       ]
+    },
+    {
+      "id": "audit-utf8-strict",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-1: the log and the anchor are decoded as strict UTF-8; an altered byte sequence is a finding and a refusal, never a replacement character",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-utf8-strict.patch",
+      "tests": [
+        "packages/core/test/audit/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "a row's bytes altered into invalid UTF-8 are a finding, never a replacement character"
+      ]
+    },
+    {
+      "id": "audit-event-unlisted",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-6: an event the table does not list is written as unlisted, its name only in the digest",
+      "touches": [
+        "packages/core/src/audit/policy.ts"
+      ],
+      "stub": "stubs/audit-event-unlisted.patch",
+      "tests": [
+        "packages/core/test/audit/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "an event the table does not know is written as unlisted, its name only in the digest; nothing is dropped"
+      ]
+    },
+    {
+      "id": "audit-errname",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-6: transport-error's reason is bare only as one of the platform's error names",
+      "touches": [
+        "packages/core/src/audit/policy.ts"
+      ],
+      "stub": "stubs/audit-errname.patch",
+      "tests": [
+        "packages/core/test/audit/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "an event the table does not know is written as unlisted, its name only in the digest; nothing is dropped"
+      ]
+    },
+    {
+      "id": "audit-torn-checked",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-20: a final line without its newline that parses is still checked",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-torn-checked.patch",
+      "tests": [
+        "packages/core/test/audit/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "a final newline removed from a complete line never hides it from the checks"
+      ]
+    },
+    {
+      "id": "audit-checkpoint-form",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-19: a checkpoint's signature is in its one base64url spelling",
+      "touches": [
+        "packages/core/src/audit/verify.ts"
+      ],
+      "stub": "stubs/audit-checkpoint-form.patch",
+      "tests": [
+        "packages/core/test/audit/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "a checkpoint's signature has one spelling, and a checkpoint covers at least one row"
+      ]
+    },
+    {
+      "id": "audit-allowlist-strict",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-19: an allowlist entry has exactly its four members",
+      "touches": [
+        "packages/core/src/audit/signer.ts"
+      ],
+      "stub": "stubs/audit-allowlist-strict.patch",
+      "tests": [
+        "packages/core/test/audit/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "the allowlist is strict: unique members, exactly four, one key spelling, real dates, not empty"
+      ]
+    },
+    {
+      "id": "audit-log-not-a-key",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-21: the log is never a key file or the manifest",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-log-not-a-key.patch",
+      "tests": [
+        "packages/core/test/audit/start.test.ts"
+      ],
+      "mustFail": [
+        "start is refused for each missing or invalid AUDIT_* setting"
+      ]
+    },
+    {
+      "id": "audit-strong-digest-key",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-21: a patterned digest key refuses start",
+      "touches": [
+        "packages/core/src/audit/config.ts"
+      ],
+      "stub": "stubs/audit-strong-digest-key.patch",
+      "tests": [
+        "packages/core/test/audit/start.test.ts"
+      ],
+      "mustFail": [
+        "start is refused for each missing or invalid AUDIT_* setting"
+      ]
+    },
+    {
+      "id": "audit-start-anchor-signature",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-24: the store checks its own last checkpoint's signature at start",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-start-anchor-signature.patch",
+      "tests": [
+        "packages/core/test/audit/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "the store checks its own last checkpoint's signature at start"
+      ]
+    },
+    {
+      "id": "audit-resumed",
+      "section8": "Audit keyed digests, OS-log store, signed checkpoints, `audit verify`",
+      "control": "AU-25: a resumed store records the unanchored rows it adopts",
+      "touches": [
+        "packages/core/src/audit/store.ts"
+      ],
+      "stub": "stubs/audit-resumed.patch",
+      "tests": [
+        "packages/core/test/audit/store.test.ts"
+      ],
+      "mustFail": [
+        "a resumed store records the unanchored rows it adopts",
+        "a restarted store continues seq and prev from the last row"
+      ]
     }
   ]
 }

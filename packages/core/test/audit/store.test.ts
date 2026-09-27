@@ -49,8 +49,25 @@ void describe("the chain (AU-1 to AU-3)", () => {
     await again.store.close();
     const ls = lines(first.kit);
     const rs = rows(first.kit);
-    assert.deepEqual(rs.map((r) => r["seq"]), [0, 1, 2]);
+    assert.deepEqual(rs.map((r) => r["seq"]), [0, 1, 2, 3]);
     assert.equal(rs[2]?.["prev"], lineHash(ls[1] as string));
+    // AU-25: the resumed run's first row records the rows it adopted after the last checkpoint.
+    assert.equal(rs[2]?.["event"], "audit-resumed");
+    assert.deepEqual(rs[2]?.["fields"], { fromSeq: 2, unanchored: 0 });
+  });
+
+  void it("a resumed store records the unanchored rows it adopts", async () => {
+    const first = open(auditKit(), { rows: 1000 });
+    for (let i = 0; i < 3; i++) first.store.append("auth-refused", { reason: "expired" });
+    // A crash: no close, so no checkpoint covers the three rows.
+    first.store.flush();
+    const again = open(first.kit, { anchor: new MemoryAnchor(), anchorText: first.anchor.text() });
+    again.store.append("auth-refused", { reason: "expired" });
+    await again.store.close();
+    await first.store.close();
+    const resumed = rows(first.kit).find((r) => r["event"] === "audit-resumed");
+    assert.deepEqual(resumed?.["fields"], { fromSeq: 3, unanchored: 3 });
+    console.log(`AUDIT RESUMED ${lines(first.kit).find((l) => l.includes("audit-resumed")) ?? ""}`);
   });
 });
 

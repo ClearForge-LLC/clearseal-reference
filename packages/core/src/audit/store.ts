@@ -13,10 +13,12 @@
 import { closeSync, fsyncSync, readFileSync, writeSync } from "node:fs";
 
 import { type AuditRow, type Checkpoint, checkpointLine, checkpointPayload, GENESIS, lineHash, rowLine } from "./chain.ts";
+import { canonicalJson, parseCanonicalJson } from "../pinning/canonical.ts";
 import type { Digester } from "./digest.ts";
 import { AuditConfigError, fileIdentity, openOperatorFile } from "./files.ts";
 import { shapeRow } from "./policy.ts";
-import type { Signer } from "./signer.ts";
+import { type Signer, verifyWith } from "./signer.ts";
+import { decodeStrict } from "./verify.ts";
 
 /** What the transport's audit seam calls. */
 export type AuditFields = Record<string, string | number>;
@@ -55,11 +57,11 @@ export class MemoryAnchor implements AnchorSink {
 /** A file anchor: a separate operator-named file, opened append-only (AU-11). */
 export class FileAnchor implements AnchorSink {
   readonly #fd: number;
-  /** The anchor's text when it was opened, for the start-time check (AU-24). */
-  readonly existing: string;
+  /** The anchor's bytes when it was opened, for the start-time check (AU-24). */
+  readonly existing: Buffer;
   constructor(path: string, setting = "AUDIT_ANCHOR") {
     this.#fd = openOperatorFile(setting, path, true);
-    this.existing = readFileSync(this.#fd, "utf8");
+    this.existing = readFileSync(this.#fd);
   }
   get fd(): number {
     return this.#fd;
@@ -77,8 +79,11 @@ export interface JsonLinesStoreOptions {
   /** The log's path (AUDIT_LOG). */
   log: string;
   anchor: AnchorSink;
-  /** The anchor's existing text, for the start-time check; "" for a fresh or in-memory anchor. */
-  anchorText?: string;
+  /** The anchor's existing content, for the start-time check; empty for a fresh or in-memory anchor. */
+  anchorText?: string | Uint8Array;
+  /** Files the log and the anchor must never be (the key files, the manifest), by identity, with the
+   *  setting that names each (AU-21). */
+  forbidden?: readonly { readonly setting: string; readonly identity: string }[];
   digester: Digester;
   signer: Signer;
   /** Checkpoint every this many rows (AUDIT_CHECKPOINT_ROWS). */
@@ -110,6 +115,7 @@ export class JsonLinesStore implements AuditStore {
   #checkpointSeq: number;
   #checkpointedCount: number;
   #closed = false;
+  #resumed: { fromSeq: number; unanchored: number } | undefined;
 
   constructor(options: JsonLinesStoreOptions) {
     this.digester = options.digester;
@@ -120,20 +126,51 @@ export class JsonLinesStore implements AuditStore {
     this.#fd = openOperatorFile("AUDIT_LOG", options.log, true);
     try {
       if (options.anchor instanceof FileAnchor && fileIdentity(options.anchor.fd) === fileIdentity(this.#fd)) throw new AuditConfigError("AUDIT_LOG and AUDIT_ANCHOR name the same file: the anchor is a separate file");
-      // Resume from what is there (AU-2), refusing a torn tail (AU-20) and a log behind its anchor (AU-24).
-      const { rows, torn } = tail(readFileSync(this.#fd, "utf8"));
+      for (const f of options.forbidden ?? []) {
+        if (fileIdentity(this.#fd) === f.identity) throw new AuditConfigError(`AUDIT_LOG is the same file as ${f.setting}: the log is its own file`);
+        if (options.anchor instanceof FileAnchor && fileIdentity(options.anchor.fd) === f.identity) throw new AuditConfigError(`AUDIT_ANCHOR is the same file as ${f.setting}: the anchor is its own file`);
+      }
+      // Resume from what is there (AU-2), refusing a log that is not valid UTF-8 or not an audit log,
+      // a torn tail (AU-20), and a log behind its anchor (AU-24).
+      const logText = decodeStrict(readFileSync(this.#fd));
+      if (logText === undefined) throw new AuditConfigError("AUDIT_LOG is not valid UTF-8: run `npm run audit -- verify` and decide before the node writes more");
+      const { rows, torn } = tail(logText);
       if (torn) throw new AuditConfigError("the audit log's final line is torn (a crash mid-write, or an edit): run `npm run audit -- verify` and decide before the node writes more");
+      const lastRow = rows[rows.length - 1];
+      if (lastRow !== undefined) {
+        let parsed: unknown;
+        try {
+          parsed = parseCanonicalJson(lastRow);
+        } catch {
+          parsed = undefined;
+        }
+        if (typeof parsed !== "object" || parsed === null || (parsed as { seq?: unknown }).seq !== rows.length - 1 || canonicalJson(parsed) !== lastRow) throw new AuditConfigError("AUDIT_LOG is not an audit log (its last line is not the row its position requires): run `npm run audit -- verify`");
+      }
       this.#seq = rows.length;
       this.#prev = rows.length === 0 ? GENESIS : lineHash(rows[rows.length - 1] as string);
-      const anchored = tail(options.anchorText ?? "");
+      const anchorText = decodeStrict(options.anchorText ?? "");
+      if (anchorText === undefined) throw new AuditConfigError("AUDIT_ANCHOR is not valid UTF-8");
+      const anchored = tail(anchorText);
       if (anchored.torn) throw new AuditConfigError("the audit anchor's final line is torn: run `npm run audit -- verify` and decide before the node writes more");
       const lastLine = anchored.rows[anchored.rows.length - 1];
       if (lastLine === undefined) {
         this.#checkpointSeq = 0;
         this.#checkpointedCount = 0;
       } else {
-        const last = JSON.parse(lastLine) as Partial<Checkpoint>;
-        if (typeof last.seq !== "number" || typeof last.count !== "number" || typeof last.head !== "string") throw new AuditConfigError("the audit anchor's last line is not a checkpoint");
+        let last: Partial<Checkpoint>;
+        try {
+          last = parseCanonicalJson(lastLine) as Partial<Checkpoint>;
+        } catch {
+          // Never quoted: a misnamed anchor could be a key file.
+          throw new AuditConfigError("AUDIT_ANCHOR's last line is not a checkpoint");
+        }
+        if (typeof last !== "object" || last === null || typeof last.seq !== "number" || typeof last.count !== "number" || typeof last.head !== "string" || typeof last.kid !== "string" || typeof last.time !== "string" || typeof last.sig !== "string") throw new AuditConfigError("AUDIT_ANCHOR's last line is not a checkpoint");
+        // The store's own key checks its own last checkpoint; a checkpoint under another kid (a key
+        // since rotated) is left to `audit verify` and its allowlist.
+        if (last.kid === options.signer.kid && options.signer.publicKey !== undefined) {
+          const entry = { kid: last.kid, key: options.signer.publicKey, notBefore: "", notAfter: "" };
+          if (!verifyWith(entry, checkpointPayload({ kid: last.kid, seq: last.seq, head: last.head, count: last.count, time: last.time }), Buffer.from(last.sig, "base64url"))) throw new AuditConfigError("AUDIT_ANCHOR's last checkpoint does not verify under the signing key: run `npm run audit -- verify`");
+        }
         if (last.count > rows.length) throw new AuditConfigError(`the audit log has ${String(rows.length)} rows but its last checkpoint covers ${String(last.count)}: it was truncated behind the checkpoint`);
         if (last.count > 0 && lineHash(rows[last.count - 1] as string) !== last.head) throw new AuditConfigError(`the audit log's row ${String(last.count - 1)} does not match its last checkpoint's head: it was edited or re-chained`);
         this.#checkpointSeq = last.seq + 1;
@@ -143,6 +180,10 @@ export class JsonLinesStore implements AuditStore {
       closeSync(this.#fd);
       throw err;
     }
+    // A resumed log: the first row of this run says how many rows it adopted after the last checkpoint.
+    // Rows there could have been rewritten while the node was down (the unkeyed chain cannot tell), and
+    // this run's next checkpoint will cover them, so the adoption is recorded where verify's reader sees it.
+    this.#resumed = this.#seq > 0 ? { fromSeq: this.#seq, unanchored: this.#seq - this.#checkpointedCount } : undefined;
     this.#timer = setInterval(() => {
       this.#checkpointIfPending();
     }, options.checkpointMs);
@@ -151,8 +192,13 @@ export class JsonLinesStore implements AuditStore {
 
   append(event: string, fields: AuditFields): void {
     if (this.#closed) throw new Error("the audit store is closed");
+    if (this.#resumed !== undefined) {
+      const r = this.#resumed;
+      this.#resumed = undefined;
+      this.append("audit-resumed", r);
+    }
     const shaped = shapeRow(event, fields, this.digester);
-    const row: AuditRow = { seq: this.#seq, time: new Date(this.#now()).toISOString(), event, principal: shaped.principal, fields: shaped.fields, prev: this.#prev };
+    const row: AuditRow = { seq: this.#seq, time: new Date(this.#now()).toISOString(), event: shaped.event, principal: shaped.principal, fields: shaped.fields, prev: this.#prev };
     const line = rowLine(row);
     // One write of the line and its newline (AU-3).
     writeSync(this.#fd, `${line}\n`);

@@ -19,7 +19,7 @@
 // variable with the edition's prefix included, refuses start (N4).
 
 import { createHash } from "node:crypto";
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -203,7 +203,9 @@ export async function startNode(edition: Edition, options: StartNodeOptions = {}
   const auditConfig = auditFromEnv(process.env);
   const file = readManifestFile(manifestPathFromEnv(process.env));
   const sha256 = createHash("sha256").update(file.bytes).digest("hex");
-  const store = openAuditStore(auditConfig);
+  // The log and the anchor are never the manifest (nor the key files: the store checks those).
+  const manifestStat = statSync(file.path, { bigint: true });
+  const store = openAuditStore(auditConfig, undefined, [{ setting: "CLEARSEAL_MANIFEST", identity: `${String(manifestStat.dev)}:${String(manifestStat.ino)}` }]);
   const stderr = (event: string, fields: Record<string, string | number>): void => {
     console.error(renderAuditLine(event, fields));
   };

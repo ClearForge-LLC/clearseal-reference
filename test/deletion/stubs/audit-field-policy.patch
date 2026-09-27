@@ -1,6 +1,68 @@
 --- a/packages/core/src/audit/policy.ts
 +++ b/packages/core/src/audit/policy.ts
-@@ -92,7 +92,7 @@ export function shapeRow(event: string, input: Readonly<Record<string, unknown>>
+@@ -7,7 +7,7 @@
+ 
+ import { DIGEST_FORM, type Digester } from "./digest.ts";
+ 
+-type Kind = "code" | "int" | "tool" | "method" | "hex64" | "config" | "argdigest" | "digest";
++type Kind = "code" | "errname" | "int" | "tool" | "method" | "hex64" | "config" | "argdigest" | "digest";
+ type PrincipalRule = "node" | "caller" | "caller-or-unauthenticated" | "unauthenticated";
+ 
+ interface EventRule {
+@@ -30,7 +30,7 @@ export const EVENTS: Readonly<Record<string, EventRule>> = Object.freeze({
+   "auth-refused": { principal: "unauthenticated", fields: { reason: "code" } },
+   "http-refused": { principal: "caller-or-unauthenticated", fields: { status: "int", reason: "code" } },
+   "rpc-refused": { principal: "caller", fields: { code: "int", method: "method" } },
+-  "transport-error": { principal: "caller-or-unauthenticated", fields: { reason: "code" } },
++  "transport-error": { principal: "caller-or-unauthenticated", fields: { reason: "errname" } },
+   "result-over-cap": { principal: "caller", fields: { method: "method", limit: "int" } },
+   "validation-timeout": { principal: "caller", fields: { tool: "tool", limitMs: "int" } },
+   "validation-error": { principal: "caller", fields: TOOL_FIELDS },
+@@ -41,8 +41,13 @@ export const EVENTS: Readonly<Record<string, EventRule>> = Object.freeze({
+   "legacy-input-required": { principal: "caller", fields: TOOL_FIELDS },
+   "request-state-unsealable": { principal: "caller", fields: TOOL_FIELDS },
+   "tool-call": { principal: "caller", fields: { tool: "tool", outcome: "code", args: "argdigest" } },
++  "audit-resumed": { principal: "node", fields: { fromSeq: "int", unanchored: "int" } },
+ });
+ 
++/** transport-error's reason is an error's name, and a tool's code can name an error after its
++ *  arguments: only the platform's own error names, and the transport's own word, are written bare. */
++const ERROR_NAMES: ReadonlySet<string> = new Set(["unhandled", "unknown", "Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError", "EvalError", "URIError", "AggregateError", "AbortError", "TimeoutError", "Refusal"]);
++
+ /** The MCP methods the transport knows: a method name written bare is one of these. */
+ const METHODS: ReadonlySet<string> = new Set(["initialize", "notifications/initialized", "ping", "tools/list", "tools/call", "server/discover", "resources/list", "resources/read", "prompts/list", "prompts/get", "completion/complete", "logging/setLevel"]);
+ 
+@@ -57,6 +62,8 @@ function ofKind(kind: Kind, v: unknown): boolean {
+   switch (kind) {
+     case "code":
+       return typeof v === "string" && CODE.test(v);
++    case "errname":
++      return typeof v === "string" && ERROR_NAMES.has(v);
+     case "int":
+       return typeof v === "number" && Number.isSafeInteger(v);
+     case "tool":
+@@ -75,6 +82,9 @@ function ofKind(kind: Kind, v: unknown): boolean {
+ }
+ 
+ export interface Shaped {
++  /** The event as written: its own name if the table lists it, else "unlisted" (the name goes into
++   *  the unlisted digest, since an event name could carry a value too). */
++  event: string;
+   principal: string;
+   fields: Record<string, string | number>;
+ }
+@@ -83,7 +93,9 @@ export interface Shaped {
+ export function shapeRow(event: string, input: Readonly<Record<string, unknown>>, digester: Digester): Shaped {
+   const rule: EventRule | undefined = Object.hasOwn(EVENTS, event) ? EVENTS[event] : undefined;
+   const fields: Record<string, string | number> = {};
+-  const unlisted: Record<string, unknown> = {};
++  // No prototype, so a member named __proto__ is kept as data, never dropped.
++  const unlisted: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
++  if (rule === undefined) unlisted["event"] = event;
+   let caller: string | undefined;
+   for (const [name, value] of Object.entries(input)) {
+     if (name === "principal" && rule !== undefined && rule.principal !== "node") {
+@@ -92,7 +104,7 @@ export function shapeRow(event: string, input: Readonly<Record<string, unknown>>
      }
      const kind = rule !== undefined && Object.hasOwn(rule.fields, name) ? rule.fields[name] : undefined;
      if (kind === undefined) {
@@ -9,3 +71,10 @@
        continue;
      }
      fields[name] = ofKind(kind, value) ? (value as string | number) : digester.value(`${event}.${name}`, value);
+@@ -103,5 +115,5 @@ export function shapeRow(event: string, input: Readonly<Record<string, unknown>>
+   else if (rule.principal === "node") principal = "node";
+   else if (rule.principal === "unauthenticated") principal = caller ?? "unauthenticated";
+   else principal = caller ?? (rule.principal === "caller" ? "unattributed" : "unauthenticated");
+-  return { principal, fields };
++  return { event: rule === undefined ? "unlisted" : event, principal, fields };
+ }

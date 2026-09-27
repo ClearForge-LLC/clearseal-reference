@@ -10,7 +10,7 @@ Tests are in `packages/core/test/audit/` unless another file is named. Each rule
 
 ## The chain
 
-- **AU-1** A row is `{ seq, time, event, principal, fields, prev }`, serialized as the core's canonical JSON (`pinning/canonical.ts`: sorted keys, no whitespace, one spelling per value), one row per line. `prev` is the SHA-256, in lower-case hex, of the previous row's exact line bytes, without the newline. The first row of a log has `prev` of sixty-four zeros. Red-proof: "every row's prev is the SHA-256 of the line before it" [audit-chain-link].
+- **AU-1** A row is `{ seq, time, event, principal, fields, prev }`, serialized as the core's canonical JSON (`pinning/canonical.ts`: sorted keys, no whitespace, one spelling per value), one row per line. `prev` is the SHA-256, in lower-case hex, of the previous row's exact line bytes, without the newline. The first row of a log has `prev` of sixty-four zeros. The log and the anchor are read as bytes and decoded as strict UTF-8, so the text hashed is the bytes on disk. An invalid byte sequence is a finding for `verify` and a refusal at start, never a replacement character. Red-proofs: "every row's prev is the SHA-256 of the line before it" [audit-chain-link], and in `adversarial.test.ts`, "a row's bytes altered into invalid UTF-8 are a finding, never a replacement character" [audit-utf8-strict].
 - **AU-2** `seq` counts rows from 0 across the whole file, one per row, with no gaps, including across restarts: the store resumes from the last row it finds. Red-proof: "a restarted store continues seq and prev from the last row" [audit-chain-resume].
 - **AU-3** Each row is written with one write of the line plus its newline, so a crash can leave at most a torn final line, never a torn row in the middle. Red-proof: covered by `audit verify` (AU-16) and the torn-tail refusal (AU-20).
 
@@ -27,7 +27,11 @@ Tests are in `packages/core/test/audit/` unless another file is named. Each rule
 - **AU-6** Every field of every row is written bare only if the event table below lists it and the value is of the listed kind.
   - A listed field whose value is of the wrong kind keeps its name, and its value becomes a keyed digest.
   - Fields the table does not list, and every field of an unknown event, are never written under their own names, since a name could carry a value too. Together they become one field, `unlisted`, holding a keyed digest of their canonical JSON.
-  - Nothing is dropped, and nothing unlisted is bare.
+  - An event the table does not list is written as `unlisted`, and its name goes into that digest.
+  - A member named `__proto__` is kept as data. A BigInt, NaN, the infinities, `-0` and `undefined` each digest distinctly and never throw.
+  - Nothing is dropped, and nothing unlisted is bare. A symbol-keyed member is outside the seam's contract (`Record<string, …>`) and is not read.
+
+  Red-proof, in `adversarial.test.ts`: "an event the table does not know is written as unlisted, its name only in the digest; nothing is dropped" [audit-event-unlisted].
 
   Red-proof: "a field outside the table, or of the wrong kind, is written as a keyed digest" [audit-field-policy].
 - **AU-7** `containment-refused`'s `sink` is always a keyed digest. The sink is the path or host a tool tried to reach, and a tool builds it from its arguments (for example, `notes.read` builds it from the note's name). Red-proof: "a containment sink is written as a keyed digest" [audit-sink-digest].
@@ -36,7 +40,8 @@ Tests are in `packages/core/test/audit/` unless another file is named. Each rule
 ### The event table
 
 Kinds of field:
-- `code`: matches `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`.
+- `code`: matches `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`. Every code field is filled from the core's own constants: a refusal's reason word, a verifier reason, a reach kind, an outcome.
+- `errname`: one of the platform's error names (`Error`, `TypeError`, `RangeError`, `SyntaxError`, `ReferenceError`, `EvalError`, `URIError`, `AggregateError`, `AbortError`, `TimeoutError`), or `Refusal`, `unhandled` or `unknown`. `transport-error`'s reason is an error's name, and a tool's code can name an error after its arguments, so any other name is digested. Red-proof: the same test [audit-errname].
 - `int`: a safe integer.
 - `tool`: a tool name as A5 allows it.
 - `method`: one of the MCP methods the transport knows.
@@ -58,7 +63,7 @@ Kinds of field:
 | `auth-refused` | `transport/server.ts` | unauthenticated | reason (code) |
 | `http-refused` | `transport/server.ts` | caller, else unauthenticated | status (int), reason (code) |
 | `rpc-refused` | `transport/server.ts` | caller | code (int), method (method) |
-| `transport-error` | `transport/server.ts` | caller, else unauthenticated | reason (code) |
+| `transport-error` | `transport/server.ts` | caller, else unauthenticated | reason (errname) |
 | `result-over-cap` | `transport/dispatch.ts` | caller | method (method), limit (int) |
 | `validation-timeout` | `transport/dispatch.ts` | caller | tool (tool), limitMs (int) |
 | `validation-error` | `transport/dispatch.ts` | caller | tool (tool) |
@@ -68,6 +73,8 @@ Kinds of field:
 | `legacy-input-required` | `transport/dispatch.ts` | caller | tool (tool) |
 | `request-state-unsealable` | `transport/dispatch.ts` | caller | tool (tool) |
 | `tool-call` | `transport/dispatch.ts` | caller | tool (tool), outcome (code), args (argdigest) |
+| `audit-resumed` | `audit/store.ts` | node | fromSeq (int), unanchored (int) |
+| any other event | — | unattributed | written as `unlisted`: its name and fields in one keyed digest |
 
 No event carries a token, a header value or a JSON-RPC id. The transport never passes one to the seam, and AU-6 would digest one that it did. `principal` is the caller's id as the verifier returned it. It is the one caller-derived string written bare, because recording who acted is the row's purpose.
 
@@ -82,9 +89,11 @@ No event carries a token, a header value or a JSON-RPC id. The transport never p
 
   Red-proof: "a checkpoint is signed over its own canonical bytes" [audit-checkpoint-signed].
 - **AU-11** The anchor is a separate, operator-named file, opened append-only. The core also ships an in-memory anchor for tests. A remote anchor fits the `AnchorSink` interface, and none is built.
-- **AU-12** **The honest limit.**
-  - Rows written after the last checkpoint can be truncated without detection. N and T bound that window.
-  - An attacker who can rewrite both the log and the anchor defeats the scheme. The anchor's value is that someone else owns it (an operator-held file, a remote sink, the OS log in P3 and P4).
+- **AU-12** **The honest limit.** This rule was restated after the adversarial pass, which showed the first version claimed too little risk.
+  - Rows after the last checkpoint are not protected. They can be truncated, and also rewritten or added to: the chain is a plain SHA-256 that anyone can recompute. A restart then adopts them, and the next checkpoint covers them. The adoption is recorded (AU-25), and N and T bound the window.
+  - The anchor is the protection, so it must be owned by someone else: an operator-held file, a remote sink, or the OS log in P3 and P4.
+  - An attacker who can truncate the anchor, not only rewrite it, reopens the rows its lost checkpoints covered. `verify` cannot know how many checkpoints there should have been.
+  - An attacker with the service's own privilege can read the signing key, sign whatever they like, and so defeat the scheme too. Signed checkpoints add value only while the signing key is out of that attacker's reach, or the anchor is.
   - `audit verify` reports how many rows lie beyond the last checkpoint.
 
 ## `audit verify`
@@ -96,7 +105,7 @@ No event carries a token, a header value or a JSON-RPC id. The transport never p
 - **AU-13** An edited row is named: the next row's `prev` does not match its bytes. An edited last row is caught by the checkpoint that covers it (AU-18). Red-proof: "verify names an edited row" [audit-verify-edit].
 - **AU-14** A removed row is named: `seq` jumps. Red-proof: "verify names a removed row" [audit-verify-remove].
 - **AU-15** Reordered, inserted or spliced rows are named: `seq` goes backwards or repeats. Red-proof: "verify names reordered rows" [audit-verify-reorder].
-- **AU-16** A row that is not the canonical serialization of its own content is named as non-canonical, since one row can then be serialized two ways. Red-proof: "verify names a non-canonical row" [audit-verify-canonical].
+- **AU-16** A row that is not the canonical serialization of its own content is named as non-canonical, since one row can then be serialized two ways. A byte-level respelling is caught by AU-1's strict UTF-8. Red-proof: "verify names a non-canonical row" [audit-verify-canonical].
 - **AU-17** A truncation behind a checkpoint is named: the checkpoint's `count` exceeds the rows in the log. Red-proof: "verify names a truncation behind a checkpoint" [audit-verify-truncation].
 - **AU-18** A checkpoint whose `head` does not match the log's row at `count - 1` is named: the log was edited or re-chained behind it. Red-proof: "verify names a head mismatch" [audit-verify-head].
 - **AU-19** A checkpoint is named if:
@@ -106,7 +115,16 @@ No event carries a token, a header value or a JSON-RPC id. The transport never p
   - its `seq` repeats or goes backwards, which is a replay [audit-verify-replay].
 
   Red-proofs: the four tests of the same names.
-- **AU-20** A torn final line is its own kind (`torn-final-line`), distinct from tampering: the file does not end with a newline and its last line does not parse. A crash mid-write leaves exactly that shape. Tampering in the middle of the file never does, because every earlier line ends with a newline. The store refuses to start on a torn log, so the operator must look at it before it grows. Red-proofs: "verify reports a torn final line as its own kind" [audit-verify-torn] and "the store refuses to start on a torn log" [audit-torn-refused].
+
+  In addition:
+  - A checkpoint must have exactly its six members.
+  - `count` must be at least 1.
+  - Its signature must be in its one base64url spelling: 86 characters, no padding. A signature with another spelling is `malformed-checkpoint`. Red-proof: "a checkpoint's signature has one spelling, and a checkpoint covers at least one row" [audit-checkpoint-form].
+  - The allowlist must be a non-empty array of entries, each with exactly `kid`, `key`, `notBefore` and `notAfter`, no member twice, the key in its one 43-character spelling, and calendar-valid times. Red-proof: "the allowlist is strict …" [audit-allowlist-strict].
+  - **Limit:** the window is checked against the time the checkpoint itself signs. A retired key that leaks can backdate checkpoints into its old window. The answer is to remove its allowlist entry, and rotation should keep windows no longer than a key can be kept secret.
+- **AU-20** A torn final line is its own kind (`torn-final-line`), distinct from tampering: the file does not end with a newline. A crash mid-write leaves exactly that shape, and tampering in the middle of the file never does, because every earlier line ends with a newline.
+  - A final line that parses as a complete line is checked like any other, and is still reported as torn. So removing a final newline never hides a line from the checks, and never turns tampering into exit 3. Red-proof, in `adversarial.test.ts`: "a final newline removed from a complete line never hides it from the checks" [audit-torn-checked].
+  - The store refuses to start on a torn log, so the operator must look at it before it grows. Red-proofs: "verify reports a torn final line as its own kind" [audit-verify-torn] and "the store refuses to start on a torn log" [audit-torn-refused].
 
 ## Start, fail-closed
 
@@ -116,7 +134,16 @@ No event carries a token, a header value or a JSON-RPC id. The transport never p
   - `AUDIT_SIGNING_KEY_FILE` with `AUDIT_SIGNING_KEY_ID`: a regular file with no link, holding a PKCS#8 PEM Ed25519 private key;
   - optionally, `AUDIT_CHECKPOINT_ROWS` (1 to 100000) and `AUDIT_CHECKPOINT_SECONDS` (1 to 86400).
 
-  Each missing or invalid setting refuses start, naming it. Red-proof: "start is refused for each missing or invalid AUDIT_* setting" [audit-start-fail-closed].
-- **AU-22** The one exception is `AUDIT_STORE=seam-only`, for development. It keeps today's stderr line and writes an `audit-unanchored` row first. Any other `AUDIT_STORE` value refuses start. Red-proof: "seam-only starts with its audit-unanchored row" [audit-seam-only].
-- **AU-23** `manifest-loaded` is the first row a start writes. Red-proof: "manifest-loaded is the first row of the run" [audit-first-row].
-- **AU-24** On start the store checks the anchor's last checkpoint against the log. A log shorter than that checkpoint, or one whose row at `count - 1` does not hash to its `head`, refuses start. Red-proof: "the store refuses to start on a log behind its last checkpoint" [audit-start-anchor-check].
+  Each missing or invalid setting refuses start, naming it. Also refused at start:
+  - the log or the anchor being the same file as either key file or the manifest;
+  - the same id for both keys;
+  - a patterned digest key (fewer than 8 distinct byte values);
+  - more than one PEM block in the signing key file;
+  - an existing log whose last line is not the row its position requires;
+  - an anchor whose last line is not a checkpoint. The setting is named and the file's content is never quoted.
+
+  Red-proofs: "start is refused for each missing or invalid AUDIT_* setting" [audit-start-fail-closed], [audit-log-not-a-key], [audit-strong-digest-key].
+- **AU-22** The one exception is `AUDIT_STORE=seam-only`, for development. It keeps today's stderr line and writes an `audit-unanchored` row first. It refuses start if any store setting is also set, so a configured store is never silently ignored. Any other `AUDIT_STORE` value refuses start. Red-proof: "seam-only starts with its audit-unanchored row" [audit-seam-only].
+- **AU-23** `manifest-loaded` is the first row a start writes to a new log. On a resumed log it follows `audit-resumed` (AU-25). Red-proof: "manifest-loaded is the first row of the run" [audit-first-row].
+- **AU-24** On start the store checks the anchor's last checkpoint against the log. A log shorter than that checkpoint, or one whose row at `count - 1` does not hash to its `head`, refuses start. So does a checkpoint under the store's own kid whose signature does not verify under its own key. A checkpoint under another kid, from a rotated key, is left to `audit verify` and its allowlist. Red-proofs: "the store refuses to start on a log behind its last checkpoint" [audit-start-anchor-count, audit-start-anchor-head] and "the store checks its own last checkpoint's signature at start" [audit-start-anchor-signature].
+- **AU-25** A store that resumes a log with rows in it writes `audit-resumed` as the run's first row. The row records `fromSeq` and `unanchored`, the number of rows after the last checkpoint that this run adopts and will cover with its next checkpoint (AU-12). Red-proof: "a resumed store records the unanchored rows it adopts" [audit-resumed].

@@ -36,7 +36,7 @@ export function runAudit(argv: readonly string[], out: (line: string) => void = 
   }
   let report: ReturnType<typeof verifyAudit>;
   try {
-    report = verifyAudit(readFileSync(log, "utf8"), readFileSync(anchor, "utf8"), parseAllowlist(readFileSync(keys, "utf8")));
+    report = verifyAudit(readFileSync(log), readFileSync(anchor), parseAllowlist(readFileSync(keys, "utf8")));
   } catch (e) {
     err(`audit verify: ${e instanceof Error ? e.message : "cannot read its inputs"}`);
     return 2;
