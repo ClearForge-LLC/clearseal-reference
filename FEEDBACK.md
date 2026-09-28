@@ -14,7 +14,9 @@ a cancelled or skipped shard, and no protected surface changed.
   assertion**, each shard's baseline green before its stubs (below).
 - `node scripts/leak-gate.mjs --tree` and `--history` exit 0, run unpiped with the exit code checked
   directly, before every push.
-- CI: the pull request's checks, recorded in the next commit from its first run.
+- CI at `c5aea11`, both runs (push and pull request): `test (ubuntu-latest)` and `test
+  (windows-latest)` green, every shard, the self-test, the plan and the aggregate `control-deletion`
+  green, with `leak-gate`, `audit`, `sbom` and provenance green.
 - Protected surfaces diff to empty against `dc43207` (`packages/**`, `test/deletion/**` including
   `controls.json` and every stub, the steering documents, `LICENSE`, `NOTICE`, `spikes/**`,
   `docs/canonical-form.md`). Changed: `scripts/control-deletion.mjs`, the new
@@ -113,11 +115,60 @@ control-deletion: shard 4/4: every stub made its named tests fail by assertion �
 
 From the pull request's run, against today's 14½ minutes:
 
-(recorded in the next commit, from the pull request's first run.)
+Both runs at `c5aea11` (job durations from the checks API, checkout and install included):
+
+| Job | push run | pull-request run |
+|---|---|---|
+| `control-deletion-plan` | 0m03s | 0m03s |
+| `control-deletion-self-test` | 0m45s | 0m43s |
+| `control-deletion shard 1/4` | 4m12s | 3m07s |
+| `control-deletion shard 2/4` | 4m26s | 4m29s |
+| `control-deletion shard 3/4` | 3m12s | 4m13s |
+| `control-deletion shard 4/4` | 4m36s | 2m59s |
+| `control-deletion` (the aggregate) | 0m04s | 0m04s |
+| **plan start to aggregate done** | **4m47s** | **4m41s** |
+
+Against 14½ minutes for the single job at 137 rows. Every shard is under the five-minute target, but
+the slowest is at 4m36s: at the current rate of growth, **raise `CONTROL_DELETION_SHARDS` to 5 or 6
+within a work order or two.** Shards of the same rows vary by a minute or more between runs (runner
+speed), so read the slowest shard across a couple of runs, not one.
 
 ## §3.4 A deliberately broken row
 
-(recorded in the next commit: a throwaway branch, never merged.)
+A throwaway commit, `c87560e` on the branch `throwaway/2008a-broken-row` (deleted after the run;
+never merged, never part of this pull request), replaced the `drift-refused` row's stub with the
+runner's own no-op red-proof patch. `drift-refused` is row index 2, so shard 3 of 4. That run:
+
+```
+control-deletion-plan          success
+control-deletion-self-test     success
+control-deletion shard 1/4     success
+control-deletion shard 2/4     success
+control-deletion shard 3/4     failure
+control-deletion shard 4/4     success
+control-deletion               failure
+```
+
+Shard 3/4's log:
+
+```
+control-deletion: shard 3/4: 36 of the manifest's 145 row(s)
+control-deletion: baseline green: 21 test file(s), 414 test(s) passed on the unpatched tree
+MISS drift-refused | Verify-before-register; drift and unpinned refused | stub applied; "an edited description drifts the tool: refused, the rest admitted" stayed green; "a changed capability tag drifts the tool (every pinned field is inside the hash)" stayed green; "strict (the default): a drifted tool stops the node before it binds, with the refusal logged once" stayed green | 4462 ms
+control-deletion: shard 3/4: FAILED — 1 of 36 row(s) did not go red as named (246.4 s)
+```
+
+The aggregate's log:
+
+```
+control-deletion-plan: success
+control-deletion-self-test: success
+control-deletion-shard: failure
+control-deletion: a job above did not succeed (failed, cancelled or skipped); the proof is incomplete
+```
+
+Exactly its shard went red, the other three stayed green (`fail-fast: false`), and the aggregate
+failed.
 
 ## Review pass (WO §5)
 
