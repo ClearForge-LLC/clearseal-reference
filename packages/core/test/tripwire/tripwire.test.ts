@@ -59,6 +59,22 @@ void describe("CSR-WO-2007 tripwire: bursts", () => {
     assert.deepEqual(bursts, ["alice 5 in 10 s", "alice 5 in 10 s"], "the second burst's fifth read");
   });
 
+  void it("TW-4: re-arming starts the count from zero even when the window is longer than the quiet period", () => {
+    // A window longer than the quiet period: bob's armed entry, read once and not yet idle past the
+    // window, sits ahead of alice's, so the idle sweep stops at it and alice's fired entry is re-armed in
+    // place. Her last burst's reads are still inside the 60 s window; only the reset keeps them from
+    // counting toward a second burst.
+    const { tw, clock, bursts } = rig({ windowSeconds: 60, quietSeconds: 30 });
+    tw.observe("bob");
+    clock.advance(1);
+    read(tw, "alice", 5);
+    assert.deepEqual(bursts, ["alice 5 in 60 s"]);
+    clock.advance(30_000);
+    tw.observe("alice");
+    assert.deepEqual(bursts, ["alice 5 in 60 s"], "one read after the quiet period is not a second burst");
+    assert.equal(tw.size, 2, "bob's entry held, so alice's was re-armed in place rather than dropped");
+  });
+
   void it("TW-4: a pause shorter than the quiet period does not end the burst", () => {
     const { tw, clock, bursts } = rig();
     read(tw, "alice", 5);
