@@ -231,7 +231,7 @@ red-proof, and the teaching edition demonstrates every rung except exec.
 - `CSR-WO-2002` — (built, merged PR #59 2026-09-27; fail-closed start, `seam-only` dev mode; limits stated in §5) audit: the `AuditStore` interface with a JSON-lines backend; argument values
   replaced by keyed digests with a key-id prefix; hash-chained rows; signed checkpoints to an
   anchor sink; the `audit verify` command. The OS-log backends land with their editions (P3, P4).
-- `CSR-WO-2007` — (WO written 2026-09-28) tripwire and rate limit, as two controls: a read-burst tripwire that emits one
+- `CSR-WO-2007` — (built, merged `bfccccf` 2026-09-28) tripwire and rate limit, as two controls: a read-burst tripwire that emits one
   loud audit event and refuses nothing; a per-principal rate limit that answers `429` with
   `Retry-After` and leaves other principals untouched.
 - `CSR-WO-2008a` — (built, merged `712d832` 2026-09-28; 14½ → about 4¾ minutes at 145 rows, 4 shards) the control-deletion job sharded: `--shard i/n` with a proven
