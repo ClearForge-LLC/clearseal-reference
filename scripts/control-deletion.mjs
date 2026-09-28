@@ -505,6 +505,7 @@ async function runRow(row, base, manifestDir, show) {
 export function parseShard(arg) {
   const m = /^(\d+)\/(\d+)$/.exec(arg);
   if (m === null) return `--shard ${arg}: expected <i>/<n>, shard i of n, as 2/4`;
+  if (/^0\d|\/0\d/.test(arg)) return `--shard ${arg}: write the numbers without a leading zero`;
   const i = Number(m[1]);
   const n = Number(m[2]);
   if (!Number.isSafeInteger(i) || !Number.isSafeInteger(n)) return `--shard ${arg}: a number too large`;
@@ -537,16 +538,26 @@ async function main(args) {
   let show = false;
   /** @type {{ i: number, n: number } | undefined} */
   let shard;
+  // --self-test runs alone: it would otherwise run and ignore the rest of the line.
+  if (args.includes("--self-test")) {
+    if (args.length === 1) return selfTest();
+    console.error(`control-deletion: --self-test runs alone\n${USAGE}`);
+    return 2;
+  }
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a === "--self-test") return selfTest();
     if (a === "--row") only.push(String(args[++i]));
     else if (a === "--shard") {
       if (shard !== undefined) {
         console.error(`control-deletion: --shard given twice\n${USAGE}`);
         return 2;
       }
-      const parsed = parseShard(String(args[++i]));
+      const value = args[++i];
+      if (value === undefined) {
+        console.error(`control-deletion: --shard needs a value, <i>/<n>\n${USAGE}`);
+        return 2;
+      }
+      const parsed = parseShard(value);
       if (typeof parsed === "string") {
         console.error(`control-deletion: ${parsed}\n${USAGE}`);
         return 2;

@@ -70,7 +70,7 @@ void describe("CSR-WO-2008a §1.2: the shards partition the manifest", () => {
     });
   }
 
-  void it("one shard of one is the whole manifest, in order: a run of all shards is today's run", () => {
+  void it("one shard of one is the whole manifest, in order", () => {
     assert.deepEqual(shardOf(real, 1, 1), real);
   });
 
@@ -106,11 +106,14 @@ void describe("CSR-WO-2008a §1.2: refused shard arguments", () => {
     ["2/0", /--shard 2\/0: n must be at least 1/],
     ["a/b", /--shard a\/b: expected <i>\/<n>, shard i of n, as 2\/4/],
     ["2", /--shard 2: expected <i>\/<n>, shard i of n, as 2\/4/],
+    // The review pass's I1 and I2: a leading zero, and no value at all.
+    ["01/4", /--shard 01\/4: write the numbers without a leading zero/],
+    ["", /--shard needs a value, <i>\/<n>/],
   ];
   for (const [arg, message] of refused) {
-    void it(`--shard ${arg} is refused, exit 2, before anything runs`, () => {
-      assert.equal(typeof parseShard(arg), "string");
-      const r = runner(["--shard", arg, "--list"]);
+    void it(`--shard ${arg} is refused with exit 2, and no row is listed`, () => {
+      if (arg !== "") assert.equal(typeof parseShard(arg), "string");
+      const r = runner(arg === "" ? ["--shard"] : ["--shard", arg, "--list"]);
       assert.equal(r.status, 2, r.out);
       assert.match(r.out, message);
       assert.doesNotMatch(r.out, /^[a-z0-9-]+ \| /m, "a row was listed");
@@ -118,9 +121,21 @@ void describe("CSR-WO-2008a §1.2: refused shard arguments", () => {
     });
   }
 
-  void it("--shard with --row, and --shard twice, are refused", () => {
-    assert.match(runner(["--shard", "1/2", "--row", "pin-gate-drift", "--list"]).out, /--shard and --row choose rows two ways; give one/);
-    assert.match(runner(["--shard", "1/2", "--shard", "2/2", "--list"]).out, /--shard given twice/);
+  void it("--shard with --row, --shard twice, and --self-test with anything else are refused with exit 2", () => {
+    /** @type {[string[], RegExp][]} */
+    const cases = [
+      [["--shard", "1/2", "--row", "pin-gate-drift", "--list"], /--shard and --row choose rows two ways; give one/],
+      [["--row", "pin-gate-drift", "--shard", "1/2", "--list"], /--shard and --row choose rows two ways; give one/],
+      [["--shard", "1/2", "--shard", "2/2", "--list"], /--shard given twice/],
+      // The review pass's L1: --self-test used to run and ignore the rest of the line.
+      [["--shard", "1/4", "--self-test", "--list"], /--self-test runs alone/],
+      [["--self-test", "--shard", "0/4"], /--self-test runs alone/],
+    ];
+    for (const [args, message] of cases) {
+      const r = runner(args);
+      assert.equal(r.status, 2, `${args.join(" ")}: ${r.out}`);
+      assert.match(r.out, message);
+    }
   });
 
   void it("well-formed shards parse", () => {

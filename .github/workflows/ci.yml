@@ -44,9 +44,10 @@ jobs:
     permissions:
       contents: read
     env:
-      # The one number. Raise it when a shard passes five minutes: each shard job's log ends with
-      # "control-deletion: shard i/n: ... row(s), <seconds> s", and the job's own duration adds about a
-      # minute of checkout, install and build to that. Measured at 145 rows and 4 shards: FEEDBACK.md.
+      # The one number. Raise it when a shard job passes five minutes: the run's page gives each shard
+      # job's duration, and a green shard's log ends with "control-deletion: shard i/n: ... row(s),
+      # <seconds> s", the runner's own share of it (the rest is checkout, install and build). Measured
+      # at 145 rows and 4 shards in CSR-WO-2008a's FEEDBACK.md.
       CONTROL_DELETION_SHARDS: 4
     outputs:
       n: ${{ steps.plan.outputs.n }}
