@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -507,7 +507,7 @@
+                 full.trip = true;
+                 audit("principal-state-full", { principal: principal.id, control: "tripwire", cap: tripSettings.maxPrincipals });
+               }
+-            } else if (tripwire.size < tripSettings.maxPrincipals) full.trip = false;
++            }
+           } catch {
+             // The call goes on exactly as it would without the tripwire.
+           }

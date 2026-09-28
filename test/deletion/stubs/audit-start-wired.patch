@@ -1,11 +1,11 @@
 --- a/packages/core/src/node/settings.ts
 +++ b/packages/core/src/node/settings.ts
-@@ -94,7 +94,7 @@ export function captureSettings(env: NodeJS.ProcessEnv): Settings {
+@@ -104,7 +104,7 @@
      pinStrict: pinStrictFromEnv(frozen),
      execToolsForbidden: execToolsForbiddenFromEnv(frozen),
      requestStateKey: key === undefined ? undefined : Object.freeze(Uint8Array.from(key)),
 -    audit: auditFromEnv(frozen),
 +    audit: { mode: "seam-only" as const },
      verifier: jwtVerifierFromEnv(frozen),
-   });
- }
+     // Read from the frozen copy only: neither reader has a process.env default (CSR-WO-2007 §1.4).
+     rateLimit: rateLimitFromEnv(frozen),

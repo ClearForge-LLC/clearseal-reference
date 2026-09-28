@@ -1,0 +1,11 @@
+--- a/packages/core/src/tripwire/tripwire.ts
++++ b/packages/core/src/tripwire/tripwire.ts
+@@ -172,7 +172,7 @@
+     // TW-2, TW-5: the oldest of the last `threshold` calls is inside the window, so `threshold` calls are.
+     if (e.armed && e.filled === e.times.length && now - (e.times[e.next] ?? now) <= this.#windowMs) {
+       // TW-3: disarmed until the quiet period has passed.
+-      e.armed = false;
++      e.armed = true;
+       this.#onBurst(principal, this.#settings.threshold, this.#settings.windowSeconds);
+     }
+     return false;

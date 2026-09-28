@@ -1,0 +1,20 @@
+--- a/packages/core/src/tripwire/tripwire.ts
++++ b/packages/core/src/tripwire/tripwire.ts
+@@ -121,7 +121,7 @@
+    *  way it decides exactly as no entry does. */
+   #spent(e: Entry, now: number): boolean {
+     const idle = now - e.last;
+-    return e.armed ? idle > this.#windowMs : idle >= this.#quietMs;
++    return e.armed ? idle > this.#windowMs : false;
+   }
+ 
+   #trim(now: number): void {
+@@ -158,7 +158,7 @@
+     } else {
+       this.#entries.delete(principal);
+       // TW-4: after the quiet period the burst is over; the count starts again from zero.
+-      if (!e.armed && now - e.last >= this.#quietMs) {
++      if (!e.armed && now - e.last >= this.#quietMs && this.#quietMs < 0) {
+         e.armed = true;
+         e.filled = 0;
+         e.next = 0;

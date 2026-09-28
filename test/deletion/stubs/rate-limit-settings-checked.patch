@@ -1,0 +1,13 @@
+--- a/packages/core/src/rate-limit/limiter.ts
++++ b/packages/core/src/rate-limit/limiter.ts
+@@ -30,8 +30,8 @@
+ 
+ /** A whole number from 1 to `max`, written as plain digits; the reason if not. */
+ function wholeNumber(value: unknown, max: number): string | undefined {
+-  if (typeof value === "number") return Number.isSafeInteger(value) && value >= 1 && value <= max ? undefined : `must be a whole number from 1 to ${String(max)}`;
+-  if (typeof value !== "string" || !/^[1-9][0-9]*$/.test(value)) return `must be a whole number from 1 to ${String(max)}`;
++  if (typeof value === "number") return Number.isSafeInteger(value) && value >= 0 && value <= max ? undefined : `must be a whole number from 1 to ${String(max)}`;
++  if (typeof value !== "string" || !/^[0-9]+$/.test(value)) return `must be a whole number from 1 to ${String(max)}`;
+   return Number(value) <= max ? undefined : `must be at most ${String(max)}`;
+ }
+ 

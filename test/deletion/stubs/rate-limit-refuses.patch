@@ -1,0 +1,16 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -444,11 +444,11 @@
+       //     is taken or the body is read (RL-5). Over budget: 429 with Retry-After, and one
+       //     rate-limited row (RL-1).
+       const taken = limiter.take(principal.id);
+-      if (!taken.ok) {
++      if (!taken.ok && taken.retryAfterS < 0) {
+         audit("rate-limited", { principal: principal.id, retryAfterS: taken.retryAfterS });
+         throw audited(new Refusal(429, INVALID_REQUEST, `Too Many Requests: this principal is over its request budget; retry after ${String(taken.retryAfterS)} s`, { retryAfterS: taken.retryAfterS }, { "Retry-After": String(taken.retryAfterS) }));
+       }
+-      if (taken.untracked) {
++      if (taken.ok && taken.untracked) {
+         if (!full.rate) {
+           full.rate = true;
+           audit("principal-state-full", { principal: principal.id, control: "rate-limit", cap: rateSettings.maxPrincipals });

@@ -1,0 +1,12 @@
+--- a/packages/core/src/node/settings.ts
++++ b/packages/core/src/node/settings.ts
+@@ -107,7 +107,7 @@
+     audit: auditFromEnv(frozen),
+     verifier: jwtVerifierFromEnv(frozen),
+     // Read from the frozen copy only: neither reader has a process.env default (CSR-WO-2007 §1.4).
+-    rateLimit: rateLimitFromEnv(frozen),
+-    tripwire: tripwireFromEnv(frozen),
++    rateLimit: rateLimitFromEnv({}),
++    tripwire: tripwireFromEnv({}),
+   });
+ }

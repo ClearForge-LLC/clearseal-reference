@@ -36,7 +36,7 @@ export interface Started {
   lines: string[];
 }
 
-export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifier | null; key?: Uint8Array | null; config?: TransportOptions["config"] } = {}): Promise<Started> {
+export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifier | null; key?: Uint8Array | null; config?: TransportOptions["config"]; rateLimit?: TransportOptions["rateLimit"] } = {}): Promise<Started> {
   const limits = { ...DEFAULT_LIMITS, ...opts.limits };
   const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
   // The fixture tools through the pin gate, against the manifest the CLI approved.
@@ -47,6 +47,7 @@ export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifie
     registry,
     serverInfo: { name: "@clearseal/core", version: "0.0.0" },
     config: { ...opts.config, limits },
+    ...(opts.rateLimit === undefined ? {} : { rateLimit: opts.rateLimit }),
     ...(opts.verifier === null ? {} : { verifier: opts.verifier ?? new TestBearerVerifier() }),
     ...(opts.key === null ? {} : { requestStateKey: opts.key ?? randomBytes(32) }),
     validationPool: pool,

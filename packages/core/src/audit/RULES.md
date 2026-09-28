@@ -74,6 +74,9 @@ Kinds of field:
 | `legacy-input-required` | `transport/dispatch.ts` | caller | tool (tool) |
 | `request-state-unsealable` | `transport/dispatch.ts` | caller | tool (tool) |
 | `tool-call` | `transport/dispatch.ts` | caller | tool (tool), outcome (code), args (argdigest) |
+| `rate-limited` | `transport/server.ts` (CSR-WO-2007, rate-limit/RULES.md RL-1) | caller | retryAfterS (int) |
+| `tripwire-read-burst` | `transport/server.ts` (CSR-WO-2007, tripwire/RULES.md TW-2) | caller | count (int), windowS (int) |
+| `principal-state-full` | `transport/server.ts` (CSR-WO-2007, RL-8, TW-9) | caller | control (code), cap (int) |
 | `audit-resumed` | `audit/store.ts` | node | fromSeq (int), unanchored (int) |
 | any other event | — | unattributed | written as `unlisted`: its name and fields in one keyed digest |
 

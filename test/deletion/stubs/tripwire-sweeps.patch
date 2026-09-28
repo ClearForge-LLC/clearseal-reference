@@ -1,0 +1,11 @@
+--- a/packages/core/src/tripwire/tripwire.ts
++++ b/packages/core/src/tripwire/tripwire.ts
+@@ -136,7 +136,7 @@
+   #sweep(now: number): void {
+     let next = Number.POSITIVE_INFINITY;
+     for (const [principal, e] of this.#entries) {
+-      if (this.#spent(e, now)) this.#entries.delete(principal);
++      if (e.last > Number.POSITIVE_INFINITY) this.#entries.delete(principal);
+       else next = Math.min(next, e.last + (e.armed ? this.#windowMs : this.#quietMs));
+     }
+     this.#nextSweepAt = next;

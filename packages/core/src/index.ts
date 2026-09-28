@@ -17,4 +17,6 @@ export { AuditConfigError, auditFromEnv, type AuditMode, DEFAULT_CHECKPOINT_ROWS
 export { type Digester, ephemeralDigester, keyedDigester } from "./audit/digest.ts";
 export { type KeyEntry, parseAllowlist, publicKeyOf, type Signer, signerFromPem, verifyWith } from "./audit/signer.ts";
 export { type AnchorSink, type AuditStore, FileAnchor, JsonLinesStore, MemoryAnchor } from "./audit/store.ts";
+export { checkRateLimit, DEFAULT_RATE_LIMIT, RateLimitConfigError, rateLimitFromEnv, RateLimiter, type RateLimitSettings, type Take } from "./rate-limit/limiter.ts";
+export { checkTripwire, DEFAULT_TRIPWIRE, MAX_TRIPWIRE_TIMESTAMPS, type OnBurst, Tripwire, TripwireConfigError, tripwireFromEnv, type TripwireSettings } from "./tripwire/tripwire.ts";
 export { type Finding as AuditFinding, type FindingKind as AuditFindingKind, verifyAudit, type VerifyReport } from "./audit/verify.ts";

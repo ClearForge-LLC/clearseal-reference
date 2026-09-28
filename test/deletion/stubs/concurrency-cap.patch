@@ -1,7 +1,7 @@
 --- a/packages/core/src/transport/server.ts
 +++ b/packages/core/src/transport/server.ts
-@@ -389,7 +389,7 @@
-       principalId = principal.id;
+@@ -454,7 +454,7 @@
+       } else if (limiter.size < rateSettings.maxPrincipals) full.rate = false;
  
        // 5. capacity
 -      if (inFlight >= limits.maxInFlight) throw refusal(503, INTERNAL_ERROR, "The server is at capacity; retry later", "capacity", undefined, { "Retry-After": "1" });
