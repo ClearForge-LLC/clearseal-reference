@@ -1,6 +1,6 @@
 --- a/packages/core/src/node/settings.ts
 +++ b/packages/core/src/node/settings.ts
-@@ -107,7 +107,7 @@
+@@ -114,8 +114,8 @@
      audit: auditFromEnv(frozen),
      verifier: jwtVerifierFromEnv(frozen),
      // Read from the frozen copy only: neither reader has a process.env default (CSR-WO-2007 §1.4).
@@ -8,5 +8,6 @@
 -    tripwire: tripwireFromEnv(frozen),
 +    rateLimit: rateLimitFromEnv({}),
 +    tripwire: tripwireFromEnv({}),
-   });
- }
+     approval,
+     // The same verifier, the same issuer and key set, a distinct audience (APR-9).
+     approvalVerifier: approval.audience === "" ? undefined : jwtVerifierFromEnv(Object.freeze({ ...frozen, AUTH_AUDIENCE: approval.audience })),
