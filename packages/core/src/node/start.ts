@@ -221,6 +221,7 @@ export class PreparedNode {
       url: t.url,
       config: t.config,
       inFlight: () => t.inFlight(),
+      ...(t.approvalUrl === undefined ? {} : { approvalUrl: t.approvalUrl }),
       close: async (): Promise<void> => {
         try {
           await t.close();

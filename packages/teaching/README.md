@@ -55,6 +55,11 @@ and nobody else is. A principal reading `notes.read` unusually fast writes one l
 are on by default, with defaults no honest single client reaches; the `RATE_LIMIT_*` and
 `TRIPWIRE_*` settings in `.env.example` change them.
 
+**Approval** (CSR-WO-2001). This edition pins no `elevated` tool, so it needs no approval backend. An
+edition that does sets `APPROVAL_BACKEND=listener`: such a tool runs only after a different principal
+approves that exact call on a second listener the caller cannot reach, and a call that discharges
+Rule-of-Two is approved by a person only. The `APPROVAL_*` settings are in `.env.example`.
+
 **The notes root is part of the pinned contract.** `notes.read`'s containment domain is the root,
 and the domain is hashed. Moving the store is a code change (the root in `src/notes.ts`) that changes
 the tool's hash, so the node refuses to start until the operator re-approves the committed manifest:
