@@ -71,7 +71,7 @@ at code.**
 | Authorization-server configuration values for any test against the real hosted client — held outside this repository (N8) | Scotty | Spike `CSR-WO-0101`; the local test issuer needs none |
 | A disposable Linux host or container for P3 acceptance (the fleet's production nodes are not proving grounds) | Scotty | P3's exit gate |
 | Operator presence at the Windows proving ground for P4 acceptance | Scotty | P4's exit gate |
-| The client half of `-0101`: expose the harness by a means never written here, run `OPERATOR-PROTOCOL.md` against the hosted client, fill the table, tear it down | Scotty | `-2001`'s ruling on the transport tier |
+| The client half of `-0101` (**deferred with `-2001a`, 2026-09-28**): expose the harness by a means never written here, run `OPERATOR-PROTOCOL.md` against the hosted client, fill the table, tear it down | Scotty | `-2001`'s ruling on the transport tier |
 | Carrying the canonical-form amendment to the reference node's repository and proposing it for the standard's next version | Scotty ratifies; the architect authors | P5's exit gate |
 
 ---
@@ -219,7 +219,9 @@ red-proof, and the teaching edition demonstrates every rung except exec.
 **Work orders:**
 - `CSR-WO-2000` — (built, merged `4478a35` 2026-09-27; elevated refused at construction until `-2001` lands) capability: the four-rung ladder, the orthogonal untrusted flag, Rule-of-Two
   computed as an obligation, `owned_state` with a pinned one-line recoverability basis.
-- `CSR-WO-2001` — approval: the `ApprovalBackend` interface; grants bound to (principal, tool,
+- `CSR-WO-2001a` — (deferred; trigger: a client this reference must serve honours in-call approval, and a tool class
+  whose claim is "a human is present") the in-call (MRTR) approval tier for contained `state_change`.
+- `CSR-WO-2001` — (WO written 2026-09-28; grant then reinvoke, separate approval listener, human or delegated approver, never the requester) approval: the `ApprovalBackend` interface; grants bound to (principal, tool,
   argument digest, nonce, expiry) with the approver recorded, single-use, redemption a separate
   audited event; MRTR `requestState` consumed on first use and a decline terminal (`-0101` B1);
   a grant redeemable only by its requesting principal (`-0101` B2); the tier per capability class
