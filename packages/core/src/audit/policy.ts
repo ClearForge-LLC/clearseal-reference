@@ -42,6 +42,9 @@ export const EVENTS: Readonly<Record<string, EventRule>> = Object.freeze({
   "legacy-input-required": { principal: "caller", fields: TOOL_FIELDS },
   "request-state-unsealable": { principal: "caller", fields: TOOL_FIELDS },
   "tool-call": { principal: "caller", fields: { tool: "tool", outcome: "code", args: "argdigest" } },
+  "rate-limited": { principal: "caller", fields: { retryAfterS: "int" } },
+  "tripwire-read-burst": { principal: "caller", fields: { count: "int", windowS: "int" } },
+  "principal-state-full": { principal: "caller", fields: { control: "code", cap: "int" } },
   "audit-resumed": { principal: "node", fields: { fromSeq: "int", unanchored: "int" } },
 });
 
