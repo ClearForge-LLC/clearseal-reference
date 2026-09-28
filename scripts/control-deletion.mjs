@@ -38,9 +38,17 @@
 // those links or anywhere else. Stubs are reviewed code; the copy protects the real tree from the
 // patch, not from what patched code chooses to do.
 //
-// Usage: node scripts/control-deletion.mjs [--self-test] [--row <id>]... [--manifest <path>] [--list] [--show]
+// Sharding (CSR-WO-2008a). `--shard <i>/<n>` runs shard i of n (1-based): the manifest's rows at
+// index k with k mod n = i - 1, in manifest order. The assignment depends only on the manifest, so
+// the n shards partition it (every row in exactly one shard), and a run of all n is today's single
+// run: each shard runs steps 1 to 4 over its own rows, its baseline before any of its stubs. Round
+// robin by index, not balanced by cost: a cost would be a new field in every row, and rows added by one
+// work order (which tend to cost alike) land in different shards anyway.
+//
+// Usage: node scripts/control-deletion.mjs [--self-test] [--row <id>... | --shard <i>/<n>] [--manifest <path>] [--list] [--show]
 //   --self-test run the runner's own three red-proofs (test/deletion/red-proofs/) and exit
 //   --row       run only these rows (repeatable)
+//   --shard     run only shard i of n; a shard with no rows exits 0 and says so
 //   --manifest  another manifest
 //   --list      print the rows and exit
 //   --show      also print every test outcome after each stub (for writing a row)
@@ -264,7 +272,7 @@ function changeProblems(row, files) {
  * @param {string} file
  * @returns {{ rows: Row[], problems: string[] }}
  */
-function loadManifest(file) {
+export function loadManifest(file) {
   /** @type {unknown} */
   const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
   const rows = get(parsed, "rows");
@@ -489,6 +497,37 @@ async function runRow(row, base, manifestDir, show) {
   }
 }
 
+/**
+ * The shard argument, `<i>/<n>` with 1 <= i <= n: the pair, or why it is refused.
+ * @param {string} arg
+ * @returns {{ i: number, n: number } | string}
+ */
+export function parseShard(arg) {
+  const m = /^(\d+)\/(\d+)$/.exec(arg);
+  if (m === null) return `--shard ${arg}: expected <i>/<n>, shard i of n, as 2/4`;
+  const i = Number(m[1]);
+  const n = Number(m[2]);
+  if (!Number.isSafeInteger(i) || !Number.isSafeInteger(n)) return `--shard ${arg}: a number too large`;
+  if (n < 1) return `--shard ${arg}: n must be at least 1`;
+  if (i < 1) return `--shard ${arg}: shards are numbered from 1`;
+  if (i > n) return `--shard ${arg}: there is no shard ${String(i)} of ${String(n)}`;
+  return { i, n };
+}
+
+/**
+ * The rows of shard i of n: those at index k with k mod n = i - 1, in manifest order.
+ * @template T
+ * @param {readonly T[]} rows
+ * @param {number} i
+ * @param {number} n
+ * @returns {T[]}
+ */
+export function shardOf(rows, i, n) {
+  return rows.filter((_, k) => k % n === i - 1);
+}
+
+const USAGE = "usage: node scripts/control-deletion.mjs [--self-test] [--row <id>... | --shard <i>/<n>] [--manifest <path>] [--list] [--show]";
+
 /** @param {string[]} args */
 async function main(args) {
   /** @type {string[]} */
@@ -496,17 +535,34 @@ async function main(args) {
   let manifestPath = path.join(REPO, "test", "deletion", "controls.json");
   let list = false;
   let show = false;
+  /** @type {{ i: number, n: number } | undefined} */
+  let shard;
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--self-test") return selfTest();
     if (a === "--row") only.push(String(args[++i]));
-    else if (a === "--manifest") manifestPath = path.resolve(String(args[++i]));
+    else if (a === "--shard") {
+      if (shard !== undefined) {
+        console.error(`control-deletion: --shard given twice\n${USAGE}`);
+        return 2;
+      }
+      const parsed = parseShard(String(args[++i]));
+      if (typeof parsed === "string") {
+        console.error(`control-deletion: ${parsed}\n${USAGE}`);
+        return 2;
+      }
+      shard = parsed;
+    } else if (a === "--manifest") manifestPath = path.resolve(String(args[++i]));
     else if (a === "--list") list = true;
     else if (a === "--show") show = true;
     else {
-      console.error(`control-deletion: unknown argument ${String(a)}\nusage: node scripts/control-deletion.mjs [--self-test] [--row <id>]... [--manifest <path>] [--list] [--show]`);
+      console.error(`control-deletion: unknown argument ${String(a)}\n${USAGE}`);
       return 2;
     }
+  }
+  if (shard !== undefined && only.length > 0) {
+    console.error(`control-deletion: --shard and --row choose rows two ways; give one\n${USAGE}`);
+    return 2;
   }
   const manifestDir = path.dirname(manifestPath);
   const { rows: all, problems } = loadManifest(manifestPath);
@@ -515,7 +571,15 @@ async function main(args) {
     for (const p of problems) console.error(`control-deletion: ${p}`);
     return 1;
   }
-  const rows = only.length === 0 ? all : all.filter((r) => only.includes(r.id));
+  const rows = shard !== undefined ? shardOf(all, shard.i, shard.n) : only.length === 0 ? all : all.filter((r) => only.includes(r.id));
+  const label = shard === undefined ? "" : `shard ${String(shard.i)}/${String(shard.n)}: `;
+  if (shard !== undefined) {
+    if (rows.length === 0) {
+      console.log(`control-deletion: ${label}no rows (the manifest has ${String(all.length)}); nothing to run`);
+      return 0;
+    }
+    console.log(`control-deletion: ${label}${String(rows.length)} of the manifest's ${String(all.length)} row(s)`);
+  }
   if (list) {
     for (const r of rows) console.log(`${r.id} | ${r.section8} | ${r.control} | stub ${r.stub} | ${String(r.mustFail.length)} named test(s)`);
     return 0;
@@ -565,10 +629,10 @@ async function main(args) {
 
   const secs = ((Date.now() - started) / 1000).toFixed(1);
   if (misses > 0) {
-    console.error(`control-deletion: FAILED — ${String(misses)} of ${String(rows.length)} row(s) did not go red as named (${secs} s)`);
+    console.error(`control-deletion: ${label}FAILED — ${String(misses)} of ${String(rows.length)} row(s) did not go red as named (${secs} s)`);
     return 1;
   }
-  console.log(`control-deletion: every stub made its named tests fail by assertion — ${String(rows.length)} row(s), ${secs} s`);
+  console.log(`control-deletion: ${label}every stub made its named tests fail by assertion — ${String(rows.length)} row(s), ${secs} s`);
   return 0;
 }
 
