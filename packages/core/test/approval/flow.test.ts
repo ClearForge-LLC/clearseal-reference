@@ -163,7 +163,70 @@ void describe("CSR-WO-2001 approval: a grant for one call, once", () => {
   });
 });
 
+void describe("CSR-WO-2001 approval: the exact call (review M1, M2, L3)", () => {
+  void it("APR-2 (review M1): a grant covers the call's input responses too: other input responses → wrong-arguments; the approver sees them", async () => {
+    const r = await rig();
+    try {
+      const asked = { confirm: { action: "accept", content: { scope: "one host" } } };
+      const id = approvalOf(await r.call("alice", "deploy", "prod", undefined, { inputResponses: asked })).requestId ?? "";
+      const n = r.notifier.sent[0];
+      assert.ok(n !== undefined);
+      const shown = await r.listener("GET", `/approval/link/${n.link.split("/").pop() ?? ""}`);
+      assert.match(shown.text, /one host/, "the approver reads the input responses");
+      assert.equal(await approveByLink(r, 0), 200);
+      const swapped = await r.call("alice", "deploy", "prod", id, { inputResponses: { confirm: { action: "accept", content: { scope: "every host" } } } });
+      assert.equal(approvalOf(swapped).status, "wrong-arguments");
+      assert.deepEqual(r.entered, []);
+      assert.ok(ran(await r.call("alice", "deploy", "prod", id, { inputResponses: asked })));
+      pastes.push(`APPROVAL exact call: approved with one host, redeemed with every host → ${String(approvalOf(swapped).status)}; with the input responses approved → ran`);
+    } finally {
+      await r.close();
+    }
+  });
+
+  void it("APR-17 (review M2): a call too large to show an approver whole is refused approval, never shown cut", async () => {
+    const r = await rig();
+    try {
+      const reply = await r.call("alice", "deploy", "x".repeat(17_000));
+      assert.equal(approvalOf(reply).status, "too-large");
+      assert.equal(r.notifier.sent.length, 0, "no approver was asked about something they could not read whole");
+      assert.deepEqual(r.entered, []);
+      assert.ok(approvalOf(await r.call("alice", "deploy", "x".repeat(15_000))).status === "pending", "one that fits is asked");
+      pastes.push(`APPROVAL a 17 KB call → ${String(approvalOf(reply).status)}, nobody notified; a 15 KB call → pending`);
+    } finally {
+      await r.close();
+    }
+  });
+
+  void it("review L3: a refusal of the call's own form comes before the gate and never spends a grant", async () => {
+    const r = await rig();
+    try {
+      const id = approvalOf(await r.call("alice", "deploy", "prod")).requestId;
+      assert.equal(await approveByLink(r, 0), 200);
+      const malformed = await r.call("alice", "deploy", "prod", id, { requestState: "not a request state" });
+      assert.notEqual(malformed.status, 200, malformed.text);
+      assert.deepEqual(r.entered, []);
+      assert.ok(ran(await r.call("alice", "deploy", "prod", id)), "the grant was not spent by the refused call");
+    } finally {
+      await r.close();
+    }
+  });
+});
+
 void describe("CSR-WO-2001 approval: the bounded wait and the notification cap", () => {
+  void it("review L5: a request that expires during the bounded wait answers expired, not pending", async () => {
+    const r = await rig({ settings: { waitSeconds: 1, requestTtlSeconds: 2 } });
+    try {
+      const pending = r.call("alice", "deploy", "prod");
+      for (let i = 0; i < 50 && r.service.book.size === 0; i++) await new Promise((res) => setTimeout(res, 10));
+      r.clock.advance(2_000);
+      assert.equal(approvalOf(await pending).status, "expired");
+      assert.deepEqual(r.entered, []);
+    } finally {
+      await r.close();
+    }
+  });
+
   void it("APR-13: a decision inside the bounded wait runs in one call; none answers pending at the limit", async () => {
     const r = await rig({ settings: { waitSeconds: 1 } });
     try {

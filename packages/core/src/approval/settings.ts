@@ -133,5 +133,7 @@ export function approvalFromEnv(env: Readonly<Record<string, string | undefined>
     out["webhookUrl"] = webhook;
   }
   if (out["notifier"] === "webhook" && out["webhookUrl"] === "") throw new ApprovalConfigError("APPROVAL_WEBHOOK_URL is required when APPROVAL_NOTIFIER is webhook");
+  // Review L5: a wait no shorter than the request's lifetime would outlive the request it waits for.
+  if ((out["waitSeconds"] as number) >= (out["requestTtlSeconds"] as number)) throw new ApprovalConfigError("APPROVAL_WAIT_SECONDS must be shorter than APPROVAL_REQUEST_TTL_SECONDS");
   return Object.freeze(out as unknown as ApprovalSettings);
 }

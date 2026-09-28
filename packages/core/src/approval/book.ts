@@ -6,7 +6,7 @@
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 
 /** Why a call's approval did not grant (APR-2…APR-4, APR-11, APR-12). */
-export type CallRefusal = "pending" | "declined" | "expired" | "used" | "wrong-principal" | "wrong-tool" | "wrong-arguments" | "unknown" | "too-many";
+export type CallRefusal = "pending" | "declined" | "expired" | "used" | "wrong-principal" | "wrong-tool" | "wrong-arguments" | "unknown" | "too-many" | "too-large";
 
 /** Why a decision was refused (APR-4…APR-6, APR-8). */
 export type DecisionRefusal = "unknown" | "expired" | "declined" | "decided" | "self-approval" | "human-required" | "wrong-code" | "link-used" | "link-expired" | "link-burned";
@@ -23,7 +23,8 @@ export interface Call {
   readonly auditDigest: string;
   /** True when the approval discharges Rule-of-Two, so only a human may decide it (APR-6). */
   readonly humanOnly: boolean;
-  /** The arguments, for the approver to read on the approval listener only. */
+  /** The whole call (its arguments, and on the modern era any input responses and request state), for
+   *  the approver to read on the approval listener only. Never cut: see MAX_APPROVAL_CALL_BYTES. */
   readonly argumentsJson: string;
 }
 
@@ -195,6 +196,10 @@ export class ApprovalBook {
   /** Resolves when the request is decided or expires, or after `ms`, or when `signal` aborts. */
   waitFor(id: string, ms: number, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve) => {
+      if (signal?.aborted === true) {
+        resolve();
+        return;
+      }
       let set = this.#waiters.get(id);
       if (set === undefined) {
         set = new Set();
@@ -207,6 +212,7 @@ export class ApprovalBook {
         resolve();
       };
       const timer = setTimeout(done, ms);
+      timer.unref();
       set.add(done);
       signal?.addEventListener("abort", done, { once: true });
     });

@@ -134,3 +134,10 @@ void describe("CSR-WO-2001 approval: settings validation", () => {
     assert.equal(approvalFromEnv({ APPROVAL_PUBLIC_URL: "http://127.0.0.1:3031" }).publicUrl, "http://127.0.0.1:3031");
   });
 });
+
+void describe("CSR-WO-2001 approval: the wait and the request lifetime (review L5)", () => {
+  void it("review L5: APPROVAL_WAIT_SECONDS no shorter than APPROVAL_REQUEST_TTL_SECONDS refuses start", () => {
+    assert.throws(() => approvalFromEnv({ APPROVAL_WAIT_SECONDS: "10", APPROVAL_REQUEST_TTL_SECONDS: "10" }), (err: unknown) => err instanceof ApprovalConfigError && /APPROVAL_WAIT_SECONDS must be shorter than APPROVAL_REQUEST_TTL_SECONDS/.test(err.message));
+    assert.equal(approvalFromEnv({ APPROVAL_WAIT_SECONDS: "9", APPROVAL_REQUEST_TTL_SECONDS: "10" }).waitSeconds, 9);
+  });
+});

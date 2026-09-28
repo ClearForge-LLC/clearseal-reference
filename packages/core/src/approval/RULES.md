@@ -25,7 +25,7 @@ One rule per line, each with its red-proof (`test/approval/`) and a control-dele
 | Rule | Statement | Red-proof |
 |---|---|---|
 | APR-1 | A call to a tool whose pinned tag is `elevated`, with no valid grant, never enters its handler: it answers *approval pending* with a request id and a retry hint. | no grant → pending, and a handler that records every entry recorded none |
-| APR-2 | A grant redeems only for the principal that requested it, the same tool and the same canonical argument digest, before its expiry. Each mismatch is refused by name: `wrong-principal`, `wrong-tool`, `wrong-arguments`, `expired`, `unknown`; none consumes the grant. | each mismatch refused by name, and the grant still redeems for the right call |
+| APR-2 | A grant redeems only for the principal that requested it, the same tool and the same exact call (the canonical digest of its arguments, and on the modern era any input responses and request state: review M1), before its expiry. Each mismatch is refused by name: `wrong-principal`, `wrong-tool`, `wrong-arguments`, `expired`, `unknown`; none consumes the grant. | each mismatch refused by name, and the grant still redeems for the right call |
 | APR-3 | A grant is consumed by its first redemption; a second answers `used`. | approved, re-invoked → runs once; again → `used` |
 | APR-4 | A decline is terminal: a declined request can never later be approved (`-0101` B1). | declined, then approved → the approval refused; the call answers `declined` |
 | APR-5 | The approver is never the requester: a decision whose approver equals the requesting principal is refused and audited (`self-approval`), on both paths (`-0101` C1). | the human approver's principal as requester, and a delegated token whose `sub` is the requester → each refused, one row each |
@@ -37,9 +37,10 @@ One rule per line, each with its red-proof (`test/approval/`) and a control-dele
 | APR-11 | Notifications are bounded per principal: a principal holds at most `maxPendingPerPrincipal` pending requests; one more is refused (`too-many`) and not notified. A repeat of a pending request (same principal, tool and arguments) reuses it and is not notified again. | the cap's worth notified, the next refused unnotified; a repeat notifies nothing |
 | APR-12 | State is bounded and expires: at most `maxPending` requests in all; a pending request expires after the request lifetime, a grant after the grant lifetime, and a record is dropped once neither can matter. | a pending request past its lifetime → `expired`, one row; the table never exceeds its cap |
 | APR-13 | With a bounded wait set, the first call waits up to that long for a decision: approved inside it, the call runs in one round; otherwise it answers pending at the limit. The wait is capped below the handler timeout. | a decision inside the wait → one call runs; none → pending after the wait |
-| APR-14 | Fail closed without a backend: the registry refuses an `elevated` tool unless an approval backend is configured in the settings snapshot; the transport refuses to start when a registered tool needs approval and it was given no backend; dispatch refuses such a call without one. | no backend → refused at construction, as before `-2001`; a registry that says configured with no backend → start refused |
+| APR-14 | Fail closed without a backend: the registry refuses an `elevated` tool unless an approval backend is configured in the settings snapshot; the transport refuses to start when a registered tool needs approval and it was given no backend, and takes only a genuine, frozen `ApprovalService` (review L1); dispatch refuses such a call without one. | no backend → refused at construction, as before `-2001`; a registry that says configured with no backend → start refused; an object that merely has a gate → start refused |
 | APR-15 | Every step is audited: requested, notified, approved, declined, redeemed (with its approver, `-0101` B2), expired, and every refusal by kind, with the principal, the approver, the tool, the keyed argument digest and the request id; never a link, a code or an argument value. | each event written with those fields |
-| APR-16 | The webhook notifier posts only to an `https` URL, verifies TLS, and follows no redirect. | an `http` URL → start refused; a redirect → not followed, the failure audited |
+| APR-16 | The webhook URL is `https` (an `http` one refuses start: the check is where the URL is configured, `approvalFromEnv`; a direct caller constructing `WebhookNotifier` is trusted with its URL, review L2); the notifier verifies TLS and follows no redirect. | an `http` URL → start refused; a redirect → not followed; an unverifiable certificate → refused |
+| APR-17 | An approver sees the whole call or decides nothing: a call whose serialized form exceeds 16 KiB is refused approval (`too-large`), never shown cut (review M2). | a 17 KB call → refused, nobody notified; a 15 KB call → pending |
 
 ## Choices, and why
 
@@ -62,6 +63,10 @@ instead, as the `tool-call` row does, since an unkeyed digest of a short argumen
 person holding the notifier's channel. APR-5 compares it with the requester, as it compares a delegated
 token's `sub`.
 
+**The operator's obligation (review L6).** APR-6 holds only if the notifier's channel reaches a person:
+the link and the code decide as a human, whoever holds them. A notification says when only a human may
+decide; an operator must not point the webhook at an agent, the delegated approver included.
+
 **No console backend.** Architecture §5 as amended 2026-09-28: a service has no console. The backends
 are the approval-listener backend and a deterministic test backend.
 
@@ -70,7 +75,7 @@ are the approval-listener backend and a deterministic test backend.
 | Variable | Default | Why |
 |---|---|---|
 | `APPROVAL_BACKEND` | `none` | Fail closed: no `elevated` tool is served until the operator configures one (`listener`). |
-| `APPROVAL_LISTENER_HOST` | `127.0.0.1` | Loopback: the approval channel is reached out of band, never from where callers come. |
+| `APPROVAL_LISTENER_HOST` | `127.0.0.1` | Loopback keeps the listener off the network by default. It is not what separates the channels: the main listener defaults to loopback too, so callers may come from there. The separation is the link and code only the notifier holds, and a delegated token for an audience the node never accepts (review L4). |
 | `APPROVAL_LISTENER_PORT` | `3031` | Beside the teaching edition's default (3030); any port but the main listener's. |
 | `APPROVAL_PUBLIC_URL` | the listener's own `http://host:port` | The base of the link a notifier delivers; set it when the listener sits behind a proxy. |
 | `APPROVAL_AUDIENCE` | unset: no delegated approvers | A delegated approver needs its own audience; without one only the confirm-URL decides. |

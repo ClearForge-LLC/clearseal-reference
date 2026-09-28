@@ -193,6 +193,19 @@ void describe("CSR-WO-2001 approval: fail closed without a backend (APR-14)", ()
     pastes.push("LISTENER no backend → refused at construction: elevated requires an approval backend; none is configured");
   });
 
+  void it("review L1: an object that merely has a gate is refused: the transport takes only the core's own ApprovalService", async () => {
+    const fake = { listens: false, gate: () => Promise.resolve({ kind: "granted", requestId: "x", approver: "nobody" }) };
+    let caught: unknown;
+    try {
+      const t = await startTransport({ registry: pinForTest([deploy], compileSchema, DEFAULT_LIMITS, true, { approvalBackend: "configured" }), serverInfo: { name: "x", version: "0" }, verifier: new PrincipalVerifier(), audit: () => undefined, approval: fake as never });
+      await t.close();
+    } catch (err) {
+      caught = err;
+    }
+    assert.ok(caught instanceof TypeError, "a fake gate was accepted");
+    assert.match(caught.message, /the transport takes only an ApprovalService the core constructed/);
+  });
+
   void it("a registry that says configured, given no backend → the transport refuses to start", async () => {
     let caught: unknown;
     try {

@@ -41,6 +41,12 @@ export class ApprovalService {
   /** The base of every link, fixed once the listener is bound (or the configured public URL). */
   #base: string;
 
+  /** True only for an instance this class constructed (review L1): the transport serves an elevated tool
+   *  only behind a genuine service, whose gate and book are the core's own and frozen. */
+  static isGenuine(value: unknown): value is ApprovalService {
+    return typeof value === "object" && value !== null && #notifier in value && Object.getPrototypeOf(value) === ApprovalService.prototype;
+  }
+
   constructor(o: ApprovalServiceOptions) {
     this.settings = o.settings;
     this.#notifier = o.notifier;
@@ -57,6 +63,8 @@ export class ApprovalService {
       onEvent: o.audit,
       ...(o.secrets === undefined ? {} : { secrets: o.secrets }),
     });
+    Object.freeze(this.book);
+    Object.freeze(this);
   }
 
   /** Set by the listener once bound, when no public URL is configured. */
@@ -111,10 +119,16 @@ export class ApprovalService {
       }
       const state = this.book.stateOf(o.id);
       if (state === "declined") return { kind: "refused", reason: "declined", requestId: o.id };
+      // Review L5: a request that expired during the wait says so.
+      if (state === "expired" || state === undefined) return { kind: "refused", reason: "expired", requestId: o.id };
     }
     return { kind: "pending", requestId: o.id, retryAfterSeconds: RETRY_HINT_SECONDS };
   }
 }
+
+// A patched prototype could turn every service's gate into a yes.
+Object.freeze(ApprovalService.prototype);
+Object.freeze(ApprovalBook.prototype);
 
 /**
  * The deterministic test backend (§1.5): request ids `req-1`, `req-2`…, link tokens `link-1`…, codes

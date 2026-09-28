@@ -61,7 +61,7 @@ export interface Rig {
   of: (event: string) => Record<string, string | number>[];
   clock: { now: () => number; advance: (ms: number) => void };
   /** A tools/call as `principal`, with an approval request id in `_meta` when given. */
-  call: (principal: string, tool: string, target: string, requestId?: unknown) => Promise<Reply>;
+  call: (principal: string, tool: string, target: string, requestId?: unknown, extra?: Record<string, unknown>) => Promise<Reply>;
   /** A request to the approval listener. */
   listener: (method: string, path: string, opts?: { body?: unknown; bearer?: string }) => Promise<{ status: number; json: unknown; text: string }>;
   close: () => Promise<void>;
@@ -89,9 +89,9 @@ export async function rig(opts: { settings?: Partial<ApprovalSettings>; listens?
     approval: service,
     audit,
   });
-  const call = async (principal: string, tool: string, target: string, requestId?: unknown): Promise<Reply> => {
+  const call = async (principal: string, tool: string, target: string, requestId?: unknown, extra: Record<string, unknown> = {}): Promise<Reply> => {
     const meta = requestId === undefined ? {} : { [APPROVAL_META]: typeof requestId === "string" ? { requestId } : requestId };
-    const r = await raw(t, { headers: { ...modernHeaders("tools/call", tool), authorization: `Bearer as:${principal}` }, body: JSON.stringify(modernBody("tools/call", { name: tool, arguments: { target } }, meta)) });
+    const r = await raw(t, { headers: { ...modernHeaders("tools/call", tool), authorization: `Bearer as:${principal}` }, body: JSON.stringify(modernBody("tools/call", { name: tool, arguments: { target }, ...extra }, meta)) });
     seen.texts.push(r.text);
     return r;
   };

@@ -37,7 +37,7 @@ import { ephemeralDigester } from "../audit/digest.ts";
 import { checkRateLimit, DEFAULT_RATE_LIMIT, RateLimiter, type RateLimitSettings } from "../rate-limit/limiter.ts";
 import { checkTripwire, DEFAULT_TRIPWIRE, Tripwire, type TripwireSettings } from "../tripwire/tripwire.ts";
 import { type RunningApprovalListener, startApprovalListener } from "../approval/listener.ts";
-import type { ApprovalService } from "../approval/service.ts";
+import { ApprovalService } from "../approval/service.ts";
 
 export interface TransportOptions {
   config?: Parameters<typeof resolveConfig>[0];
@@ -273,6 +273,8 @@ export async function startTransport(options: TransportOptions): Promise<Running
     // APR-14: a tool that needs approval is never served without a gate behind it.
     const needing = registry.list().filter((t) => t.approval !== undefined).map((t) => t.definition.name);
     if (needing.length > 0 && options.approval === undefined) throw new Error(`the tools ${needing.join(", ")} need approval and no approval backend was given: the node does not start without one (approval/RULES.md APR-14)`);
+    // Review L1: only the core's own service, never an object that merely has a gate.
+    if (options.approval !== undefined && !ApprovalService.isGenuine(options.approval)) throw new TypeError("the transport takes only an ApprovalService the core constructed (approval/RULES.md APR-14)");
   } catch (err) {
     await options.validationPool?.close();
     throw err;

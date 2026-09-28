@@ -31,6 +31,9 @@ import type { ApprovalService, GateOutcome } from "../approval/service.ts";
  *  happened: `_meta`, never the arguments, whose schema is pinned (CSR-WO-2001 §1.2). */
 export const APPROVAL_META = "clearseal/approval";
 
+/** The most an approver is shown of one call, serialized (APR-17): a call over it is refused approval. */
+export const MAX_APPROVAL_CALL_BYTES = 16_384;
+
 const PV = "io.modelcontextprotocol/protocolVersion";
 const CAPS = "io.modelcontextprotocol/clientCapabilities";
 const SERVER_INFO = "io.modelcontextprotocol/serverInfo";
@@ -281,12 +284,6 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
   }
   if (!valid) throw new Refusal(400, INVALID_PARAMS, `Invalid arguments for tool ${name}`);
   const binding = { principal: ctx.principal.id, method: "tools/call", tool: name, args: argumentsDigest(args) };
-  // CSR-WO-2001: a tool that needs approval runs only on a grant for this principal, tool and arguments,
-  // redeemed once (approval/RULES.md APR-1…APR-3). Anything else answers here, before the handler.
-  if (tool.approval !== undefined) {
-    const answered = await gateApproval(era, name, args, params, tool.approval.humanOnly, binding.args, ctx);
-    if (answered !== undefined) return answered;
-  }
 
   // CSR-WO-1002 §1.6: a fresh cage per call, from the tool's pinned domain (empty if none).
   // Every refusal is audited as it happens, including one made after the handler returned; the
@@ -308,6 +305,14 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
     }
   }
 
+  // CSR-WO-2001: a tool that needs approval runs only on a grant for this principal, this tool and this
+  // exact call, redeemed once (approval/RULES.md APR-1…APR-3). Anything else answers here. It is the last
+  // step before the handler, so a refusal of the call's own form (its request state, its input
+  // responses) comes first and never spends a grant (review L3).
+  if (tool.approval !== undefined) {
+    const answered = await gateApproval(era, name, args, params, tool.approval.humanOnly, ctx);
+    if (answered !== undefined) return answered;
+  }
   const result = await runHandler(tool, args, callCtx, ctx);
   return shapeResult(era, binding, result, caps, ctx);
 }
@@ -393,7 +398,7 @@ async function runHandlerOnce(tool: RegisteredTool, args: Record<string, unknown
 }
 
 /** The approval gate's answer when the call may not run; undefined when a grant was redeemed. */
-async function gateApproval(era: Era, name: string, args: Record<string, unknown>, params: Record<string, unknown>, humanOnly: boolean, digest: string, ctx: DispatchContext): Promise<Record<string, unknown> | undefined> {
+async function gateApproval(era: Era, name: string, args: Record<string, unknown>, params: Record<string, unknown>, humanOnly: boolean, ctx: DispatchContext): Promise<Record<string, unknown> | undefined> {
   const meta = params["_meta"];
   const carried = isPlainObject(meta) ? meta[APPROVAL_META] : undefined;
   // A request id that is present but not a string, or not in an object, redeems nothing: "unknown".
@@ -404,13 +409,23 @@ async function gateApproval(era: Era, name: string, args: Record<string, unknown
     ctx.audit("approval-refused", { tool: name, kind: "no-backend" });
     outcome = { kind: "refused", reason: "unknown" };
   } else {
-    let argumentsJson: string;
-    try {
-      argumentsJson = JSON.stringify(args).slice(0, 4_096);
-    } catch {
-      argumentsJson = "(not serializable)";
+    // The exact call: everything the handler receives from the caller. On the modern era that is the
+    // arguments and any input responses and request state (review M1): a grant for one set is not a
+    // grant for another, and the approver sees them all.
+    const call: Record<string, unknown> = { arguments: args };
+    if (era === MODERN_VERSION) {
+      if (params["inputResponses"] !== undefined) call["inputResponses"] = params["inputResponses"];
+      if (params["requestState"] !== undefined) call["requestState"] = params["requestState"];
     }
-    outcome = await ctx.approval.gate({ principal: ctx.principal.id, tool: name, digest, auditDigest: ctx.digestArgs(args), humanOnly, argumentsJson }, requestId, ctx.signal);
+    const callJson = JSON.stringify(call);
+    // APR-17 (review M2): an approver sees the whole call or decides nothing; one too large to show
+    // whole is refused approval, never shown cut.
+    if (Buffer.byteLength(callJson) > MAX_APPROVAL_CALL_BYTES) {
+      ctx.audit("approval-refused", { tool: name, kind: "too-large" });
+      outcome = { kind: "refused", reason: "too-large" };
+    } else {
+      outcome = await ctx.approval.gate({ principal: ctx.principal.id, tool: name, digest: argumentsDigest(call), auditDigest: ctx.digestArgs(call), humanOnly, argumentsJson: callJson }, requestId, ctx.signal);
+    }
   }
   if (outcome.kind === "granted") return undefined;
   return approvalAnswer(era, name, outcome, ctx);
@@ -427,6 +442,7 @@ const NEXT: Readonly<Record<string, string>> = Object.freeze({
   unknown: "No such request is known.",
   pending: "It has not been decided yet.",
   "too-many": "This principal has too many approvals pending; wait for a decision.",
+  "too-large": "The call is too large to show an approver whole, so it cannot be approved.",
 });
 
 /**
