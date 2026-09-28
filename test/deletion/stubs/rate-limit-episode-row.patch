@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -453,7 +453,7 @@
+           full.rate = true;
+           audit("principal-state-full", { principal: principal.id, control: "rate-limit", cap: rateSettings.maxPrincipals });
+         }
+-      } else if (limiter.size < rateSettings.maxPrincipals) full.rate = false;
++      }
+ 
+       // 5. capacity
+       if (inFlight >= limits.maxInFlight) throw refusal(503, INTERNAL_ERROR, "The server is at capacity; retry later", "capacity", undefined, { "Retry-After": "1" });

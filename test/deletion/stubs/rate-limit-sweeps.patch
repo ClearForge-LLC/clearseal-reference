@@ -1,0 +1,11 @@
+--- a/packages/core/src/rate-limit/limiter.ts
++++ b/packages/core/src/rate-limit/limiter.ts
+@@ -124,7 +124,7 @@
+     let next = Number.POSITIVE_INFINITY;
+     for (const [principal, b] of this.#buckets) {
+       const level = this.#level(b, now);
+-      if (level >= this.#settings.burst - EPSILON) this.#buckets.delete(principal);
++      if (level > Number.POSITIVE_INFINITY) this.#buckets.delete(principal);
+       else next = Math.min(next, now + (this.#settings.burst - level) / this.#perMs);
+     }
+     this.#nextSweepAt = next;

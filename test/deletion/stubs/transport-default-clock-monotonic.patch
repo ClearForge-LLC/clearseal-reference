@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -267,7 +267,7 @@
+     throw err;
+   }
+   // Monotonic, never the wall clock (RL-6, TW-7).
+-  const monotonic = options.monotonic ?? (() => performance.now());
++  const monotonic = options.monotonic ?? Date.now;
+   const limiter = new RateLimiter(rateSettings, monotonic);
+   // At a table's cap, one principal-state-full row per episode: a newcomer is served untracked by the
+   // limiter, or not counted by the tripwire, and the operator should know (RL-8, TW-9).

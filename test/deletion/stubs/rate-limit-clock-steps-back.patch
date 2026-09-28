@@ -1,0 +1,11 @@
+--- a/packages/core/src/rate-limit/limiter.ts
++++ b/packages/core/src/rate-limit/limiter.ts
+@@ -149,7 +149,7 @@
+     }
+     if (bucket === undefined) return { ok: true, untracked };
+     bucket.tokens = this.#level(bucket, now);
+-    bucket.at = Math.max(bucket.at, now);
++    bucket.at = now;
+     this.#buckets.set(principal, bucket);
+     if (bucket.tokens >= 1 - EPSILON) {
+       bucket.tokens -= 1;

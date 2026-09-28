@@ -1,0 +1,11 @@
+--- a/packages/core/src/tripwire/tripwire.ts
++++ b/packages/core/src/tripwire/tripwire.ts
+@@ -47,7 +47,7 @@
+     const problem = wholeNumber(settings[key], max);
+     if (problem !== undefined) throw new TripwireConfigError(`${name} ${problem}`);
+   }
+-  if (settings.threshold * settings.maxPrincipals > MAX_TRIPWIRE_TIMESTAMPS) {
++  if (settings.threshold * settings.maxPrincipals > MAX_TRIPWIRE_TIMESTAMPS * 1e9) {
+     throw new TripwireConfigError(`TRIPWIRE_THRESHOLD × TRIPWIRE_MAX_PRINCIPALS must be at most ${String(MAX_TRIPWIRE_TIMESTAMPS)}: each tracked principal holds up to TRIPWIRE_THRESHOLD timestamps`);
+   }
+   return Object.freeze({ threshold: settings.threshold, windowSeconds: settings.windowSeconds, quietSeconds: settings.quietSeconds, maxPrincipals: settings.maxPrincipals });
