@@ -14,7 +14,10 @@ answered in *The standard's sentences*, below.
   test's, fixed and re-proven red on its own (above).
 - `node scripts/leak-gate.mjs --tree` and `--history` exit 0, run unpiped with the exit code checked
   directly, before every push.
-- CI: the pull request's checks, recorded in the next commit from its first run.
+- CI at `0553f27`, both runs (push and pull request): `test (ubuntu-latest)` and `test (windows-latest)`
+  each 840/69/8/4 with no failure; every control-deletion shard, the self-test, the plan and the
+  aggregate `control-deletion` green (all 176 rows red by assertion in CI); `leak-gate`, `audit`,
+  `sbom` and provenance green.
 - Protected surfaces diff to empty against `a00ac0a` (checked by the review too); `audit/**` changes
   only in `RULES.md` and `policy.ts`.
 - The minted token lived in a mode-0600 scratch file, was never written to git config or a remote
