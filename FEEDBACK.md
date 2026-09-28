@@ -55,12 +55,18 @@ alike. `import.meta.main` would also hold, but Node 24's documentation marks it 
 moving the command to a file with no check at all would have moved the entry every existing row and
 test names.
 
-**§1.1, the proof's install: offline, from a lockfile the test writes.** Measured: `npm install
-<tarball> --offline` fails with `ENOTCACHED` on a cache that only the repository's `npm ci` filled,
-because npm needs the dependency's registry metadata to resolve it and `npm ci` never fetches that.
-So the test packs both packages, writes a lockfile for the prefix from the repository's own lockfile
-entries for the core's dependencies (and the two tarballs' hashes), and runs `npm ci --offline`. The
-test needs no network, and what it installs is exactly what the repository resolved.
+**§1.1, the proof's install: offline and hermetic, from tarballs the test packs.** The test packs
+the core, the teaching edition and every package of the core's dependency closure (from the
+repository's own installed copies, located by the repository's lockfile), writes the prefix a lockfile
+naming those tarballs, and runs `npm ci --offline` with a private, empty cache. It needs no network
+and nothing from the runner's npm cache. It got there in two steps, and the first was mine to get
+wrong:
+- measured locally, `npm install <tarball> --offline` fails with `ENOTCACHED` on a cache that only
+  `npm ci` filled, because npm needs registry metadata that `npm ci` never fetches. So the first
+  version wrote a lockfile of the repository's registry entries and relied on the cached tarballs.
+- **the pull request's first Windows run failed that way**: `ENOTCACHED` for `validator-13.15.35.tgz`,
+  a tarball the Windows runner's npm cache did not hold. Linux passed. Packing every package from the
+  repository removes the dependency on the cache entirely, and the private cache proves it.
 
 **§1.1, `node <symlink>` on Windows.** npm writes shims, not links, on Windows, so the test makes the
 link: a file link where the runner allows one, and otherwise a junction to the entry's directory,

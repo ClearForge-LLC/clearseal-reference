@@ -5,14 +5,17 @@
 // main-module check compared the link's path with the real one, so `node <link>` exited 0 and started
 // nothing.
 //
-// The install is offline: the prefix gets a lockfile built from the repository's own entries for the
-// core's dependencies, so `npm ci --offline` needs nothing the repository's own `npm ci` did not already
-// put in npm's cache. Both packages must be built first (`npm run check` builds before it tests).
+// The install is offline and hermetic: every package the prefix installs, the core's dependencies
+// included, is packed from the repository's own installed copy, and the prefix's lockfile names those
+// tarballs. `npm ci --offline` then runs with a private, empty cache, so it needs neither the network
+// nor anything the runner's npm cache happens to hold (the first Windows run found the runner's cache
+// without one of the core's dependencies). Both packages must be built first (`npm run check` builds
+// before it tests).
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -22,6 +25,7 @@ import { cleanEnv, REPO, startProcess, TEACHING_CONFIG, unauthenticatedStatus } 
 const DIR = mkdtempSync(join(tmpdir(), "clearseal-installed-"));
 const PACKS = join(DIR, "packs");
 const PREFIX = join(DIR, "prefix");
+const CACHE = join(DIR, "npm-cache");
 const PACKAGES: readonly (readonly [string, string])[] = [["@clearseal/core", "packages/core"], ["@clearseal/teaching", "packages/teaching"]];
 const pastes: string[] = [];
 
@@ -34,7 +38,7 @@ function npmCli(): string {
 }
 
 function npm(args: readonly string[], cwd: string): string {
-  return execFileSync(process.execPath, [npmCli(), ...args, "--no-audit", "--no-fund", "--ignore-scripts"], { cwd, env: cleanEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  return execFileSync(process.execPath, [npmCli(), ...args, "--cache", CACHE, "--no-audit", "--no-fund", "--ignore-scripts"], { cwd, env: cleanEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
 interface LockEntry {
@@ -46,15 +50,16 @@ interface LockEntry {
   [k: string]: unknown;
 }
 
-/** The repository lockfile's entries for `name` as a dependency of `from`, and everything it needs. */
-function closure(lock: Record<string, LockEntry>, from: string, name: string, out: Record<string, LockEntry>): void {
+/** The repository lockfile's location for `name` as a dependency of `from`, and those of everything it
+ *  needs, each with the fields a lockfile entry keeps (not where it came from: that is the tarball). */
+function closure(lock: Record<string, LockEntry>, from: string, name: string, out: Map<string, LockEntry>): void {
   for (let at = from; ; ) {
     const key = `${at === "" ? "" : `${at}/`}node_modules/${name}`;
     const entry = lock[key];
     if (entry !== undefined) {
-      if (out[key] !== undefined) return;
-      const keep = ["version", "resolved", "integrity", "license", "dependencies", "optionalDependencies", "peerDependencies", "peerDependenciesMeta", "engines", "bin", "os", "cpu"];
-      out[key] = Object.fromEntries(keep.filter((k) => k in entry).map((k) => [k, entry[k]]));
+      if (out.has(key)) return;
+      const keep = ["version", "license", "dependencies", "optionalDependencies", "peerDependencies", "peerDependenciesMeta", "engines", "bin", "os", "cpu"];
+      out.set(key, Object.fromEntries(keep.filter((k) => k in entry).map((k) => [k, entry[k]])));
       for (const dep of Object.keys({ ...entry.dependencies, ...entry.optionalDependencies })) closure(lock, key, dep, out);
       return;
     }
@@ -68,20 +73,30 @@ before(() => {
   mkdirSync(PACKS, { recursive: true });
   mkdirSync(PREFIX, { recursive: true });
   const lock = (JSON.parse(readFileSync(join(REPO, "package-lock.json"), "utf8")) as { packages: Record<string, LockEntry> }).packages;
-  const deps: Record<string, string> = {};
-  const packages: Record<string, LockEntry> = {};
+  // Where each package is (a lockfile key), and the directory it is packed from.
+  const entries = new Map<string, LockEntry>();
+  const sources = new Map<string, string>();
   for (const [name, dir] of PACKAGES) {
     assert.ok(existsSync(join(REPO, dir, "dist")), `${dir}/dist is missing: build before this test (npm run check builds first)`);
-    const before = new Set(readdirSync(PACKS));
-    npm(["pack", "--pack-destination", PACKS], join(REPO, dir));
-    const tgz = readdirSync(PACKS).find((f) => !before.has(f));
-    assert.ok(tgz !== undefined, `npm pack wrote no tarball for ${name}`);
-    const spec = `file:${relative(PREFIX, join(PACKS, tgz)).split("\\").join("/")}`;
-    deps[name] = spec;
     const pj = JSON.parse(readFileSync(join(REPO, dir, "package.json"), "utf8")) as LockEntry & { peerDependencies?: Record<string, string>; bin?: Record<string, string> };
-    packages[`node_modules/${name}`] = { version: pj.version, resolved: spec, integrity: `sha512-${createHash("sha512").update(readFileSync(join(PACKS, tgz))).digest("base64")}`, ...(pj.dependencies === undefined ? {} : { dependencies: pj.dependencies }), ...(pj.peerDependencies === undefined ? {} : { peerDependencies: pj.peerDependencies }), ...(pj.bin === undefined ? {} : { bin: pj.bin }) };
-    for (const dep of Object.keys(pj.dependencies ?? {})) closure(lock, "", dep, packages);
+    entries.set(`node_modules/${name}`, { version: pj.version, ...(pj.dependencies === undefined ? {} : { dependencies: pj.dependencies }), ...(pj.peerDependencies === undefined ? {} : { peerDependencies: pj.peerDependencies }), ...(pj.bin === undefined ? {} : { bin: pj.bin }) });
+    sources.set(`node_modules/${name}`, join(REPO, dir));
+    for (const dep of Object.keys(pj.dependencies ?? {})) closure(lock, "", dep, entries);
   }
+  for (const key of entries.keys()) if (!sources.has(key)) sources.set(key, join(REPO, key));
+  // One npm pack for all of them; --json names each tarball, in the order given.
+  const keys = [...entries.keys()];
+  const packed = JSON.parse(npm(["pack", "--json", "--pack-destination", PACKS, ...keys.map((k) => sources.get(k) as string)], PACKS)) as { name: string; filename: string }[];
+  assert.equal(packed.length, keys.length, "npm pack did not pack every package");
+  const packages: Record<string, LockEntry> = {};
+  keys.forEach((key, i) => {
+    const p = packed[i] as { name: string; filename: string };
+    assert.equal(p.name, key.slice(key.lastIndexOf("node_modules/") + "node_modules/".length), "npm pack reported its tarballs out of order");
+    const tgz = join(PACKS, p.filename);
+    const spec = `file:${relative(PREFIX, tgz).split("\\").join("/")}`;
+    packages[key] = { ...entries.get(key), resolved: spec, integrity: `sha512-${createHash("sha512").update(readFileSync(tgz)).digest("base64")}` };
+  });
+  const deps = Object.fromEntries(PACKAGES.map(([name]) => [name, packages[`node_modules/${name}`]?.resolved as string]));
   writeFileSync(join(PREFIX, "package.json"), JSON.stringify({ name: "operator", private: true, dependencies: deps }, null, 2));
   writeFileSync(join(PREFIX, "package-lock.json"), JSON.stringify({ name: "operator", lockfileVersion: 3, requires: true, packages: { "": { name: "operator", dependencies: deps }, ...packages } }, null, 2));
   npm(["ci", "--offline"], PREFIX);
