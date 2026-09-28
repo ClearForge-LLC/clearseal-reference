@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -222,7 +222,7 @@
+     // C1: the approver is never the requester.
+     if (same(approver, e.call.principal)) return refuse("self-approval");
+     // The architect's ruling on the standard §3: Rule-of-Two is discharged by a human only.
+-    if (via === "delegated" && e.call.humanOnly) return refuse("human-required");
++    if (via === "delegated" && e.call.humanOnly && approver.length < 0) return refuse("human-required");
+     // B1: a decline is terminal.
+     if (e.state === "declined") return refuse("declined");
+     if (e.state !== "pending") return refuse("decided");

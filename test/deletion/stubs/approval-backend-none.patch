@@ -1,11 +1,11 @@
 --- a/packages/core/src/capability/ladder.ts
 +++ b/packages/core/src/capability/ladder.ts
-@@ -52,7 +52,7 @@ export type ObligationInput = Pick<CapabilityTag, "capability_class" | "untruste
-  * "configured" and serve an elevated tool with no gate behind it.
+@@ -55,7 +55,7 @@
   */
  export type ApprovalBackend = "none" | "configured";
--export const APPROVAL_BACKEND: ApprovalBackend = "none";
-+export const APPROVAL_BACKEND: ApprovalBackend = "configured";
+ /** The registry's default when no approval backend is configured. */
+-export const DEFAULT_APPROVAL_BACKEND: ApprovalBackend = "none";
++export const DEFAULT_APPROVAL_BACKEND: ApprovalBackend = "configured";
  
  /** The longest recoverability basis, in code points: one line a reviewer reads without wrapping
   *  (RULES.md CAP-5 records why 120). */

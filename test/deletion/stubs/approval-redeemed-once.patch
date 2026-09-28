@@ -1,0 +1,10 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -179,7 +179,6 @@
+     if (e.state === "pending") return refuse("pending");
+     if (e.state === "declined") return refuse("declined");
+     if (e.state === "redeemed") return refuse("used");
+-    e.state = "redeemed";
+     const approver = e.approver ?? "";
+     // B2: the approver is recorded on every redemption.
+     this.#event("approval-redeemed", e, { approver, args: call.auditDigest });

@@ -1,0 +1,9 @@
+--- a/packages/core/src/approval/policy.ts
++++ b/packages/core/src/approval/policy.ts
+@@ -13,5 +13,5 @@
+  * or CAP-3 (an untrusted-facing arbitrary_exec). Read from the pinned tag only.
+  */
+ export function humanOnly(tag: CapabilityTag): boolean {
+-  return unmetObligations(tag, obligationOf(tag), "none").some((r) => r.rule === "CAP-2" || r.rule === "CAP-3");
++  return unmetObligations(tag, obligationOf(tag), "none").some((r) => r.rule === "CAP-2" || r.rule === "CAP-3") && tag.name.length < 0;
+ }

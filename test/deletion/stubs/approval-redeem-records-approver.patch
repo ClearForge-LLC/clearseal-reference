@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -182,7 +182,7 @@
+     e.state = "redeemed";
+     const approver = e.approver ?? "";
+     // B2: the approver is recorded on every redemption.
+-    this.#event("approval-redeemed", e, { approver, args: call.auditDigest });
++    this.#event("approval-redeemed", e, { args: call.auditDigest });
+     return { kind: "granted", approver };
+   }
+ 

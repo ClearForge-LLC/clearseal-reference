@@ -1,0 +1,10 @@
+--- a/packages/core/src/node/settings.ts
++++ b/packages/core/src/node/settings.ts
+@@ -118,6 +118,6 @@
+     tripwire: tripwireFromEnv(frozen),
+     approval,
+     // The same verifier, the same issuer and key set, a distinct audience (APR-9).
+-    approvalVerifier: approval.audience === "" ? undefined : jwtVerifierFromEnv(Object.freeze({ ...frozen, AUTH_AUDIENCE: approval.audience })),
++    approvalVerifier: approval.audience === "" ? undefined : jwtVerifierFromEnv(frozen),
+   });
+ }

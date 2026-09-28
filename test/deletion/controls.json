@@ -2741,6 +2741,445 @@
       "mustFail": [
         "rewriting RATE_LIMIT_* and TRIPWIRE_* after capture changes nothing, and the node runs on the captured values"
       ]
+    },
+    {
+      "id": "approval-gate-before-handler",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-1: a call to an elevated tool with no valid grant never enters its handler; it answers pending",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/approval-gate-before-handler.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-1: an approval-requiring call with no grant answers pending, and its handler is never entered",
+        "APR-3: approved, then re-invoked → runs once; re-invoked again → used"
+      ]
+    },
+    {
+      "id": "approval-binds-principal",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-2: a grant redeems only for the principal that requested it",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-binds-principal.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-2: a grant redeemed by another principal, for another tool, with other arguments, after expiry, or with an unknown id → each refused by name"
+      ]
+    },
+    {
+      "id": "approval-binds-tool",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-2: a grant redeems only for the tool it was requested for",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-binds-tool.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-2: a grant redeemed by another principal, for another tool, with other arguments, after expiry, or with an unknown id → each refused by name"
+      ]
+    },
+    {
+      "id": "approval-binds-arguments",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-2: a grant redeems only for the canonical argument digest it was requested for",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-binds-arguments.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-2: a grant redeemed by another principal, for another tool, with other arguments, after expiry, or with an unknown id → each refused by name"
+      ]
+    },
+    {
+      "id": "approval-grant-expires",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-2, APR-12: a grant lapses after its lifetime",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-grant-expires.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts",
+        "packages/core/test/approval/book.test.ts"
+      ],
+      "mustFail": [
+        "APR-2: a grant redeemed by another principal, for another tool, with other arguments, after expiry, or with an unknown id → each refused by name",
+        "APR-12: a pending request expires on time, once, and every record is dropped once it cannot matter"
+      ]
+    },
+    {
+      "id": "approval-redeemed-once",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-3: a grant is consumed by its first redemption",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-redeemed-once.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-3: approved, then re-invoked → runs once; re-invoked again → used"
+      ]
+    },
+    {
+      "id": "approval-decline-terminal",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-4: a decline is terminal; a declined request is never approved (-0101 B1)",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-decline-terminal.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-4: declined, then the same request approved → refused; the call answers declined"
+      ]
+    },
+    {
+      "id": "approval-no-self-approval",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-5: the approver is never the requester (-0101 C1)",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-no-self-approval.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-5: an approver that is the requester is refused and audited, on both paths"
+      ]
+    },
+    {
+      "id": "approval-human-for-rule-of-two",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-6 (the architect's ruling on the standard §3): an approval that discharges Rule-of-Two is refused to a delegated approver",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-human-for-rule-of-two.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-6: an approval that discharges Rule-of-Two is refused to a delegated approver and granted through the confirm-URL"
+      ]
+    },
+    {
+      "id": "approval-human-only-from-tag",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-6: whether only a human may decide is computed from the pinned tag (CAP-2, CAP-3)",
+      "touches": [
+        "packages/core/src/approval/policy.ts"
+      ],
+      "stub": "stubs/approval-human-only-from-tag.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-6: an approval that discharges Rule-of-Two is refused to a delegated approver and granted through the confirm-URL"
+      ]
+    },
+    {
+      "id": "main-listener-no-approval-route",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-7: the main listener serves no approval route",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/main-listener-no-approval-route.patch",
+      "tests": [
+        "packages/core/test/approval/listener.test.ts"
+      ],
+      "mustFail": [
+        "every approval path on the main listener → not found"
+      ]
+    },
+    {
+      "id": "approval-listener-not-main-port",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-7: the approval listener refuses to start on the main listener's address and port",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-listener-not-main-port.patch",
+      "tests": [
+        "packages/core/test/approval/listener.test.ts"
+      ],
+      "mustFail": [
+        "the approval listener on the main listener's address and port → start refused"
+      ]
+    },
+    {
+      "id": "confirm-needs-code",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-8: a confirm-URL decision needs the code as well as the link",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/confirm-needs-code.patch",
+      "tests": [
+        "packages/core/test/approval/listener.test.ts"
+      ],
+      "mustFail": [
+        "a wrong code, a second use and an expired link are each refused; five wrong codes burn the link"
+      ]
+    },
+    {
+      "id": "confirm-link-once",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-8: a confirm-URL link is spent by its first decision",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/confirm-link-once.patch",
+      "tests": [
+        "packages/core/test/approval/listener.test.ts"
+      ],
+      "mustFail": [
+        "a wrong code, a second use and an expired link are each refused; five wrong codes burn the link"
+      ]
+    },
+    {
+      "id": "confirm-link-burns",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-8: five wrong codes burn a link",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/confirm-link-burns.patch",
+      "tests": [
+        "packages/core/test/approval/listener.test.ts"
+      ],
+      "mustFail": [
+        "a wrong code, a second use and an expired link are each refused; five wrong codes burn the link"
+      ]
+    },
+    {
+      "id": "delegated-verifier-own-audience",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-9: the delegated approvers' verifier is built for APPROVAL_AUDIENCE, never the node's audience",
+      "touches": [
+        "packages/core/src/node/settings.ts"
+      ],
+      "stub": "stubs/delegated-verifier-own-audience.patch",
+      "tests": [
+        "packages/core/test/node/cli.test.ts"
+      ],
+      "mustFail": [
+        "APPROVAL_AUDIENCE gives a verifier with the node's issuer and that audience, never the node's"
+      ]
+    },
+    {
+      "id": "approval-audience-differs",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-9: APPROVAL_AUDIENCE equal to AUTH_AUDIENCE refuses start",
+      "touches": [
+        "packages/core/src/approval/settings.ts"
+      ],
+      "stub": "stubs/approval-audience-differs.patch",
+      "tests": [
+        "packages/core/test/approval/settings.test.ts"
+      ],
+      "mustFail": [
+        "APR-9: an approval audience equal to the node's audience refuses start"
+      ]
+    },
+    {
+      "id": "approval-secrets-never-described",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-10: the listener's description of a request never carries its link or code",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-secrets-never-described.patch",
+      "tests": [
+        "packages/core/test/approval/listener.test.ts"
+      ],
+      "mustFail": [
+        "the link alone does not decide: reading it describes the request, without the code",
+        "no link token or code appears in any audit row or response this file saw"
+      ]
+    },
+    {
+      "id": "approval-notify-cap",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-11: a principal holds at most maxPendingPerPrincipal pending requests; one more is refused unnotified",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-notify-cap.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-11: notifications per principal are capped, and a repeat of a pending request notifies nothing"
+      ]
+    },
+    {
+      "id": "approval-repeat-not-renotified",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-11: a repeat of a pending request reuses it and notifies nothing",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-repeat-not-renotified.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-11: notifications per principal are capped, and a repeat of a pending request notifies nothing"
+      ]
+    },
+    {
+      "id": "approval-total-cap",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-12: at most maxPending requests in all",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-total-cap.patch",
+      "tests": [
+        "packages/core/test/approval/book.test.ts"
+      ],
+      "mustFail": [
+        "APR-12: requests in all are capped, and one more is refused without notifying"
+      ]
+    },
+    {
+      "id": "approval-request-expires",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-12: a pending request expires after the request lifetime",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-request-expires.patch",
+      "tests": [
+        "packages/core/test/approval/book.test.ts"
+      ],
+      "mustFail": [
+        "APR-12: a pending request expires on time, once, and every record is dropped once it cannot matter"
+      ]
+    },
+    {
+      "id": "approval-drops-records",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-12: a record is dropped once neither its request nor its grant can matter",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-drops-records.patch",
+      "tests": [
+        "packages/core/test/approval/book.test.ts"
+      ],
+      "mustFail": [
+        "APR-12: a pending request expires on time, once, and every record is dropped once it cannot matter"
+      ]
+    },
+    {
+      "id": "approval-bounded-wait",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-13: with a bounded wait, a decision inside it runs the call in one round",
+      "touches": [
+        "packages/core/src/approval/service.ts"
+      ],
+      "stub": "stubs/approval-bounded-wait.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-13: a decision inside the bounded wait runs in one call; none answers pending at the limit"
+      ]
+    },
+    {
+      "id": "transport-refuses-without-backend",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-14: the transport refuses to start when a registered tool needs approval and it has no backend",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/transport-refuses-without-backend.patch",
+      "tests": [
+        "packages/core/test/approval/listener.test.ts"
+      ],
+      "mustFail": [
+        "a registry that says configured, given no backend → the transport refuses to start"
+      ]
+    },
+    {
+      "id": "node-backend-from-snapshot",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-14: the registry's approval backend comes from the snapshot's APPROVAL_BACKEND",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/node-backend-from-snapshot.patch",
+      "tests": [
+        "packages/core/test/node/cli.test.ts"
+      ],
+      "mustFail": [
+        "without APPROVAL_BACKEND an elevated tool refuses start; with APPROVAL_BACKEND=listener the node starts, its approval listener apart, and gates the call"
+      ]
+    },
+    {
+      "id": "approval-redeem-records-approver",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-15: every redemption records its approver (-0101 B2)",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-redeem-records-approver.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-3: approved, then re-invoked → runs once; re-invoked again → used"
+      ]
+    },
+    {
+      "id": "webhook-no-redirect",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-16: the webhook notifier follows no redirect",
+      "touches": [
+        "packages/core/src/approval/notifier.ts"
+      ],
+      "stub": "stubs/webhook-no-redirect.patch",
+      "tests": [
+        "packages/core/test/approval/notifier.test.ts"
+      ],
+      "mustFail": [
+        "APR-16: a webhook redirect is not followed"
+      ]
+    },
+    {
+      "id": "webhook-https-only",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-16: the webhook URL must be https",
+      "touches": [
+        "packages/core/src/approval/settings.ts"
+      ],
+      "stub": "stubs/webhook-https-only.patch",
+      "tests": [
+        "packages/core/test/approval/settings.test.ts"
+      ],
+      "mustFail": [
+        "APR-16: an http webhook URL refuses start"
+      ]
     }
   ]
 }

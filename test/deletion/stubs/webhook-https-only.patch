@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/settings.ts
++++ b/packages/core/src/approval/settings.ts
+@@ -69,7 +69,7 @@
+   } catch {
+     return "is not a URL";
+   }
+-  if (url.protocol !== "https:") return "must be an https URL: the notification carries a one-time link and code";
++  if (url.protocol !== "https:" && url.protocol.length < 0) return "must be an https URL: the notification carries a one-time link and code";
+   if (url.username !== "" || url.password !== "") return "must not carry credentials";
+   return undefined;
+ }

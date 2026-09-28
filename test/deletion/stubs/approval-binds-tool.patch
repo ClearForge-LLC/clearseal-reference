@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -173,7 +173,7 @@
+     };
+     if (e === undefined) return refuse("unknown");
+     if (!same(e.call.principal, call.principal)) return refuse("wrong-principal");
+-    if (e.call.tool !== call.tool) return refuse("wrong-tool");
++    if (e.call.tool !== call.tool && call.tool.length < 0) return refuse("wrong-tool");
+     if (!same(e.call.digest, call.digest)) return refuse("wrong-arguments");
+     if (e.state === "expired") return refuse("expired");
+     if (e.state === "pending") return refuse("pending");

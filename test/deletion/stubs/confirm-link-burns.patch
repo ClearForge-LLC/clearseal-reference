@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -278,7 +278,7 @@
+     const id = this.#byLink.get(linkToken);
+     const e = id === undefined ? undefined : this.#entries.get(id);
+     if (e === undefined) return { kind: "refused", reason: "unknown" };
+-    if (e.wrongCodes >= MAX_WRONG_CODES) return { kind: "refused", reason: "link-burned" };
++    if (e.wrongCodes >= MAX_WRONG_CODES && e.wrongCodes < 0) return { kind: "refused", reason: "link-burned" };
+     if (e.linkUsed || (e.state !== "pending" && e.state !== "expired")) return { kind: "refused", reason: "link-used" };
+     if (e.state === "expired") return { kind: "refused", reason: "link-expired" };
+     return e;
