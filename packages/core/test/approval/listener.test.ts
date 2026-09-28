@@ -194,10 +194,16 @@ void describe("CSR-WO-2001 approval: fail closed without a backend (APR-14)", ()
   });
 
   void it("a registry that says configured, given no backend → the transport refuses to start", async () => {
-    await assert.rejects(
-      () => startTransport({ registry: pinForTest([deploy], compileSchema, DEFAULT_LIMITS, true, { approvalBackend: "configured" }), serverInfo: { name: "x", version: "0" }, verifier: new PrincipalVerifier(), audit: () => undefined }),
-      /the tools deploy need approval and no approval backend was given: the node does not start without one/,
-    );
+    let caught: unknown;
+    try {
+      const t = await startTransport({ registry: pinForTest([deploy], compileSchema, DEFAULT_LIMITS, true, { approvalBackend: "configured" }), serverInfo: { name: "x", version: "0" }, verifier: new PrincipalVerifier(), audit: () => undefined });
+      // Started: close it, so the failure below is the assertion's and not a hung process.
+      await t.close();
+    } catch (err) {
+      caught = err;
+    }
+    assert.ok(caught instanceof Error, "the transport started with an elevated tool and no approval backend");
+    assert.match(caught.message, /the tools deploy need approval and no approval backend was given: the node does not start without one/);
   });
 });
 

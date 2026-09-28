@@ -77,6 +77,20 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     `postprepare`, `dependencies`), or a `binding.gyp`, is a finding.
   - The teaching README tells operators to install editions with scripts disabled and to start
     `clearseal-node` without a module-loading flag.
+- **CSR-WO-2001:** approval: a grant bound to one call, redeemed once, decided on a channel the
+  caller cannot reach.
+  - A tool pinned `elevated` runs only after a different principal approves that exact call. The grant
+    binds the principal, the tool, the canonical argument digest and an expiry, and it is redeemed
+    once. A decline is terminal, and the approver can never be the requester.
+  - Without a grant the call answers *approval pending* with a request id, and its handler is never
+    entered. The caller re-invokes with the id in `_meta`. An optional bounded wait lets a fast
+    decision complete in one call.
+  - Decisions are made on a second listener with its own address and port. A person decides through
+    a one-time link plus a short code, which only the notifier (stderr or an https webhook) receives. A
+    delegated approver presents the core's verifier's token for a distinct audience. An approval that
+    discharges Rule-of-Two is decided by a person only (the standard §3).
+  - The construction refusal of `elevated` tools lifts only when `APPROVAL_BACKEND` is configured in
+    the settings snapshot. Every step is audited without a link, a code or an argument value.
 - **CSR-WO-2007:** tripwire and rate limit, as two controls.
   - A per-principal rate limit after authentication (`packages/core/src/rate-limit/`): a token bucket
     per verified principal. Every authenticated request takes a token before a capacity slot is taken
