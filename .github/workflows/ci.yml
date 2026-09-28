@@ -32,9 +32,35 @@ jobs:
         run: python3 packages/core/test/oracle/generate.py && git diff --exit-code -- packages/core/test/vectors/canonical-v1.json
 
   # CSR-WO-2008 (N5): every built control stubbed out in turn, and the suite required to fail for
-  # each, by assertion. The runner's own red-proofs run first. Not a required check: making it
-  # required is a branch-protection decision.
-  control-deletion:
+  # each, by assertion. The runner's own red-proofs run first, in their own job. Not a required check:
+  # making it required is a branch-protection decision, and it is one setting, because the aggregate
+  # job below keeps the name `control-deletion` (CSR-WO-2008a).
+  #
+  # Sharded (CSR-WO-2008a): the manifest is split into CONTROL_DELETION_SHARDS shards, each run on its
+  # own runner, each with its own baseline before any of its stubs. A run of every shard proves exactly
+  # what one run of the whole manifest did.
+  control-deletion-plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # The one number. Raise it when a shard job passes five minutes: the run's page gives each shard
+      # job's duration, and a green shard's log ends with "control-deletion: shard i/n: ... row(s),
+      # <seconds> s", the runner's own share of it (the rest is checkout, install and build). Measured
+      # at 145 rows and 4 shards in CSR-WO-2008a's FEEDBACK.md.
+      CONTROL_DELETION_SHARDS: 4
+    outputs:
+      n: ${{ steps.plan.outputs.n }}
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - id: plan
+        run: |
+          n="$CONTROL_DELETION_SHARDS"
+          case "$n" in ''|*[!0-9]*|0*) echo "CONTROL_DELETION_SHARDS must be a whole number from 1, not '$n'"; exit 1;; esac
+          echo "n=$n" >> "$GITHUB_OUTPUT"
+          echo "shards=$(jq -cn --argjson n "$n" '[range(1; $n + 1)]')" >> "$GITHUB_OUTPUT"
+
+  control-deletion-self-test:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -49,7 +75,52 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: node scripts/control-deletion.mjs --self-test
-      - run: node scripts/control-deletion.mjs
+      # The shards partition the manifest: total, disjoint and deterministic (CSR-WO-2008a §1.2).
+      - run: node scripts/test.mjs "scripts/control-deletion.test.mjs"
+
+  control-deletion-shard:
+    name: control-deletion shard ${{ matrix.shard }}/${{ needs.control-deletion-plan.outputs.n }}
+    needs: control-deletion-plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      # Every shard runs to the end: a red shard does not cancel the others, so a run names every miss.
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.control-deletion-plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/control-deletion.mjs --shard "${{ matrix.shard }}/${{ needs.control-deletion-plan.outputs.n }}"
+
+  # The job named control-deletion: green only if the plan, the self-test and every shard succeeded.
+  # `always()` makes it run, and fail, when a shard failed, was cancelled or was skipped, and when the
+  # run itself was cancelled: a required check that was skipped would count as passed.
+  control-deletion:
+    needs: [control-deletion-plan, control-deletion-self-test, control-deletion-shard]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$NEEDS" | jq -e 'length == 3 and all(.[]; .result == "success")' > /dev/null; then
+            echo "control-deletion: the self-test and every shard succeeded"
+          else
+            echo "control-deletion: a job above did not succeed (failed, cancelled or skipped); the proof is incomplete"
+            exit 1
+          fi
 
   leak-gate:
     runs-on: ubuntu-latest

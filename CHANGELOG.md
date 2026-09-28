@@ -215,6 +215,15 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
 
 ### Changed
 
+- **CSR-WO-2008a:** the control-deletion job runs sharded.
+  - `scripts/control-deletion.mjs --shard <i>/<n>` runs shard `i` of `n`: the manifest's rows at
+    index `k` with `k mod n = i - 1`, each shard with its own unpatched baseline before any of its
+    stubs. A test proves the shards partition the manifest for every `n` from 1 to 8. Malformed and
+    out-of-range shards are refused.
+  - CI runs `CONTROL_DELETION_SHARDS` shards (4) as a matrix, the runner's self-test once, and an
+    aggregate job that keeps the name `control-deletion` and succeeds only if every shard and the
+    self-test succeeded. A failed, cancelled or skipped shard fails it. No row, stub or rule for what
+    counts as red changed, and the job stays an optional check.
 - **CSR-WO-1005b:** the HTTP status of an error is now era-dependent. On `2025-11-25`, a JSON-RPC
   error answering a well-formed request goes back at `200` with the error object unchanged, as that
   era's page and its client (the official SDK, which loses the code and `data` at any non-`2xx`)
