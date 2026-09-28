@@ -1,6 +1,6 @@
 --- a/packages/core/src/approval/book.ts
 +++ b/packages/core/src/approval/book.ts
-@@ -279,7 +279,7 @@
+@@ -285,7 +285,7 @@
      const e = id === undefined ? undefined : this.#entries.get(id);
      if (e === undefined) return { kind: "refused", reason: "unknown" };
      if (e.wrongCodes >= MAX_WRONG_CODES) return { kind: "refused", reason: "link-burned" };

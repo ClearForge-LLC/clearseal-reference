@@ -1,6 +1,6 @@
 --- a/packages/core/src/approval/book.ts
 +++ b/packages/core/src/approval/book.ts
-@@ -115,7 +115,7 @@
+@@ -116,7 +116,7 @@
    /** APR-12: phases end on time, and a record goes once neither its request nor its grant can matter. */
    #sweep(now: number): void {
      for (const [id, e] of this.#entries) {

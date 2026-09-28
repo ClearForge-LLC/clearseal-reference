@@ -1,6 +1,6 @@
 --- a/packages/core/src/approval/book.ts
 +++ b/packages/core/src/approval/book.ts
-@@ -224,8 +224,7 @@
+@@ -230,8 +230,7 @@
      // The architect's ruling on the standard §3: Rule-of-Two is discharged by a human only.
      if (via === "delegated" && e.call.humanOnly) return refuse("human-required");
      // B1: a decline is terminal.

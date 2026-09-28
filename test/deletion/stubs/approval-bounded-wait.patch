@@ -1,6 +1,6 @@
 --- a/packages/core/src/approval/service.ts
 +++ b/packages/core/src/approval/service.ts
-@@ -102,7 +102,7 @@
+@@ -110,7 +110,7 @@
      if (o.secret !== undefined) this.#notify(o.id, call, o.secret);
      else this.#audit("approval-refused", { principal: call.principal, request: o.id, tool: call.tool, kind: "pending" });
      const waitMs = this.settings.waitSeconds * 1000;

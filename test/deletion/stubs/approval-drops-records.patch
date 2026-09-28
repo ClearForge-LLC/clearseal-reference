@@ -1,6 +1,6 @@
 --- a/packages/core/src/approval/book.ts
 +++ b/packages/core/src/approval/book.ts
-@@ -121,7 +121,7 @@
+@@ -122,7 +122,7 @@
          this.#event("approval-expired", e, { phase });
          this.#wake(id);
        }

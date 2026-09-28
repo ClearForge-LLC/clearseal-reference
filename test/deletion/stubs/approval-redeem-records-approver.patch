@@ -1,6 +1,6 @@
 --- a/packages/core/src/approval/book.ts
 +++ b/packages/core/src/approval/book.ts
-@@ -182,7 +182,7 @@
+@@ -183,7 +183,7 @@
      e.state = "redeemed";
      const approver = e.approver ?? "";
      // B2: the approver is recorded on every redemption.

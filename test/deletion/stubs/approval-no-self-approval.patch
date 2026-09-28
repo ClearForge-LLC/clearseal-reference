@@ -1,6 +1,6 @@
 --- a/packages/core/src/approval/book.ts
 +++ b/packages/core/src/approval/book.ts
-@@ -220,7 +220,7 @@
+@@ -226,7 +226,7 @@
      };
      if (e.state === "expired") return refuse("expired");
      // C1: the approver is never the requester.

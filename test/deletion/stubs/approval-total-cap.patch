@@ -1,6 +1,6 @@
 --- a/packages/core/src/approval/book.ts
 +++ b/packages/core/src/approval/book.ts
-@@ -147,7 +147,7 @@
+@@ -148,7 +148,7 @@
        mine++;
      }
      // APR-11, APR-12: bounded per principal and in all; the refusal notifies nobody.

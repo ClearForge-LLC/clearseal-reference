@@ -1,6 +1,6 @@
 --- a/packages/core/src/approval/book.ts
 +++ b/packages/core/src/approval/book.ts
-@@ -174,7 +174,7 @@
+@@ -175,7 +175,7 @@
      if (e === undefined) return refuse("unknown");
      if (!same(e.call.principal, call.principal)) return refuse("wrong-principal");
      if (e.call.tool !== call.tool) return refuse("wrong-tool");

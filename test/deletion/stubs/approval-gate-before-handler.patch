@@ -1,11 +1,11 @@
 --- a/packages/core/src/transport/dispatch.ts
 +++ b/packages/core/src/transport/dispatch.ts
-@@ -283,7 +283,7 @@
-   const binding = { principal: ctx.principal.id, method: "tools/call", tool: name, args: argumentsDigest(args) };
-   // CSR-WO-2001: a tool that needs approval runs only on a grant for this principal, tool and arguments,
-   // redeemed once (approval/RULES.md APR-1…APR-3). Anything else answers here, before the handler.
+@@ -309,7 +309,7 @@
+   // exact call, redeemed once (approval/RULES.md APR-1…APR-3). Anything else answers here. It is the last
+   // step before the handler, so a refusal of the call's own form (its request state, its input
+   // responses) comes first and never spends a grant (review L3).
 -  if (tool.approval !== undefined) {
 +  if (tool.approval !== undefined && name.length < 0) {
-     const answered = await gateApproval(era, name, args, params, tool.approval.humanOnly, binding.args, ctx);
+     const answered = await gateApproval(era, name, args, params, tool.approval.humanOnly, ctx);
      if (answered !== undefined) return answered;
    }

@@ -1,6 +1,6 @@
 --- a/packages/core/src/approval/book.ts
 +++ b/packages/core/src/approval/book.ts
-@@ -294,7 +294,7 @@
+@@ -300,7 +300,7 @@
        else this.#event("approval-decision-refused", known, { kind: e.reason, approver: humanApprover, via: "human" });
        return e;
      }

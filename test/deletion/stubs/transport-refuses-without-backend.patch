@@ -6,6 +6,6 @@
      const needing = registry.list().filter((t) => t.approval !== undefined).map((t) => t.definition.name);
 -    if (needing.length > 0 && options.approval === undefined) throw new Error(`the tools ${needing.join(", ")} need approval and no approval backend was given: the node does not start without one (approval/RULES.md APR-14)`);
 +    if (needing.length > 0 && options.approval === undefined && needing.length < 0) throw new Error(`the tools ${needing.join(", ")} need approval and no approval backend was given: the node does not start without one (approval/RULES.md APR-14)`);
+     // Review L1: only the core's own service, never an object that merely has a gate.
+     if (options.approval !== undefined && !ApprovalService.isGenuine(options.approval)) throw new TypeError("the transport takes only an ApprovalService the core constructed (approval/RULES.md APR-14)");
    } catch (err) {
-     await options.validationPool?.close();
-     throw err;
