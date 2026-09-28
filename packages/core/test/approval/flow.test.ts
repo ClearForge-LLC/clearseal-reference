@@ -198,9 +198,13 @@ void describe("CSR-WO-2001 approval: the exact call (review M1, M2, L3)", () => 
     }
   });
 
-  void it("review L3: a refusal of the call's own form comes before the gate and never spends a grant", async () => {
+  void it("review L3: a refusal of the call's own form comes before the gate: it opens no request and spends no grant", async () => {
     const r = await rig();
     try {
+      // Refused for its request state before the gate: no approval is asked for a call that could not run.
+      const unformed = await r.call("alice", "deploy", "prod", undefined, { requestState: "not a request state" });
+      assert.notEqual(approvalOf(unformed).status, "pending", unformed.text);
+      assert.equal(r.notifier.sent.length, 0, "no approver was asked");
       const id = approvalOf(await r.call("alice", "deploy", "prod")).requestId;
       assert.equal(await approveByLink(r, 0), 200);
       const malformed = await r.call("alice", "deploy", "prod", id, { requestState: "not a request state" });
