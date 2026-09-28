@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/service.ts
++++ b/packages/core/src/approval/service.ts
+@@ -120,7 +120,7 @@
+       const state = this.book.stateOf(o.id);
+       if (state === "declined") return { kind: "refused", reason: "declined", requestId: o.id };
+       // Review L5: a request that expired during the wait says so.
+-      if (state === "expired" || state === undefined) return { kind: "refused", reason: "expired", requestId: o.id };
++      if ((state === "expired" || state === undefined) && waitMs < 0) return { kind: "refused", reason: "expired", requestId: o.id };
+     }
+     return { kind: "pending", requestId: o.id, retryAfterSeconds: RETRY_HINT_SECONDS };
+   }

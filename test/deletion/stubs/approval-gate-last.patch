@@ -1,0 +1,32 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -292,6 +292,14 @@
+     // A refusal because the file is not a regular one names what it is (CSR-WO-1006 D-1).
+     ctx.audit("containment-refused", { tool: name, kind: r.kind, sink: r.sink, ...(r.fileType === undefined ? {} : { fileType: r.fileType }) });
+   };
++  // CSR-WO-2001: a tool that needs approval runs only on a grant for this principal, this tool and this
++  // exact call, redeemed once (approval/RULES.md APR-1…APR-3). Anything else answers here. It is the last
++  // step before the handler, so a refusal of the call's own form (its request state, its input
++  // responses) comes first and never spends a grant (review L3).
++  if (tool.approval !== undefined) {
++    const answered = await gateApproval(era, name, args, params, tool.approval.humanOnly, ctx);
++    if (answered !== undefined) return answered;
++  }
+   const cage = tool.newCage?.(onRefused) ?? new RecordingCage(undefined, undefined, undefined, onRefused);
+   const callCtx: Omit<CallContext, "signal"> & { signal?: AbortSignal } = { principal: ctx.principal, protocolVersion: era, clientCapabilities: caps, cage };
+   if (modern) {
+@@ -305,14 +313,6 @@
+     }
+   }
+ 
+-  // CSR-WO-2001: a tool that needs approval runs only on a grant for this principal, this tool and this
+-  // exact call, redeemed once (approval/RULES.md APR-1…APR-3). Anything else answers here. It is the last
+-  // step before the handler, so a refusal of the call's own form (its request state, its input
+-  // responses) comes first and never spends a grant (review L3).
+-  if (tool.approval !== undefined) {
+-    const answered = await gateApproval(era, name, args, params, tool.approval.humanOnly, ctx);
+-    if (answered !== undefined) return answered;
+-  }
+   const result = await runHandler(tool, args, callCtx, ctx);
+   return shapeResult(era, binding, result, caps, ctx);
+ }

@@ -3180,6 +3180,96 @@
       "mustFail": [
         "APR-16: an http webhook URL refuses start"
       ]
+    },
+    {
+      "id": "approval-binds-whole-call",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-2 (review M1): a grant covers the exact call: its input responses and request state as well as its arguments",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/approval-binds-whole-call.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-2 (review M1): a grant covers the call's input responses too: other input responses → wrong-arguments; the approver sees them"
+      ]
+    },
+    {
+      "id": "approval-refuses-too-large",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-17 (review M2): a call too large to show an approver whole is refused approval, never shown cut",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/approval-refuses-too-large.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-17 (review M2): a call too large to show an approver whole is refused approval, never shown cut"
+      ]
+    },
+    {
+      "id": "approval-gate-last",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Review L3: the gate is the last step before the handler, so a call refused for its own form opens no request",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/approval-gate-last.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "review L3: a refusal of the call's own form comes before the gate: it opens no request and spends no grant"
+      ]
+    },
+    {
+      "id": "transport-genuine-approval",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 APR-14 (review L1): the transport takes only the core's own ApprovalService",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/transport-genuine-approval.patch",
+      "tests": [
+        "packages/core/test/approval/listener.test.ts"
+      ],
+      "mustFail": [
+        "review L1: an object that merely has a gate is refused: the transport takes only the core's own ApprovalService"
+      ]
+    },
+    {
+      "id": "approval-wait-reports-expiry",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Review L5: a request that expires during the bounded wait answers expired",
+      "touches": [
+        "packages/core/src/approval/service.ts"
+      ],
+      "stub": "stubs/approval-wait-reports-expiry.patch",
+      "tests": [
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "review L5: a request that expires during the bounded wait answers expired, not pending"
+      ]
+    },
+    {
+      "id": "approval-wait-shorter-than-ttl",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Review L5: the bounded wait must be shorter than the request's lifetime",
+      "touches": [
+        "packages/core/src/approval/settings.ts"
+      ],
+      "stub": "stubs/approval-wait-shorter-than-ttl.patch",
+      "tests": [
+        "packages/core/test/approval/settings.test.ts"
+      ],
+      "mustFail": [
+        "review L5: APPROVAL_WAIT_SECONDS no shorter than APPROVAL_REQUEST_TTL_SECONDS refuses start"
+      ]
     }
   ]
 }
