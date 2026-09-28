@@ -25,6 +25,11 @@ import { argumentsDigest, openState, sealState, type StateBinding } from "./requ
 import { ValidationTimeout } from "./schema-pool.ts";
 import { type Cage, type Reach, RecordingCage } from "../containment/cage.ts";
 import type { Principal } from "./verifier.ts";
+import type { ApprovalService, GateOutcome } from "../approval/service.ts";
+
+/** Where a re-invocation carries its approval request id, and where every approval answer says what
+ *  happened: `_meta`, never the arguments, whose schema is pinned (CSR-WO-2001 §1.2). */
+export const APPROVAL_META = "clearseal/approval";
 
 const PV = "io.modelcontextprotocol/protocolVersion";
 const CAPS = "io.modelcontextprotocol/clientCapabilities";
@@ -54,6 +59,9 @@ export interface DispatchContext {
    *  checked: the tripwire's count (CSR-WO-2007 §1.3, tripwire/RULES.md TW-1). It returns nothing
    *  and never throws, so it cannot refuse, delay or alter the call (TW-6). */
   toolNamed: (tool: string) => void;
+  /** The approval backend (CSR-WO-2001), when the node has one. A tool that needs approval is never run
+   *  without it (approval/RULES.md APR-14). */
+  approval?: ApprovalService;
 }
 
 export type Outcome =
@@ -273,6 +281,12 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
   }
   if (!valid) throw new Refusal(400, INVALID_PARAMS, `Invalid arguments for tool ${name}`);
   const binding = { principal: ctx.principal.id, method: "tools/call", tool: name, args: argumentsDigest(args) };
+  // CSR-WO-2001: a tool that needs approval runs only on a grant for this principal, tool and arguments,
+  // redeemed once (approval/RULES.md APR-1…APR-3). Anything else answers here, before the handler.
+  if (tool.approval !== undefined) {
+    const answered = await gateApproval(era, name, args, params, tool.approval.humanOnly, binding.args, ctx);
+    if (answered !== undefined) return answered;
+  }
 
   // CSR-WO-1002 §1.6: a fresh cage per call, from the tool's pinned domain (empty if none).
   // Every refusal is audited as it happens, including one made after the handler returned; the
@@ -376,6 +390,66 @@ async function runHandlerOnce(tool: RegisteredTool, args: Record<string, unknown
     throw refusal;
   }
   return result;
+}
+
+/** The approval gate's answer when the call may not run; undefined when a grant was redeemed. */
+async function gateApproval(era: Era, name: string, args: Record<string, unknown>, params: Record<string, unknown>, humanOnly: boolean, digest: string, ctx: DispatchContext): Promise<Record<string, unknown> | undefined> {
+  const meta = params["_meta"];
+  const carried = isPlainObject(meta) ? meta[APPROVAL_META] : undefined;
+  // A request id that is present but not a string, or not in an object, redeems nothing: "unknown".
+  const requestId = carried === undefined ? undefined : isPlainObject(carried) && typeof carried["requestId"] === "string" ? carried["requestId"] : "";
+  let outcome: GateOutcome;
+  if (ctx.approval === undefined) {
+    // Unreachable through startTransport, which refuses to start this way (APR-14); refused regardless.
+    ctx.audit("approval-refused", { tool: name, kind: "no-backend" });
+    outcome = { kind: "refused", reason: "unknown" };
+  } else {
+    let argumentsJson: string;
+    try {
+      argumentsJson = JSON.stringify(args).slice(0, 4_096);
+    } catch {
+      argumentsJson = "(not serializable)";
+    }
+    outcome = await ctx.approval.gate({ principal: ctx.principal.id, tool: name, digest, auditDigest: ctx.digestArgs(args), humanOnly, argumentsJson }, requestId, ctx.signal);
+  }
+  if (outcome.kind === "granted") return undefined;
+  return approvalAnswer(era, name, outcome, ctx);
+}
+
+/** What each refusal tells the caller to do next. */
+const NEXT: Readonly<Record<string, string>> = Object.freeze({
+  declined: "It was declined, and a decline is final.",
+  expired: "It expired. Call the tool again, without the request id, to ask again.",
+  used: "Its grant was already used: one approval runs one call. Call again, without the request id, to ask again.",
+  "wrong-principal": "It was requested by another principal.",
+  "wrong-tool": "It was requested for another tool.",
+  "wrong-arguments": "It was requested for other arguments: a grant covers exactly the arguments it was asked for.",
+  unknown: "No such request is known.",
+  pending: "It has not been decided yet.",
+  "too-many": "This principal has too many approvals pending; wait for a decision.",
+});
+
+/**
+ * The answer when a call needing approval does not run (CSR-WO-2001 §1.2): a tool result with isError,
+ * in the era's shape, naming what happened in text for the model and in `_meta["clearseal/approval"]`
+ * for a client. It never carries the approval link or code (APR-10).
+ */
+function approvalAnswer(era: Era, tool: string, outcome: Exclude<GateOutcome, { kind: "granted" }>, ctx: DispatchContext): Record<string, unknown> {
+  const status = outcome.kind === "pending" ? "pending" : outcome.reason;
+  const id = outcome.requestId;
+  const text =
+    outcome.kind === "pending"
+      ? `Approval pending for ${tool} (request ${id}). Nothing has run. Once it is approved, call ${tool} again with the same arguments and _meta {"${APPROVAL_META}": {"requestId": "${id}"}}; check again in ${String(outcome.retryAfterSeconds)} s.`
+      : `Approval refused for ${tool}: ${status}${id === undefined || id === "" ? "" : ` (request ${id})`}. Nothing has run. ${NEXT[status] ?? ""}`.trimEnd();
+  const approval: Record<string, unknown> = { status, ...(id === undefined || id === "" ? {} : { requestId: id }), ...(outcome.kind === "pending" ? { retryAfterSeconds: outcome.retryAfterSeconds } : {}) };
+  const out: Record<string, unknown> = { content: [{ type: "text", text }], isError: true };
+  if (era === MODERN_VERSION) {
+    out["resultType"] = "complete";
+    out["_meta"] = { ...serverMeta(ctx), [APPROVAL_META]: approval };
+  } else {
+    out["_meta"] = { [APPROVAL_META]: approval };
+  }
+  return out;
 }
 
 function shapeResult(era: Era, binding: StateBinding, result: ToolResult, caps: Record<string, unknown>, ctx: DispatchContext): Record<string, unknown> {

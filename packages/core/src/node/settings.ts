@@ -21,6 +21,7 @@ import { type JwtVerifier, jwtVerifierFromEnv } from "../auth/verifier.ts";
 import { execToolsForbiddenFromEnv, pinStrictFromEnv } from "../pinning/registry.ts";
 import { rateLimitFromEnv, type RateLimitSettings } from "../rate-limit/limiter.ts";
 import { tripwireFromEnv, type TripwireSettings } from "../tripwire/tripwire.ts";
+import { approvalFromEnv, type ApprovalSettings } from "../approval/settings.ts";
 import { requestStateKeyFromEnv } from "../transport/request-state.ts";
 
 /** A node that refuses to start for its configuration or its edition's shape (N4). */
@@ -62,6 +63,11 @@ export interface Settings {
   readonly rateLimit: Readonly<RateLimitSettings>;
   /** TRIPWIRE_*: the read-burst tripwire, validated (CSR-WO-2007 §1.4, tripwire/RULES.md). */
   readonly tripwire: Readonly<TripwireSettings>;
+  /** APPROVAL_*: the approval backend and its listener, validated (CSR-WO-2001 §1.7). */
+  readonly approval: Readonly<ApprovalSettings>;
+  /** The delegated approvers' verifier: the core's own, for APPROVAL_AUDIENCE, built here with the
+   *  AUTH_* issuer and key set. Undefined when no approval audience is configured. */
+  readonly approvalVerifier: JwtVerifier | undefined;
 }
 
 /** CLEARSEAL_MANIFEST as a path or a `file:` URL. Required: the operator names the manifest. */
@@ -97,6 +103,7 @@ export function captureSettings(env: NodeJS.ProcessEnv): Settings {
   for (const [k, v] of Object.entries(env)) if (typeof v === "string") copy[k] = v;
   const frozen = Object.freeze(copy);
   const key = requestStateKeyFromEnv(frozen);
+  const approval = approvalFromEnv(frozen);
   return Object.freeze({
     env: frozen,
     editionName: editionNameFrom(frozen),
@@ -109,5 +116,8 @@ export function captureSettings(env: NodeJS.ProcessEnv): Settings {
     // Read from the frozen copy only: neither reader has a process.env default (CSR-WO-2007 §1.4).
     rateLimit: rateLimitFromEnv(frozen),
     tripwire: tripwireFromEnv(frozen),
+    approval,
+    // The same verifier, the same issuer and key set, a distinct audience (APR-9).
+    approvalVerifier: approval.audience === "" ? undefined : jwtVerifierFromEnv(Object.freeze({ ...frozen, AUTH_AUDIENCE: approval.audience })),
   });
 }

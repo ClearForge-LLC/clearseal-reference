@@ -34,6 +34,8 @@ import { ValidationPool } from "../transport/schema-pool.ts";
 import { renderAuditLine, type RunningTransport, startTransport } from "../transport/server.ts";
 import { openAuditStore } from "../audit/config.ts";
 import { captureSettings, NodeStartError, type Settings } from "./settings.ts";
+import { ApprovalService } from "../approval/service.ts";
+import { type Notifier, StderrNotifier, WebhookNotifier } from "../approval/notifier.ts";
 
 export { NodeStartError, SettingsError, type Settings } from "./settings.ts";
 
@@ -310,9 +312,16 @@ export async function startNode(edition: Edition, prepared: PreparedNode): Promi
   const config = readEditionConfig(edition.configSchema, settings.env);
   const limits = DEFAULT_LIMITS;
   const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
+  // CSR-WO-2001: the approval backend, when the operator configured one in the snapshot. Without it the
+  // registry refuses every elevated tool, exactly as before (APR-14).
+  let approval: ApprovalService | undefined;
+  if (settings.approval.backend === "listener") {
+    const notifier: Notifier = settings.approval.notifier === "webhook" ? new WebhookNotifier(settings.approval.webhookUrl) : new StderrNotifier();
+    approval = new ApprovalService({ settings: settings.approval, notifier, clock: () => performance.now(), audit: prepared.audit, listens: true, ...(settings.approvalVerifier === undefined ? {} : { delegatedVerifier: settings.approvalVerifier }) });
+  }
   let registry: PinnedRegistry;
   try {
-    registry = new PinnedRegistry(prepared.gate.admit(edition.definitions), { compile: pool.compile, limits, strict: settings.pinStrict, execToolsForbidden: settings.execToolsForbidden });
+    registry = new PinnedRegistry(prepared.gate.admit(edition.definitions), { compile: pool.compile, limits, strict: settings.pinStrict, execToolsForbidden: settings.execToolsForbidden, approvalBackend: approval === undefined ? "none" : "configured" });
   } catch (err) {
     await pool.close();
     throw err;
@@ -331,6 +340,7 @@ export async function startNode(edition: Edition, prepared: PreparedNode): Promi
       // The snapshot's settings for the two CSR-WO-2007 controls, never a later read.
       rateLimit: settings.rateLimit,
       tripwire: settings.tripwire,
+      ...(approval === undefined ? {} : { approval }),
     }),
   );
 }

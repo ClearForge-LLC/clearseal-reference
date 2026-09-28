@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { APPROVAL_BACKEND, basisProblem, MAX_BASIS, ObligationError, type Obligation, obligationOf, type RuleId, unmetObligations } from "../../src/capability/ladder.ts";
+import { basisProblem, DEFAULT_APPROVAL_BACKEND, MAX_BASIS, ObligationError, type Obligation, obligationOf, type RuleId, unmetObligations } from "../../src/capability/ladder.ts";
 import { CAPABILITY_CLASSES } from "../../src/capability/fields.ts";
 import type { CapabilityTag, PinnableTool } from "../../src/pinning/manifest.ts";
 import { DEFAULT_LIMITS } from "../../src/transport/config.ts";
@@ -224,7 +224,7 @@ void describe("enforced at construction, through the real gate and registry", ()
   });
 
   void it("any elevated tool is refused while no approval backend exists", () => {
-    assert.equal(APPROVAL_BACKEND, "none");
+    assert.equal(DEFAULT_APPROVAL_BACKEND, "none");
     for (const c of COMBINATIONS.filter((x) => x.elevated)) {
       refused(`elevated ${c.capability_class}${c.untrusted_input_facing ? ", untrusted" : ""}${c.privacy_sensitive ? ", privacy" : ""}`, best(c), "CAP-7", /elevated requires an approval backend; none is configured/);
     }

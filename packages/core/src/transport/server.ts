@@ -36,6 +36,8 @@ import { JwtVerifier, jwtVerifierFromEnv } from "../auth/verifier.ts";
 import { ephemeralDigester } from "../audit/digest.ts";
 import { checkRateLimit, DEFAULT_RATE_LIMIT, RateLimiter, type RateLimitSettings } from "../rate-limit/limiter.ts";
 import { checkTripwire, DEFAULT_TRIPWIRE, Tripwire, type TripwireSettings } from "../tripwire/tripwire.ts";
+import { type RunningApprovalListener, startApprovalListener } from "../approval/listener.ts";
+import type { ApprovalService } from "../approval/service.ts";
 
 export interface TransportOptions {
   config?: Parameters<typeof resolveConfig>[0];
@@ -69,6 +71,10 @@ export interface TransportOptions {
   /** The monotonic clock, in milliseconds, the rate limit and the tripwire run on (never the wall
    *  clock). Default `performance.now`. Injected by tests. */
   monotonic?: () => number;
+  /** The approval backend (CSR-WO-2001). Required when a registered tool needs approval: without it
+   *  the transport refuses to start (approval/RULES.md APR-14). A listener backend gets its own
+   *  listener, started here on its own address and port (APR-7). */
+  approval?: ApprovalService;
 }
 
 export interface RunningTransport {
@@ -77,6 +83,8 @@ export interface RunningTransport {
   readonly config: TransportConfig;
   /** Requests in progress now (for tests and health). */
   inFlight(): number;
+  /** The approval listener's URL, when this transport started one (CSR-WO-2001). */
+  readonly approvalUrl?: string;
   close(): Promise<void>;
 }
 
@@ -262,6 +270,9 @@ export async function startTransport(options: TransportOptions): Promise<Running
         .filter((t) => t.capabilityClass === "read_only")
         .map((t) => t.name),
     );
+    // APR-14: a tool that needs approval is never served without a gate behind it.
+    const needing = registry.list().filter((t) => t.approval !== undefined).map((t) => t.definition.name);
+    if (needing.length > 0 && options.approval === undefined) throw new Error(`the tools ${needing.join(", ")} need approval and no approval backend was given: the node does not start without one (approval/RULES.md APR-14)`);
   } catch (err) {
     await options.validationPool?.close();
     throw err;
@@ -512,6 +523,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
             // The call goes on exactly as it would without the tripwire.
           }
         },
+        ...(options.approval === undefined ? {} : { approval: options.approval }),
         trackHandler: (running) => {
           handlerSettled = false;
           const settled = (): void => {
@@ -561,6 +573,20 @@ export async function startTransport(options: TransportOptions): Promise<Running
     throw err;
   }
   const { port } = server.address() as AddressInfo;
+  // APR-7: the approval routes live on their own listener, never this one.
+  let approvalListener: RunningApprovalListener | undefined;
+  if (options.approval?.listens === true) {
+    try {
+      approvalListener = await startApprovalListener(options.approval, { host: config.host, port });
+    } catch (err) {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      });
+      await options.validationPool?.close();
+      throw err;
+    }
+  }
   const authority = `${config.host.includes(":") ? `[${config.host}]` : config.host}:${String(port)}`;
   allowedHosts = (config.allowedHosts.length > 0 ? config.allowedHosts : [authority, `localhost:${String(port)}`]).map((h) => h.toLowerCase());
   allowedOrigins = (config.allowedOrigins.length > 0 ? config.allowedOrigins : [`http://${authority}`, `http://localhost:${String(port)}`]).map((o) => o.toLowerCase());
@@ -572,7 +598,9 @@ export async function startTransport(options: TransportOptions): Promise<Running
     url: `http://${authority}${config.endpointPath}`,
     config,
     inFlight: () => inFlight,
+    ...(approvalListener === undefined ? {} : { approvalUrl: approvalListener.url }),
     close: async () => {
+      await approvalListener?.close();
       await new Promise<void>((resolve) => {
         server.close(() => resolve());
         server.closeAllConnections();

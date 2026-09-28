@@ -9,7 +9,8 @@
 import { readFileSync } from "node:fs";
 
 import { type Admission, isIssuedAdmission, PinGate, type PinRefusal } from "./gate.ts";
-import { APPROVAL_BACKEND, ObligationError, obligationOf, unmetObligations } from "../capability/ladder.ts";
+import { type ApprovalBackend, DEFAULT_APPROVAL_BACKEND, ObligationError, obligationOf, unmetObligations } from "../capability/ladder.ts";
+import { humanOnly } from "../approval/policy.ts";
 import { type Cage, type CagePolicy, cagePolicy, type Reach, recordingCageFactory } from "../containment/cage.ts";
 import type { HarnessTool } from "../containment/harness.ts";
 import { type Domain, DomainError, parseDomain } from "../containment/domain.ts";
@@ -33,6 +34,9 @@ export interface PinnedRegistryOptions {
    *  same frozen snapshot). Omitted: the core's RecordingCage. Editions pass their OS-level Cage
    *  here, and must honour the policy: a read_only tool's cage opens for reading only. */
   cageFor?: (domain: Domain, policy: CagePolicy) => (onRefused?: (reach: Reach) => void) => Cage;
+  /** Whether an approval backend is configured (CSR-WO-2001: the snapshot's APPROVAL_BACKEND).
+   *  Omitted: "none", and every elevated tool is refused at construction (CAP-7). */
+  approvalBackend?: ApprovalBackend;
 }
 
 /** A definition the registry refuses at construction: its containment domain is malformed or
@@ -74,6 +78,7 @@ function frozenTool(tool: RegisteredTool): RegisteredTool {
     validate: tool.validate,
     paramHeaders: deepFreeze([...tool.paramHeaders]),
     ...(tool.newCage === undefined ? {} : { newCage: tool.newCage }),
+    ...(tool.approval === undefined ? {} : { approval: Object.freeze({ humanOnly: tool.approval.humanOnly }) }),
   });
 }
 
@@ -89,6 +94,7 @@ export class PinnedRegistry implements ToolRegistry {
     if (!isIssuedAdmission(admission)) throw new TypeError("a pinned registry is built only from PinGate.admit's Admission");
     const tools = new Map<string, RegisteredTool>();
     const execForbidden = options.execToolsForbidden ?? execToolsForbiddenFromEnv();
+    const approvalBackend = options.approvalBackend ?? DEFAULT_APPROVAL_BACKEND;
     const cageFor = options.cageFor ?? ((domain: Domain, policy: CagePolicy) => recordingCageFactory(domain, policy));
     const domains = new Map<string, readonly string[] | null>();
     const classes = new Map<string, string>();
@@ -107,11 +113,14 @@ export class PinnedRegistry implements ToolRegistry {
       }
       // The capability obligation (CSR-WO-2000, capability/RULES.md), computed from the same frozen
       // tag: Rule-of-Two, the owned_state basis, and no elevated tool while no approval backend exists.
-      const unmet = unmetObligations(tool.capability, obligationOf(tool.capability), APPROVAL_BACKEND);
+      const unmet = unmetObligations(tool.capability, obligationOf(tool.capability), approvalBackend);
       if (unmet.length > 0) throw new ObligationError(tool.name, unmet);
       // Served exactly as hashed: the gate's frozen snapshot of name, description and schema.
       const prepared = prepareTool({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, handler: tool.handler }, options.compile, options.limits);
-      tools.set(tool.name, frozenTool({ ...prepared, newCage: cageFor(domain, cagePolicy(capabilityClass)) }));
+      // CSR-WO-2001: an elevated tool needs approval on every call, and whether only a human may give it
+      // is read from the same pinned tag (approval/RULES.md APR-1, APR-6).
+      const approval = tool.capability.elevated ? { humanOnly: humanOnly(tool.capability) } : undefined;
+      tools.set(tool.name, frozenTool({ ...prepared, newCage: cageFor(domain, cagePolicy(capabilityClass)), ...(approval === undefined ? {} : { approval }) }));
       domains.set(tool.name, tool.capability.containment_domain);
       classes.set(tool.name, capabilityClass);
     }

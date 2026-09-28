@@ -7,7 +7,7 @@
 
 import { DIGEST_FORM, type Digester } from "./digest.ts";
 
-type Kind = "code" | "errname" | "int" | "tool" | "method" | "hex64" | "config" | "argdigest" | "digest";
+type Kind = "code" | "errname" | "int" | "tool" | "method" | "hex64" | "config" | "argdigest" | "digest" | "principal";
 type PrincipalRule = "node" | "caller" | "caller-or-unauthenticated" | "unauthenticated";
 
 interface EventRule {
@@ -45,6 +45,15 @@ export const EVENTS: Readonly<Record<string, EventRule>> = Object.freeze({
   "rate-limited": { principal: "caller", fields: { retryAfterS: "int" } },
   "tripwire-read-burst": { principal: "caller", fields: { count: "int", windowS: "int" } },
   "principal-state-full": { principal: "caller", fields: { control: "code", cap: "int" } },
+  "approval-requested": { principal: "caller", fields: { request: "code", tool: "tool", args: "argdigest", human: "code" } },
+  "approval-notified": { principal: "caller", fields: { request: "code", tool: "tool" } },
+  "approval-notify-failed": { principal: "caller", fields: { request: "code", tool: "tool", reason: "code" } },
+  "approval-approved": { principal: "caller", fields: { request: "code", tool: "tool", approver: "principal", via: "code" } },
+  "approval-declined": { principal: "caller", fields: { request: "code", tool: "tool", approver: "principal", via: "code" } },
+  "approval-redeemed": { principal: "caller", fields: { request: "code", tool: "tool", approver: "principal", args: "argdigest" } },
+  "approval-expired": { principal: "caller", fields: { request: "code", tool: "tool", phase: "code" } },
+  "approval-refused": { principal: "caller", fields: { request: "code", tool: "tool", kind: "code" } },
+  "approval-decision-refused": { principal: "caller-or-unauthenticated", fields: { request: "code", tool: "tool", kind: "code", approver: "principal", via: "code" } },
   "audit-resumed": { principal: "node", fields: { fromSeq: "int", unanchored: "int" } },
 });
 
@@ -82,6 +91,8 @@ function ofKind(kind: Kind, v: unknown): boolean {
       return typeof v === "string" && DIGEST_FORM.test(v);
     case "digest":
       return false;
+    case "principal":
+      return typeof v === "string" && PRINCIPAL.test(v);
   }
 }
 

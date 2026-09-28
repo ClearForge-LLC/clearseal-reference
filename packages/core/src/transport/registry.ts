@@ -56,6 +56,9 @@ export interface RegisteredTool {
   paramHeaders: readonly ParamHeader[];
   /** A fresh cage for one call, built from the tool's pinned domain. Absent: an empty domain. */
   newCage?: (onRefused?: (reach: Reach) => void) => Cage;
+  /** Present when the tool's pinned tag is `elevated`: every call needs a grant (CSR-WO-2001), and
+   *  `humanOnly` when only a human may decide it (approval/RULES.md APR-6). */
+  approval?: Readonly<{ humanOnly: boolean }>;
 }
 
 /** What the pin gate decided, as the transport needs it: counts for /health, the refusals for the
