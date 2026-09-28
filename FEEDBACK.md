@@ -12,7 +12,10 @@ limit of §1.2 is stated below, because it is the question §7's first condition
   passes. Eight rows are new, and one is re-targeted.
 - `node scripts/leak-gate.mjs --tree` and `--history` exit 0, run unpiped with the exit code checked
   directly, before every push.
-- CI on both runners: the pull request's checks (recorded in the next commit, from the first run).
+- CI on both runners: `test (ubuntu-latest)` and `test (windows-latest)` green at `ca72777`, each at
+  745/69/8/4, with `leak-gate`, `audit`, `sbom` and `provenance` green; `control-deletion` runs on
+  every push. **The first run, at `0f57b59`, failed on Windows**: the installed-command proof
+  relied on the runner's npm cache (see *Choices*). Linux was green there too.
 - Protected surfaces diff to empty against `f94b78c`; every changed file is on the working surface,
   plus this file and `CHANGELOG.md`. `packages/core/package.json` is unchanged.
 - The minted token lived in a mode-0600 scratch file, was never written to git config or a remote
@@ -156,7 +159,12 @@ INSTALLED linux as node node_modules/.bin/clearseal-node: clearseal-node listeni
 
 Windows (the CI `test (windows-latest)` job):
 
-(recorded in the next commit, from the pull request's first CI run.)
+```
+INSTALLED win32 by its npm bin path (node_modules\.bin\clearseal-node.cmd): clearseal-node listening on http://127.0.0.1:<port>/mcp; an unauthenticated tools/list → 401
+INSTALLED win32 as node <a file link to dist/node/cli.js>: clearseal-node listening on http://127.0.0.1:<port>/mcp; an unauthenticated tools/list → 401
+```
+
+The Windows runner allowed a file link, so the junction fallback was not needed there.
 
 ## §3.3 Each documented case, with its message
 
