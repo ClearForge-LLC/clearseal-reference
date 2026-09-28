@@ -7,12 +7,12 @@ event per burst. It refuses nothing: a false alarm that refused would be a denia
 did to itself. Delivering the event to a person is a notifier's job, later; the tripwire writes to the
 audit store only.
 
-**The standard, at the pinned edition (`66b640d`).** Architecture §8 cites §8 #9 for this row. At
-`66b640d` it reads: *"Alert fatigue → re-sign on every legitimate change, so an unexplained drift alert
-is always an incident."* It describes drift alerts, not a tripwire, and requires nothing of one. What
-it does bear on is the defaults: an alarm that honest use sets off is alert fatigue, so the defaults
-below are set where no honest single client reaches them (TW-9), and one burst is one row (TW-2, TW-3),
-never a row per call.
+**Grounds: the standard §9 step 6; architecture §5.** At the pinned edition (`66b640d`), §9 step 6 asks
+every security decision to list its inputs and classify each as pinned, out of scope with a named
+control, or unpinned authority; this file's last section does. The control itself is architecture
+§5's ruling (*Tripwire and rate limit*): a read burst is recorded loudly and refused nothing. The
+defaults are set where no honest single client reaches them (TW-10), and one burst is one row (TW-2,
+TW-3), never a row per call.
 
 ## What counts, and why refused calls count
 

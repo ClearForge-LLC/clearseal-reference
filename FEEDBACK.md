@@ -25,31 +25,21 @@ answered in *The standard's sentences*, below.
 
 ## Read this first
 
-- **The standard's §8 #9 is not about either control.** Architecture §8 cites §8 #9 for both rows. At
-  the pinned edition `66b640d`, §8 #9 reads: *"Alert fatigue → re-sign on every legitimate change, so an
-  unexplained drift alert is always an incident."* The one sentence there that names a rate limit is §9
-  step 6 (below). Neither requires anything §1 does not or forbids anything it allows, so this is not
-  §7's first condition; the controls are the architecture's ruling (§5), and I cite the standard only
-  for what it says. **For you:** the §8 rows' "§8 #9" may want to read "§9 step 6 (inputs); architecture
-  §5".
-- **Two files outside the named working surface changed, one of them necessarily.**
-  - `node/start.ts`: two lines hand the snapshot's `rateLimit` and `tripwire` to the transport. Without
-    them the node ignores the settings it captured; the row `node-passes-control-settings` proves it.
-  - `transport/SPEC-MAP.md`: TL-11 ("rate limiting") moves from *seam* to *impl*, and ST-3's list of
-    HTTP-level refusals gains the `429`. Doc accuracy only; yours to keep or drop.
-- **A third audit event, `principal-state-full`.** The WO names two. At a state cap, a newcomer is
-  served untracked (the limiter) or not counted (the tripwire); that is the only choice that neither
-  refuses an innocent principal nor resets a limited one (below), and it should not be silent. So one
-  row per episode says so, with the control and the cap. It joins the event table and the policy.
-- **"The existing suite does not trip" (§1.4), read two ways, measured both.**
-  - The rate limit refuses nothing in the suite. Its binding case is the core's statelessness test:
-    1,100 sequential calls from one principal in about a third of a second. That set the default
-    burst at 1,500, not 300.
-  - The tripwire: the P1 evidence suite's nodes write no tripwire row (a test, below). The core's
-    statelessness test does write one, on the defaults, and should: 1,100 `read_only` calls in a third
-    of a second is a burst by construction, and the tripwire refuses nothing. A threshold above
-    1,100 a minute could not catch a model-driven sweep (a few calls a second), so I did not raise it
-    to keep that test quiet. **For you:** confirm this reading.
+- **Amended after the architect's review of the pull request.** One commit, these changes only:
+  - **The default burst is 300 again** (defaulted safe, architecture §5). I had raised it to 1,500 to
+    fit the core's statelessness test (1,100 sequential calls from one principal in a third of a
+    second). The ruling: the default is not raised to fit a test. That test now passes its own budget
+    (`burst: 2000`) through the transport's `rateLimit` setting; the P1 evidence suite still trips
+    nothing on the defaults (its clause, below, re-run on the amended code).
+  - **Both RULES.md files cite "the standard §9 step 6; architecture §5"**, not the WO's §8 #9. At
+    `66b640d`, §8 #9 is *"Alert fatigue → re-sign on every legitimate change, so an unexplained drift
+    alert is always an incident."*, which is about neither control; the architect fixes the §8 rows on
+    merge.
+- **Ruled and approved at review:** the third audit event `principal-state-full`; the two lines in
+  `node/start.ts` that hand the snapshot's settings to the transport; the SPEC-MAP edits (TL-11 to
+  *impl*, the `429` in ST-3); reading the pinned class through `reachTargets`; and the tripwire firing
+  once in the core's statelessness test, which stays: 1,100 `read_only` calls in a third of a second is
+  a burst by construction, and the tripwire refuses nothing.
 - **TW-6 read carefully (review F9).** The tripwire's own code cannot refuse or alter a call, and a
   sink that *throws* on its row changes no answer. Under a store-backed node, a failed append of any
   row (this one included) does not throw: it closes the node, the audit store's existing N4 policy
@@ -98,7 +88,7 @@ before `Mcp-Param-*` and the arguments. A sweep is a sweep whether or not each c
 a tripwire that counted only successful reads could be kept quiet by probes that fail. A false alarm
 costs one row. The class is read once at start from the registry's frozen snapshot through
 `reachTargets`, its only public accessor for the class (with a placeholder corpus that is never run).
-**For you:** a dedicated accessor would be cleaner; `pinning/**` is protected here (review F8).
+Approved at review (a dedicated accessor would need `pinning/**`, protected here; review F8).
 
 **§1.3, the window.** Exact, not approximate: each principal keeps its last `threshold` timestamps in a
 ring, and a burst is the oldest of them inside the window. Memory is `threshold × maxPrincipals`
@@ -113,7 +103,7 @@ at start, for a direct caller.
 
 | Variable | Default | Why |
 |---|---|---|
-| `RATE_LIMIT_BURST` | 1,500 | Past any honest turn (a handful of calls), and past the suite's heaviest single-principal burst (1,100). |
+| `RATE_LIMIT_BURST` | 300 | Defaulted safe: far past any honest turn (a handful of calls). A stress test passes its own budget. |
 | `RATE_LIMIT_REFILL_PER_MINUTE` | 600 | Ten a second sustained: above a model's pace, below a scripted sweep's. |
 | `RATE_LIMIT_MAX_PRINCIPALS` | 10,000 | A bucket is two numbers and a key; only principals still refilling are held. |
 | `TRIPWIRE_THRESHOLD` | 200 | Past any honest single client's reading inside a minute, and past the P1 evidence suite's. |
@@ -169,8 +159,9 @@ EXIT | the rate limit's and the tripwire's defaults trip nothing across the P1 e
 ```
 
 And measured once, not a test: the core's statelessness pattern (1,100 sequential `read_only` calls by
-one principal) on the defaults writes one `tripwire-read-burst` row (`count` 200 in 60 s) and no
-`rate-limited` row, every call answered `200`.
+one principal) writes one `tripwire-read-burst` row on the default tripwire (`count` 200 in 60 s). On
+the default rate limit (burst 300) it would be refused from its 301st call, which is why that test
+passes its own budget (the amendment above).
 
 ## §3.3 Red-proofs and control-deletion rows
 

@@ -100,7 +100,9 @@ void describe("result cap and handler timeout at their edges", () => {
 
 void describe("WO §5.7 statelessness: 1,000 sequential requests retain nothing per request", () => {
   void it("in-flight returns to 0 and heap growth stays small", async () => {
-    const s = await start();
+    // A stress pattern, not an honest client: 1,100 calls from one principal in about a third of a
+    // second. It passes its own rate-limit budget; the default (300) is not raised to fit it (CSR-WO-2007).
+    const s = await start({ rateLimit: { burst: 2_000, refillPerMinute: 600, maxPrincipals: 10 } });
     try {
       for (let i = 0; i < 100; i++) await modern(s.t, "tools/call", { name: "echo", arguments: { text: "warm" } });
       globalThis.gc?.();

@@ -14,7 +14,7 @@ export interface RateLimitSettings {
 }
 
 /** The defaults, and why each: rate-limit/RULES.md *Settings and defaults*. */
-export const DEFAULT_RATE_LIMIT: Readonly<RateLimitSettings> = Object.freeze({ burst: 1_500, refillPerMinute: 600, maxPrincipals: 10_000 });
+export const DEFAULT_RATE_LIMIT: Readonly<RateLimitSettings> = Object.freeze({ burst: 300, refillPerMinute: 600, maxPrincipals: 10_000 });
 
 /** Each setting's variable, and its ceiling. */
 const VARIABLES: Readonly<Record<keyof RateLimitSettings, { name: string; max: number }>> = Object.freeze({

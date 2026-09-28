@@ -6,14 +6,11 @@ client*, *a hostile authenticated principal* and *a stolen bearer token*: a vali
 an actual limit. It is not a global limiter (a node-wide flood meets the transport's concurrency cap and
 the operator's edge) and not caller entitlement (P6).
 
-**The standard, at the pinned edition (`66b640d`).** Architecture §8 cites §8 #9 for this row. At
-`66b640d`, §8 #9 reads: *"Alert fatigue → re-sign on every legitimate change, so an unexplained drift
-alert is always an incident."* It does not describe a rate limit, and it requires nothing of one. The
-one sentence at `66b640d` that names a rate limit is §9 step 6: *"For every security decision the node
-makes (auth, capability gating, elevated confirmation, egress allowlist, rate limit), list every input
-and classify each: pinned / out-of-scope-with-a-named-control / UNPINNED AUTHORITY (finding)."* That list
-is the last section of this file. The control itself is the architecture's ruling, not the standard's
-text.
+**Grounds: the standard §9 step 6; architecture §5.** At the pinned edition (`66b640d`), §9 step 6
+reads: *"For every security decision the node makes (auth, capability gating, elevated confirmation,
+egress allowlist, rate limit), list every input and classify each: pinned /
+out-of-scope-with-a-named-control / UNPINNED AUTHORITY (finding)."* That list is the last section of this
+file. The control itself is architecture §5's ruling (*Tripwire and rate limit*).
 
 ## Algorithm: a token bucket, and why
 
@@ -56,7 +53,7 @@ concurrency cap still bounds the node, and the `principal-state-full` row makes 
 
 | Variable | Default | Ceiling | Why this default |
 |---|---|---|---|
-| `RATE_LIMIT_BURST` | 1,500 | 1,000,000 | An honest MCP host issues a handful of requests per model turn, so any burst in the hundreds is past an honest turn. The floor is the suite's: its heaviest single-principal burst is the statelessness test's 1,100 sequential calls in about a third of a second, and the default must not refuse it (WO §1.4). 1,500 leaves margin; the sustained rate below is what a hostile principal meets. |
+| `RATE_LIMIT_BURST` | 300 | 1,000,000 | Defaulted safe (architecture §5): an honest MCP host issues a handful of requests per model turn, so 300 at once is far past any honest turn and past every honest client in the suite. A test that drives a stress pattern (the statelessness test's 1,100 sequential calls) passes its own budget; the default is not raised to fit it. |
 | `RATE_LIMIT_REFILL_PER_MINUTE` | 600 | 6,000,000 | Ten requests a second, sustained, is well above a model's pace and well below what a scripted sweep does. |
 | `RATE_LIMIT_MAX_PRINCIPALS` | 10,000 | 1,000,000 | A bucket is two numbers and a key, so the table stays in the low megabytes; only principals still refilling are held. |
 
