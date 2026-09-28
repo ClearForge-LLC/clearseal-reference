@@ -77,6 +77,18 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     `postprepare`, `dependencies`), or a `binding.gyp`, is a finding.
   - The teaching README tells operators to install editions with scripts disabled and to start
     `clearseal-node` without a module-loading flag.
+- **CSR-WO-2007:** tripwire and rate limit, as two controls.
+  - A per-principal rate limit after authentication (`packages/core/src/rate-limit/`): a token bucket
+    per verified principal. Every authenticated request takes a token before a capacity slot is taken
+    or the body is read. Over budget, the principal gets `429` with `Retry-After` (whole seconds,
+    rounded up) and a JSON-RPC error, and one `rate-limited` audit row is written. Every other
+    principal is served.
+  - A read-burst tripwire (`packages/core/src/tripwire/`): per principal, it counts `tools/call`s that
+    name an admitted tool whose pinned class is `read_only`. It writes exactly one `tripwire-read-burst`
+    row per burst and re-arms after a quiet period. It refuses, delays and alters nothing.
+  - Both run on an injected monotonic clock and hold bounded state. At the cap, a newcomer goes
+    untracked, and one `principal-state-full` row says so. Their `RATE_LIMIT_*` and `TRIPWIRE_*`
+    settings are read in the settings snapshot and validated before start.
 - **CSR-WO-2002:** the audit store behind the audit seam.
   - `packages/core/src/audit/`: the `AuditStore`, `AnchorSink` and `Signer` interfaces; a
     JSON-lines store whose rows (`{ seq, time, event, principal, fields, prev }`, canonical JSON)
