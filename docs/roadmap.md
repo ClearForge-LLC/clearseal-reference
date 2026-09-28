@@ -164,7 +164,7 @@ control is proven on, and after `-0100` it is a build rather than a configuratio
   adversarial pass: admitted tools deeply frozen so nothing in the process changes what `tools/list`
   serves (N2); the cage opens without blocking and admits regular files only; the Windows cage
   resolves symlinks and junctions, measured on `windows-latest`.
-- `CSR-WO-1007c` — (WO written 2026-09-27; after the exit, not an exit clause) from the re-test #2 report: the installed
+- `CSR-WO-1007c` — (built, merged `a2c6b9f` 2026-09-28; after the exit, not an exit clause) from the re-test #2 report: the installed
   `clearseal-node` runs (a `#!` line and a main-module check that holds through the npm bin symlink);
   start refused when `NODE_OPTIONS` or the process's own flags preload a module (`--import`, `--require`,
   `--loader`); the checker treats any parse error as a finding (M-1, `import source`); an edition that
@@ -232,6 +232,10 @@ red-proof, and the teaching edition demonstrates every rung except exec.
 - `CSR-WO-2007` — tripwire and rate limit, as two controls: a read-burst tripwire that emits one
   loud audit event and refuses nothing; a per-principal rate limit that answers `429` with
   `Retry-After` and leaves other principals untouched.
+- `CSR-WO-2008a` — (WO written 2026-09-28) the control-deletion job sharded: `--shard i/n` with a proven
+  partition, a CI matrix sized by one number, and an aggregate job that keeps the name
+  `control-deletion`. Ruled by the gate: the job stays an optional check until the gate decides it
+  should gate merges; designed now to scale, engaged as needed.
 - `CSR-WO-2008` — (built, merged `290077a` 2026-09-26: 45 controls; pulled forward during the P1 exit red-team, rows for every control built so far) the control-deletion job: each control stubbed out in turn, the suite required to
   fail for each; wired into CI as its own job.
 - `CSR-WO-2009` — the *resources* and *prompts* primitives (`resources/list`, `resources/read`,
