@@ -1,0 +1,11 @@
+--- a/packages/core/test/boundary/supply-boundary.ts
++++ b/packages/core/test/boundary/supply-boundary.ts
+@@ -156,7 +156,7 @@
+       findings.push({ file: rel, rule, detail });
+     };
+     // A file with no extension is JavaScript to Node, so it is parsed as JavaScript here.
+-    const src = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, basename(file).includes(".") ? undefined : ts.ScriptKind.JS);
++    const src = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, basename(file).includes(".") ? undefined : undefined);
+     // (f) A file these rules cannot read as written is a finding, whatever else they find in it.
+     for (const d of syntaxErrors(src)) {
+       const { line } = d.start === undefined ? { line: -1 } : src.getLineAndCharacterOfPosition(d.start);

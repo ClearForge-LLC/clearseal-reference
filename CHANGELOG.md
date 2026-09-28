@@ -58,6 +58,25 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
   - `manifest-loaded` is written only after the manifest parses; a manifest read but refused writes
     `manifest-refused` with the same path and hash. A manifest renamed or replaced under its path is
     refused as a file that changed, not as a symbolic link.
+- **CSR-WO-1007c:** the node entry, finished (the H1 re-test #2's M-1 and its two Info items).
+  - The installed `clearseal-node` command starts a node. The entry carries a `#!/usr/bin/env node`
+    line, and its main-module check compares real paths on both sides, so npm's bin link, the
+    Windows `.cmd` shim and `node <link>` all start one. A test packs the core and the teaching
+    edition, installs them with npm into a temporary prefix, and runs the command both ways on both
+    runners.
+  - Before the settings snapshot, the entry refuses a process started with a module-loading flag,
+    from `NODE_OPTIONS` or the command line: `--import`, `--require`/`-r`, `--loader`/
+    `--experimental-loader`, `--experimental-config-file`/`--experimental-default-config-file`,
+    `--snapshot-blob`, `--experimental-package-map`, `-e`/`--eval`, `-p`/`--print`, and `--test`,
+    `--test-reporter` and `--test-global-setup`. The refusal names the flag and where it came from.
+    Other flags are allowed.
+  - The supply-boundary checker makes any syntactic diagnostic TypeScript reports for an edition
+    file a finding, naming the file, the line and the diagnostic, so `import source m from "X"` no
+    longer hides `X` from the import rules. A `package.json` that declares a script npm runs on
+    install (`preinstall`, `install`, `postinstall`, `prepublish`, `preprepare`, `prepare`,
+    `postprepare`, `dependencies`), or a `binding.gyp`, is a finding.
+  - The teaching README tells operators to install editions with scripts disabled and to start
+    `clearseal-node` without a module-loading flag.
 - **CSR-WO-2002:** the audit store behind the audit seam.
   - `packages/core/src/audit/`: the `AuditStore`, `AnchorSink` and `Signer` interfaces; a
     JSON-lines store whose rows (`{ seq, time, event, principal, fields, prev }`, canonical JSON)

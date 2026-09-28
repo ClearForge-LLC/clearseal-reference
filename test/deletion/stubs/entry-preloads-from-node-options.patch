@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/cli.ts
++++ b/packages/core/src/node/cli.ts
+@@ -115,7 +115,7 @@
+  */
+ export function moduleLoadingFlags(nodeOptions: string | undefined, execArgv: readonly string[]): string[] {
+   const found: string[] = [];
+-  for (const [source, tokens] of [["NODE_OPTIONS", nodeOptionsTokens(nodeOptions ?? "")], ["the command line", execArgv]] as const) {
++  for (const [source, tokens] of [["NODE_OPTIONS", nodeOptionsTokens(nodeOptions === undefined ? "" : "")], ["the command line", execArgv]] as const) {
+     for (const token of tokens) {
+       const name = flagName(token);
+       if (MODULE_LOADING_FLAGS.has(name)) found.push(`${name} (from ${source})`);

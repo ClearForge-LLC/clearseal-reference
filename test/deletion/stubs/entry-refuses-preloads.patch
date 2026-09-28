@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/cli.ts
++++ b/packages/core/src/node/cli.ts
+@@ -131,7 +131,7 @@
+ export async function runNode(env: NodeJS.ProcessEnv, execArgv: readonly string[] = process.execArgv): Promise<{ url: string; close: () => Promise<void> }> {
+   // 0: nothing but the core ran before this line (CSR-WO-1007c §1.2).
+   const preloads = moduleLoadingFlags(env["NODE_OPTIONS"], execArgv);
+-  if (preloads.length > 0) throw new SettingsError(`the process was started with ${preloads.join(", ")}: a module-loading flag runs code before the node reads its settings; start clearseal-node without it`);
++  if (preloads.length > 0 && preloads.length < 0) throw new SettingsError(`the process was started with ${preloads.join(", ")}: a module-loading flag runs code before the node reads its settings; start clearseal-node without it`);
+   // 1, 2: every setting and the manifest, before any edition code.
+   const settings = captureSettings(env);
+   const prepared = PreparedNode.prepare(settings);
