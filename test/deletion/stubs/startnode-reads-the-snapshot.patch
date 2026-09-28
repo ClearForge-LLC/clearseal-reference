@@ -1,6 +1,6 @@
 --- a/packages/core/src/node/start.ts
 +++ b/packages/core/src/node/start.ts
-@@ -307,7 +307,7 @@ export async function startNode(edition: Edition, prepared: PreparedNode): Promi
+@@ -310,7 +310,7 @@
    if (extra.length > 0) throw new NodeStartError(`startNode takes an edition's definitions and configSchema, nothing else (not ${extra.map(String).join(", ")}): the operator names the manifest in CLEARSEAL_MANIFEST`);
    const { settings } = prepared;
    // The edition's own variables, from the snapshot's frozen copy: never from process.env (§1.2).
@@ -8,4 +8,4 @@
 +  const config = readEditionConfig(edition.configSchema, process.env);
    const limits = DEFAULT_LIMITS;
    const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
-   let registry: PinnedRegistry;
+   // CSR-WO-2001: the approval backend, when the operator configured one in the snapshot. Without it the
