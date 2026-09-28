@@ -338,3 +338,14 @@ void describe("CSR-WO-2001 §1.6, §1.7: the approval backend comes from the sna
     }
   });
 });
+
+void describe("CSR-WO-2001 APR-9: the delegated approvers' verifier is the core's, for the approval audience", () => {
+  void it("APPROVAL_AUDIENCE gives a verifier with the node's issuer and that audience, never the node's", () => {
+    const settings = captureSettings({ ...base, APPROVAL_AUDIENCE: "https://approve.example.invalid/decide" });
+    assert.ok(settings.approvalVerifier !== undefined);
+    assert.equal(settings.approvalVerifier.audience, "https://approve.example.invalid/decide");
+    assert.equal(settings.approvalVerifier.issuer, settings.verifier.issuer);
+    assert.notEqual(settings.approvalVerifier.audience, settings.verifier.audience);
+    assert.equal(captureSettings(base).approvalVerifier, undefined, "no approval audience, no delegated approvers");
+  });
+});
