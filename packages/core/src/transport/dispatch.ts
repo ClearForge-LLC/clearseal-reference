@@ -50,6 +50,10 @@ export interface DispatchContext {
   digestArgs: (args: unknown) => string;
   /** Keeps the in-flight slot until a started handler settles, even after the response (F3). */
   trackHandler: (running: Promise<unknown>) => void;
+  /** Called once when a `tools/call` names an admitted tool, before its headers and arguments are
+   *  checked: the tripwire's count (CSR-WO-2007 §1.3, tripwire/RULES.md TW-1). It returns nothing
+   *  and never throws, so it cannot refuse, delay or alter the call (TW-6). */
+  toolNamed: (tool: string) => void;
 }
 
 export type Outcome =
@@ -249,6 +253,7 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
   // A tool the pin gate refused is named, so the operator can find it in the start-up log; any
   // other unknown name is not echoed (CSR-WO-1001 §1.4).
   if (tool === undefined) throw new Refusal(400, INVALID_PARAMS, ctx.registry.pinning?.isRefused(name) === true ? `The tool "${name}" is refused by the pin gate` : "Unknown tool");
+  ctx.toolNamed(name);
   const args = params["arguments"] ?? {};
   if (!isPlainObject(args)) throw new Refusal(400, INVALID_PARAMS, "params.arguments must be an object");
   const modern = era === MODERN_VERSION;

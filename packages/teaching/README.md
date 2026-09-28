@@ -48,6 +48,13 @@ never written, only keyed digests.
   those settings for throwaway keys (not for production). Or set `AUDIT_STORE=seam-only`, which
   keeps the stderr line and writes a loud `audit-unanchored` row at start.
 
+**A rate limit, and a tripwire that refuses nothing** (CSR-WO-2007). Every authenticated request
+counts against its principal's budget; a principal over it is refused with `429` and `Retry-After`,
+and nobody else is. A principal reading `notes.read` unusually fast writes one loud
+`tripwire-read-burst` audit row per burst, and every call is answered as it would be anyway. Both
+are on by default, with defaults no honest single client reaches; the `RATE_LIMIT_*` and
+`TRIPWIRE_*` settings in `.env.example` change them.
+
 **The notes root is part of the pinned contract.** `notes.read`'s containment domain is the root,
 and the domain is hashed. Moving the store is a code change (the root in `src/notes.ts`) that changes
 the tool's hash, so the node refuses to start until the operator re-approves the committed manifest:

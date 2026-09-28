@@ -19,6 +19,8 @@
 import { type AuditMode, auditFromEnv } from "../audit/config.ts";
 import { type JwtVerifier, jwtVerifierFromEnv } from "../auth/verifier.ts";
 import { execToolsForbiddenFromEnv, pinStrictFromEnv } from "../pinning/registry.ts";
+import { rateLimitFromEnv, type RateLimitSettings } from "../rate-limit/limiter.ts";
+import { tripwireFromEnv, type TripwireSettings } from "../tripwire/tripwire.ts";
 import { requestStateKeyFromEnv } from "../transport/request-state.ts";
 
 /** A node that refuses to start for its configuration or its edition's shape (N4). */
@@ -56,6 +58,10 @@ export interface Settings {
   readonly audit: AuditMode;
   /** The AUTH_* verifier, constructed (and its CA file read) here. */
   readonly verifier: JwtVerifier;
+  /** RATE_LIMIT_*: the per-principal budget, validated (CSR-WO-2007 §1.4, rate-limit/RULES.md). */
+  readonly rateLimit: Readonly<RateLimitSettings>;
+  /** TRIPWIRE_*: the read-burst tripwire, validated (CSR-WO-2007 §1.4, tripwire/RULES.md). */
+  readonly tripwire: Readonly<TripwireSettings>;
 }
 
 /** CLEARSEAL_MANIFEST as a path or a `file:` URL. Required: the operator names the manifest. */
@@ -100,5 +106,8 @@ export function captureSettings(env: NodeJS.ProcessEnv): Settings {
     requestStateKey: key === undefined ? undefined : Object.freeze(Uint8Array.from(key)),
     audit: auditFromEnv(frozen),
     verifier: jwtVerifierFromEnv(frozen),
+    // Read from the frozen copy only: neither reader has a process.env default (CSR-WO-2007 §1.4).
+    rateLimit: rateLimitFromEnv(frozen),
+    tripwire: tripwireFromEnv(frozen),
   });
 }

@@ -9,6 +9,8 @@
 //   3. Host, Origin not allowed → 403 (DNS rebinding, SH-2…SH-4)
 //   4. auth       the verifier, under a deadline, returns a principal, or 401 with a
 //                 resource-metadata challenge (503 if it does not answer in time)
+//   4a. rate      the principal's budget: over it → 429 with Retry-After (CSR-WO-2007,
+//                 rate-limit/RULES.md), before a capacity slot is taken or the body is read
 //   5. capacity   more than maxInFlight requests or handlers in progress → 503 with Retry-After
 //   6. Accept, Content-Type, codings → 406 / 415 / 400
 //   7. body       over maxBodyBytes → 413; not strict UTF-8, malformed, duplicate keys → 400 -32700;
@@ -16,7 +18,8 @@
 //   8. framing    batch, response, or malformed JSON-RPC → 400 -32600
 //   9. era and headers: version header, _meta, Mcp-Method, Mcp-Name → 400 -32020 / -32022 / -32602
 //  10. dispatch   unknown method → 404 -32601; tools/call → Mcp-Param-*, schema validation, the
-//                 handler under a timeout, the result cap
+//                 handler under a timeout, the result cap. A call naming an admitted read_only
+//                 tool is counted by the tripwire, which refuses nothing (tripwire/RULES.md)
 // Authentication comes before the body is read, so an unauthenticated client never reaches the
 // parser. Nothing is dispatched without a principal.
 
@@ -31,6 +34,8 @@ import { PinnedRegistry, PinRefusedError } from "../pinning/registry.ts";
 import type { Principal, Verdict, Verifier } from "./verifier.ts";
 import { JwtVerifier, jwtVerifierFromEnv } from "../auth/verifier.ts";
 import { ephemeralDigester } from "../audit/digest.ts";
+import { checkRateLimit, DEFAULT_RATE_LIMIT, RateLimiter, type RateLimitSettings } from "../rate-limit/limiter.ts";
+import { checkTripwire, DEFAULT_TRIPWIRE, Tripwire, type TripwireSettings } from "../tripwire/tripwire.ts";
 
 export interface TransportOptions {
   config?: Parameters<typeof resolveConfig>[0];
@@ -55,6 +60,15 @@ export interface TransportOptions {
   serverInfo: { name: string; version: string };
   /** The clock, for tests. */
   now?: () => number;
+  /** The per-principal rate limit (CSR-WO-2007 §1.1). A node passes the snapshot's; default
+   *  DEFAULT_RATE_LIMIT. Checked at start: an invalid value refuses start. */
+  rateLimit?: RateLimitSettings;
+  /** The read-burst tripwire (CSR-WO-2007 §1.3). A node passes the snapshot's; default
+   *  DEFAULT_TRIPWIRE. Checked at start. */
+  tripwire?: TripwireSettings;
+  /** The monotonic clock, in milliseconds, the rate limit and the tripwire run on (never the wall
+   *  clock). Default `performance.now`. Injected by tests. */
+  monotonic?: () => number;
 }
 
 export interface RunningTransport {
@@ -232,6 +246,33 @@ export async function startTransport(options: TransportOptions): Promise<Running
   const servedRegistry: PinnedRegistry = registry;
   const requestStateKey: Uint8Array | undefined = options.requestStateKey === undefined ? undefined : Uint8Array.from(options.requestStateKey);
   const serverInfo: TransportOptions["serverInfo"] = Object.freeze({ ...options.serverInfo });
+  // CSR-WO-2007: both controls' settings are checked before anything binds (RL-9, TW-10).
+  let rateSettings: Readonly<RateLimitSettings>;
+  let tripSettings: Readonly<TripwireSettings>;
+  try {
+    rateSettings = checkRateLimit(options.rateLimit ?? DEFAULT_RATE_LIMIT);
+    tripSettings = checkTripwire(options.tripwire ?? DEFAULT_TRIPWIRE);
+  } catch (err) {
+    await options.validationPool?.close();
+    throw err;
+  }
+  const monotonic = options.monotonic ?? (() => performance.now());
+  // The tools the tripwire counts: the admitted tools whose pinned capability class is read_only, read
+  // once from the registry's own frozen snapshot (the class the gate hashed). reachTargets is the
+  // registry's one public accessor for the class; the placeholder corpus is never run.
+  const readOnly: ReadonlySet<string> = new Set(
+    registry
+      .reachTargets(Object.fromEntries(registry.list().map((t) => [t.definition.name, [{}]])))
+      .filter((t) => t.capabilityClass === "read_only")
+      .map((t) => t.name),
+  );
+  const limiter = new RateLimiter(rateSettings, monotonic);
+  // At a table's cap, one principal-state-full row per episode: a newcomer is served untracked by the
+  // limiter, or not counted by the tripwire, and the operator should know (RL-8, TW-9).
+  const full = { rate: false, trip: false };
+  const tripwire = new Tripwire(tripSettings, monotonic, (principal, count, windowSeconds) => {
+    audit("tripwire-read-burst", { principal, count, windowS: windowSeconds });
+  });
   const { pinning } = registry;
   for (const r of pinning.refused) audit("pin-refused", { tool: r.name, reason: r.reason, ...(r.rule === undefined ? {} : { rule: r.rule }) });
   if (pinning.refused.length > 0) {
@@ -397,6 +438,21 @@ export async function startTransport(options: TransportOptions): Promise<Running
       const principal = await authenticate(req);
       principalId = principal.id;
 
+      // 4a. rate: every authenticated request takes a token, whatever it is, before a capacity slot
+      //     is taken or the body is read (RL-5). Over budget: 429 with Retry-After, and one
+      //     rate-limited row (RL-1).
+      const taken = limiter.take(principal.id);
+      if (!taken.ok) {
+        audit("rate-limited", { principal: principal.id, retryAfterS: taken.retryAfterS });
+        throw audited(new Refusal(429, INVALID_REQUEST, `Too Many Requests: this principal is over its request budget; retry after ${String(taken.retryAfterS)} s`, { retryAfterS: taken.retryAfterS }, { "Retry-After": String(taken.retryAfterS) }));
+      }
+      if (taken.untracked) {
+        if (!full.rate) {
+          full.rate = true;
+          audit("principal-state-full", { principal: principal.id, control: "rate-limit", cap: rateSettings.maxPrincipals });
+        }
+      } else if (limiter.size < rateSettings.maxPrincipals) full.rate = false;
+
       // 5. capacity
       if (inFlight >= limits.maxInFlight) throw refusal(503, INTERNAL_ERROR, "The server is at capacity; retry later", "capacity", undefined, { "Retry-After": "1" });
       inFlight++;
@@ -439,6 +495,21 @@ export async function startTransport(options: TransportOptions): Promise<Running
           audit(event, { ...fields, principal: principal.id });
         },
         digestArgs,
+        // The tripwire (TW-1, TW-6): counted synchronously, and nothing it does, its audit write
+        // included, can refuse, delay or alter the call.
+        toolNamed: (tool) => {
+          if (!readOnly.has(tool)) return;
+          try {
+            if (tripwire.observe(principal.id)) {
+              if (!full.trip) {
+                full.trip = true;
+                audit("principal-state-full", { principal: principal.id, control: "tripwire", cap: tripSettings.maxPrincipals });
+              }
+            } else if (tripwire.size < tripSettings.maxPrincipals) full.trip = false;
+          } catch {
+            // The call goes on exactly as it would without the tripwire.
+          }
+        },
         trackHandler: (running) => {
           handlerSettled = false;
           const settled = (): void => {

@@ -328,6 +328,9 @@ export async function startNode(edition: Edition, prepared: PreparedNode): Promi
       ...(key === undefined ? {} : { requestStateKey: key }),
       audit: prepared.audit,
       ...(prepared.store === undefined ? {} : { argumentDigest: prepared.store.digester.args }),
+      // The snapshot's settings for the two CSR-WO-2007 controls, never a later read.
+      rateLimit: settings.rateLimit,
+      tripwire: settings.tripwire,
     }),
   );
 }
