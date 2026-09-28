@@ -1,6 +1,6 @@
 --- a/packages/core/src/tripwire/tripwire.ts
 +++ b/packages/core/src/tripwire/tripwire.ts
-@@ -151,8 +151,6 @@
+@@ -160,8 +160,6 @@
        // TW-4: after the quiet period the burst is over; the count starts again from zero.
        if (!e.armed && now - e.last >= this.#quietMs) {
          e.armed = true;

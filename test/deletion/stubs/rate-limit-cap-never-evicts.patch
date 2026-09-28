@@ -1,8 +1,8 @@
 --- a/packages/core/src/rate-limit/limiter.ts
 +++ b/packages/core/src/rate-limit/limiter.ts
-@@ -131,8 +131,8 @@
+@@ -142,8 +142,8 @@
      if (bucket === undefined) {
-       if (this.#buckets.size >= this.#settings.maxPrincipals) this.#sweep(now);
+       if (this.#buckets.size >= this.#settings.maxPrincipals && now >= this.#nextSweepAt) this.#sweep(now);
        // RL-8: at the cap, the newcomer is served untracked; no tracked bucket is evicted.
 -      if (this.#buckets.size >= this.#settings.maxPrincipals) untracked = true;
 -      else bucket = { tokens: this.#settings.burst, at: now };

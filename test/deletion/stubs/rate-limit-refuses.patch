@@ -1,6 +1,6 @@
 --- a/packages/core/src/transport/server.ts
 +++ b/packages/core/src/transport/server.ts
-@@ -442,11 +442,11 @@
+@@ -444,11 +444,11 @@
        //     is taken or the body is read (RL-5). Over budget: 429 with Retry-After, and one
        //     rate-limited row (RL-1).
        const taken = limiter.take(principal.id);

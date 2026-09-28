@@ -1,6 +1,6 @@
 --- a/packages/core/src/transport/server.ts
 +++ b/packages/core/src/transport/server.ts
-@@ -498,7 +498,7 @@
+@@ -500,7 +500,7 @@
          // The tripwire (TW-1, TW-6): counted synchronously, and nothing it does, its audit write
          // included, can refuse, delay or alter the call.
          toolNamed: (tool) => {

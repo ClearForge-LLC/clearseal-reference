@@ -1,6 +1,6 @@
 --- a/packages/core/src/transport/server.ts
 +++ b/packages/core/src/transport/server.ts
-@@ -438,21 +438,6 @@
+@@ -440,21 +440,6 @@
        const principal = await authenticate(req);
        principalId = principal.id;
  
@@ -22,7 +22,7 @@
        // 5. capacity
        if (inFlight >= limits.maxInFlight) throw refusal(503, INTERNAL_ERROR, "The server is at capacity; retry later", "capacity", undefined, { "Retry-After": "1" });
        inFlight++;
-@@ -477,6 +462,21 @@
+@@ -479,6 +464,21 @@
          if (err instanceof Refusal) REASONS.set(err, "framing");
          throw err;
        }

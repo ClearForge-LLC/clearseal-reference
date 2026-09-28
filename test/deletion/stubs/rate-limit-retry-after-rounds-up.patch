@@ -1,6 +1,6 @@
 --- a/packages/core/src/rate-limit/limiter.ts
 +++ b/packages/core/src/rate-limit/limiter.ts
-@@ -146,6 +146,6 @@
+@@ -157,6 +157,6 @@
      }
      // RL-4: whole seconds, rounded up, at least 1.
      const waitMs = Math.max(0, 1 - bucket.tokens) / this.#perMs;

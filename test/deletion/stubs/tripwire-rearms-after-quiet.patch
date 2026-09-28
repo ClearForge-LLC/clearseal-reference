@@ -1,6 +1,6 @@
 --- a/packages/core/src/tripwire/tripwire.ts
 +++ b/packages/core/src/tripwire/tripwire.ts
-@@ -119,7 +119,7 @@
+@@ -121,7 +121,7 @@
     *  way it decides exactly as no entry does. */
    #spent(e: Entry, now: number): boolean {
      const idle = now - e.last;
@@ -9,7 +9,7 @@
    }
  
    #trim(now: number): void {
-@@ -149,7 +149,7 @@
+@@ -158,7 +158,7 @@
      } else {
        this.#entries.delete(principal);
        // TW-4: after the quiet period the burst is over; the count starts again from zero.

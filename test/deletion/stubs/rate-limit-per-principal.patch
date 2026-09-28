@@ -1,6 +1,6 @@
 --- a/packages/core/src/rate-limit/limiter.ts
 +++ b/packages/core/src/rate-limit/limiter.ts
-@@ -126,6 +126,7 @@
+@@ -137,6 +137,7 @@
    take(principal: string): Take {
      const now = this.#clock();
      this.#trim(now);

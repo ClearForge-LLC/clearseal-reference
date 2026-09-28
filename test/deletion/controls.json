@@ -2257,6 +2257,111 @@
       ]
     },
     {
+      "id": "rate-limit-sweeps",
+      "section8": "Rate limit (per principal, refuses)",
+      "control": "CSR-WO-2007 RL-7: at the cap, every full bucket is swept, wherever it is, before a newcomer goes untracked",
+      "touches": [
+        "packages/core/src/rate-limit/limiter.ts"
+      ],
+      "stub": "stubs/rate-limit-sweeps.patch",
+      "tests": [
+        "packages/core/test/rate-limit/limiter.test.ts"
+      ],
+      "mustFail": [
+        "RL-7: at the cap, a full bucket behind one still refilling is swept, and the newcomer is tracked"
+      ]
+    },
+    {
+      "id": "tripwire-sweeps",
+      "section8": "Tripwire (read burst, loud, no refusal)",
+      "control": "CSR-WO-2007 TW-8: at the cap, every spent entry is swept, wherever it is, before a newcomer goes uncounted",
+      "touches": [
+        "packages/core/src/tripwire/tripwire.ts"
+      ],
+      "stub": "stubs/tripwire-sweeps.patch",
+      "tests": [
+        "packages/core/test/tripwire/tripwire.test.ts"
+      ],
+      "mustFail": [
+        "TW-8: at the cap, a spent entry behind a live one is swept, and the newcomer is counted"
+      ]
+    },
+    {
+      "id": "transport-default-clock-monotonic",
+      "section8": "Rate limit (per principal, refuses)",
+      "control": "CSR-WO-2007 RL-6, TW-7: the transport's default clock for both controls is monotonic, never the wall clock",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/transport-default-clock-monotonic.patch",
+      "tests": [
+        "packages/core/test/transport/rate-limit.test.ts"
+      ],
+      "mustFail": [
+        "RL-6: without an injected clock the transport's default is monotonic, never the wall clock"
+      ]
+    },
+    {
+      "id": "rate-limit-episode-row",
+      "section8": "Rate limit (per principal, refuses)",
+      "control": "CSR-WO-2007 RL-8: one principal-state-full row per episode; a new episode after the table has had room writes another",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/rate-limit-episode-row.patch",
+      "tests": [
+        "packages/core/test/transport/rate-limit.test.ts"
+      ],
+      "mustFail": [
+        "one principal-state-full row per episode: a second episode, after the table has had room, writes a second"
+      ]
+    },
+    {
+      "id": "tripwire-episode-row",
+      "section8": "Tripwire (read burst, loud, no refusal)",
+      "control": "CSR-WO-2007 TW-9: one principal-state-full row per episode; a new episode after the table has had room writes another",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/tripwire-episode-row.patch",
+      "tests": [
+        "packages/core/test/transport/tripwire.test.ts"
+      ],
+      "mustFail": [
+        "one principal-state-full row per episode for the tripwire too"
+      ]
+    },
+    {
+      "id": "rate-limit-clock-steps-back",
+      "section8": "Rate limit (per principal, refuses)",
+      "control": "CSR-WO-2007 RL-6: a clock that steps back is treated as not having moved, so no token is refilled twice",
+      "touches": [
+        "packages/core/src/rate-limit/limiter.ts"
+      ],
+      "stub": "stubs/rate-limit-clock-steps-back.patch",
+      "tests": [
+        "packages/core/test/rate-limit/limiter.test.ts"
+      ],
+      "mustFail": [
+        "a clock that steps back is treated as not having moved: no token is refilled twice"
+      ]
+    },
+    {
+      "id": "tripwire-memory-bound",
+      "section8": "Tripwire (read burst, loud, no refusal)",
+      "control": "CSR-WO-2007 TW-10: threshold × maxPrincipals over the memory bound refuses start",
+      "touches": [
+        "packages/core/src/tripwire/tripwire.ts"
+      ],
+      "stub": "stubs/tripwire-memory-bound.patch",
+      "tests": [
+        "packages/core/test/tripwire/tripwire.test.ts"
+      ],
+      "mustFail": [
+        "threshold × principals over the memory bound refuses start, naming both"
+      ]
+    },
+    {
       "id": "rate-limit-refuses",
       "section8": "Rate limit (per principal, refuses)",
       "control": "CSR-WO-2007 RL-1: a principal over budget is refused with 429, Retry-After and one rate-limited row",
@@ -2635,111 +2740,6 @@
       ],
       "mustFail": [
         "rewriting RATE_LIMIT_* and TRIPWIRE_* after capture changes nothing, and the node runs on the captured values"
-      ]
-    },
-    {
-      "id": "rate-limit-sweeps",
-      "section8": "Rate limit (per principal, refuses)",
-      "control": "CSR-WO-2007 RL-7: at the cap, every full bucket is swept, wherever it is, before a newcomer goes untracked",
-      "touches": [
-        "packages/core/src/rate-limit/limiter.ts"
-      ],
-      "stub": "stubs/rate-limit-sweeps.patch",
-      "tests": [
-        "packages/core/test/rate-limit/limiter.test.ts"
-      ],
-      "mustFail": [
-        "RL-7: at the cap, a full bucket behind one still refilling is swept, and the newcomer is tracked"
-      ]
-    },
-    {
-      "id": "tripwire-sweeps",
-      "section8": "Tripwire (read burst, loud, no refusal)",
-      "control": "CSR-WO-2007 TW-8: at the cap, every spent entry is swept, wherever it is, before a newcomer goes uncounted",
-      "touches": [
-        "packages/core/src/tripwire/tripwire.ts"
-      ],
-      "stub": "stubs/tripwire-sweeps.patch",
-      "tests": [
-        "packages/core/test/tripwire/tripwire.test.ts"
-      ],
-      "mustFail": [
-        "TW-8: at the cap, a spent entry behind a live one is swept, and the newcomer is counted"
-      ]
-    },
-    {
-      "id": "transport-default-clock-monotonic",
-      "section8": "Rate limit (per principal, refuses)",
-      "control": "CSR-WO-2007 RL-6, TW-7: the transport's default clock for both controls is monotonic, never the wall clock",
-      "touches": [
-        "packages/core/src/transport/server.ts"
-      ],
-      "stub": "stubs/transport-default-clock-monotonic.patch",
-      "tests": [
-        "packages/core/test/transport/rate-limit.test.ts"
-      ],
-      "mustFail": [
-        "RL-6: without an injected clock the transport's default is monotonic, never the wall clock"
-      ]
-    },
-    {
-      "id": "rate-limit-episode-row",
-      "section8": "Rate limit (per principal, refuses)",
-      "control": "CSR-WO-2007 RL-8: one principal-state-full row per episode; a new episode after the table has had room writes another",
-      "touches": [
-        "packages/core/src/transport/server.ts"
-      ],
-      "stub": "stubs/rate-limit-episode-row.patch",
-      "tests": [
-        "packages/core/test/transport/rate-limit.test.ts"
-      ],
-      "mustFail": [
-        "one principal-state-full row per episode: a second episode, after the table has had room, writes a second"
-      ]
-    },
-    {
-      "id": "tripwire-episode-row",
-      "section8": "Tripwire (read burst, loud, no refusal)",
-      "control": "CSR-WO-2007 TW-9: one principal-state-full row per episode; a new episode after the table has had room writes another",
-      "touches": [
-        "packages/core/src/transport/server.ts"
-      ],
-      "stub": "stubs/tripwire-episode-row.patch",
-      "tests": [
-        "packages/core/test/transport/tripwire.test.ts"
-      ],
-      "mustFail": [
-        "one principal-state-full row per episode for the tripwire too"
-      ]
-    },
-    {
-      "id": "rate-limit-clock-steps-back",
-      "section8": "Rate limit (per principal, refuses)",
-      "control": "CSR-WO-2007 RL-6: a clock that steps back is treated as not having moved, so no token is refilled twice",
-      "touches": [
-        "packages/core/src/rate-limit/limiter.ts"
-      ],
-      "stub": "stubs/rate-limit-clock-steps-back.patch",
-      "tests": [
-        "packages/core/test/rate-limit/limiter.test.ts"
-      ],
-      "mustFail": [
-        "a clock that steps back is treated as not having moved: no token is refilled twice"
-      ]
-    },
-    {
-      "id": "tripwire-memory-bound",
-      "section8": "Tripwire (read burst, loud, no refusal)",
-      "control": "CSR-WO-2007 TW-10: threshold × maxPrincipals over the memory bound refuses start",
-      "touches": [
-        "packages/core/src/tripwire/tripwire.ts"
-      ],
-      "stub": "stubs/tripwire-memory-bound.patch",
-      "tests": [
-        "packages/core/test/tripwire/tripwire.test.ts"
-      ],
-      "mustFail": [
-        "threshold × principals over the memory bound refuses start, naming both"
       ]
     }
   ]

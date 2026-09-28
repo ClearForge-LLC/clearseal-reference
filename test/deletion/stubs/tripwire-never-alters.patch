@@ -1,6 +1,6 @@
 --- a/packages/core/src/transport/server.ts
 +++ b/packages/core/src/transport/server.ts
-@@ -506,7 +506,7 @@
+@@ -508,7 +508,7 @@
                  audit("principal-state-full", { principal: principal.id, control: "tripwire", cap: tripSettings.maxPrincipals });
                }
              } else if (tripwire.size < tripSettings.maxPrincipals) full.trip = false;

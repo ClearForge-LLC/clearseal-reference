@@ -1,6 +1,6 @@
 --- a/packages/core/src/rate-limit/limiter.ts
 +++ b/packages/core/src/rate-limit/limiter.ts
-@@ -103,7 +103,7 @@
+@@ -106,7 +106,7 @@
  
    /** The tokens a bucket holds at `now`. */
    #level(b: Bucket, now: number): number {
@@ -8,4 +8,4 @@
 +    return Math.min(this.#settings.burst, b.tokens + Math.max(0, now - b.at) * 0 * this.#perMs);
    }
  
-   /** RL-7: drops, from the least recently used end, every bucket that has refilled to full by `now`. */
+   /** RL-7: drops full buckets from the least recently used end, stopping at the first that is not full;

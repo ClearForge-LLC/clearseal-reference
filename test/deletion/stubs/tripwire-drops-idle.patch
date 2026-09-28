@@ -1,6 +1,6 @@
 --- a/packages/core/src/tripwire/tripwire.ts
 +++ b/packages/core/src/tripwire/tripwire.ts
-@@ -124,7 +124,7 @@
+@@ -126,7 +126,7 @@
  
    #trim(now: number): void {
      for (const [principal, e] of this.#entries) {

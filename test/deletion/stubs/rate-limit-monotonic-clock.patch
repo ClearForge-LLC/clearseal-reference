@@ -1,6 +1,6 @@
 --- a/packages/core/src/rate-limit/limiter.ts
 +++ b/packages/core/src/rate-limit/limiter.ts
-@@ -124,7 +124,7 @@
+@@ -135,7 +135,7 @@
     * the truth: after that long, the principal is served (RL-3, RL-4).
     */
    take(principal: string): Take {

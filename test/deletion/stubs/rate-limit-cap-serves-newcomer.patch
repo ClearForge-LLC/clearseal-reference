@@ -1,6 +1,6 @@
 --- a/packages/core/src/rate-limit/limiter.ts
 +++ b/packages/core/src/rate-limit/limiter.ts
-@@ -136,7 +136,7 @@
+@@ -147,7 +147,7 @@
      } else {
        this.#buckets.delete(principal);
      }
