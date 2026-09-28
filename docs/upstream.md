@@ -83,3 +83,14 @@ resolved entry gets its resolution appended.
     stands. Any sink grammar the standard adopts needs a portable spelling for file roots, or a
     rule that the operating system is part of what is pinned. *Evidence:* `packages/core/src/containment/domain.ts`;
     `CSR-WO-1004` §1.3. *Status:* open, to be measured at `-1004` and resolved before P4.
+14. **§3 says Rule-of-Two is discharged by "an elevated human confirmation or by demonstrable
+    containment" — the word *human* leaves no room for a delegated approver.** In an autonomous
+    deployment the property that makes an approval mean something is that the approver is not the
+    caller and decides on a channel the caller cannot reach; an agent holding its own credential for
+    that channel meets it without a person present. The reference conforms to the text as it stands
+    (`-2001`: a delegated approver may decide only approvals no Rule-of-Two obligation depends on;
+    CAP-2 and CAP-3 approvals go through the human confirm-URL only). Proposal for the next version:
+    recognise a *distinct-principal approval on a separate channel* as a discharge, with the
+    approver's identity recorded and never equal to the requester, alongside human confirmation.
+    *Evidence:* `CSR-WO-2001` flag-and-stop, 2026-09-28; `architecture.md` §5, *Approval mechanism*.
+    *Status:* open, proposal; the gate ratifies before it is carried upstream.
