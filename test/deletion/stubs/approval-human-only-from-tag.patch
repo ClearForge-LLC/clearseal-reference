@@ -5,5 +5,5 @@
   */
  export function humanOnly(tag: CapabilityTag): boolean {
 -  return unmetObligations(tag, obligationOf(tag), "none").some((r) => r.rule === "CAP-2" || r.rule === "CAP-3");
-+  return unmetObligations(tag, obligationOf(tag), "none").some((r) => r.rule === "CAP-2" || r.rule === "CAP-3") && tag.name.length < 0;
++  return unmetObligations(tag, obligationOf(tag), "none").some((r) => r.rule === "CAP-2" || r.rule === "CAP-3") && tag.scope.length < 0;
  }
