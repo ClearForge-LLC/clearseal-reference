@@ -94,16 +94,23 @@ void describe("CSR-WO-2007 rate limit: over budget is 429, and nobody else is to
     const { compileSchema } = await import("../../src/transport/schema.ts");
     const { DEFAULT_LIMITS } = await import("../../src/transport/config.ts");
     const { PrincipalVerifier, readTool, writeTool } = await import("./principals.ts");
-    const t = await startTransport({ registry: pinForTest([readTool, writeTool], compileSchema, DEFAULT_LIMITS), serverInfo: { name: "@clearseal/core", version: "0.0.0" }, verifier: new PrincipalVerifier(), rateLimit: { burst: 1, refillPerMinute: 1, maxPrincipals: 10 }, audit: () => undefined });
+    // A wall clock this test controls, installed before the transport starts, so a limiter that kept a
+    // reference to Date.now and one that calls it afresh would both read it.
     const realNow = Date.now;
+    let offset = 0;
+    Date.now = () => realNow() + offset;
     try {
-      assert.equal((await call(t, "alice", "read", "1")).status, 200);
-      // The wall clock jumps a day ahead; a limiter on it would have refilled.
-      Date.now = () => realNow() + 86_400_000;
-      assert.equal((await call(t, "alice", "read", "2")).status, 429, "a day on the wall clock refilled nothing");
+      const t = await startTransport({ registry: pinForTest([readTool, writeTool], compileSchema, DEFAULT_LIMITS), serverInfo: { name: "@clearseal/core", version: "0.0.0" }, verifier: new PrincipalVerifier(), rateLimit: { burst: 1, refillPerMinute: 1, maxPrincipals: 10 }, audit: () => undefined });
+      try {
+        assert.equal((await call(t, "alice", "read", "1")).status, 200);
+        // The wall clock jumps a day ahead; a limiter on it would have refilled.
+        offset = 86_400_000;
+        assert.equal((await call(t, "alice", "read", "2")).status, 429, "a day on the wall clock refilled nothing");
+      } finally {
+        await t.close();
+      }
     } finally {
       Date.now = realNow;
-      await t.close();
     }
   });
 
