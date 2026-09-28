@@ -5,7 +5,7 @@
    #sweep(now: number): void {
      for (const [id, e] of this.#entries) {
 -      if ((e.state === "pending" || e.state === "approved") && now >= e.deadline) {
-+      if (e.state === "approved" && now >= e.deadline) {
++      if ((e.state === "pending" || e.state === "approved") && now >= e.deadline && (e.state === "approved" || now < 0)) {
          const phase = e.state === "pending" ? "request" : "grant";
          e.state = "expired";
          this.#event("approval-expired", e, { phase });
