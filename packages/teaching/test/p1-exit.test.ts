@@ -346,3 +346,31 @@ void describe("keyed, never bare (CSR-WO-2002)", () => {
     record("keyed, never bare: no audit row carries a planted argument, id, header, token, tool name or method (CSR-WO-2002)", `${String(Object.keys(planted).length)} planted values; ${String(logs.length)} logs, ${String(rows)} rows scanned: none carries one; every row has a principal; every log verifies`);
   });
 });
+
+// CSR-WO-2007 §3.2: the rate limit's and the tripwire's defaults, run against this whole suite, trip
+// nothing. Every teaching node above ran on the defaults (no RATE_LIMIT_* or TRIPWIRE_* is set), and each
+// wrote a real audit log; not one row of any of them is a rate-limited, tripwire-read-burst or
+// principal-state-full row. Declared last, so it reads every log the suite wrote.
+void describe("the CSR-WO-2007 defaults trip nothing (CSR-WO-2007 §3.2)", () => {
+  void it("no node in the P1 evidence suite was rate-limited or tripped the tripwire on the defaults", () => {
+    for (const name of Object.keys(process.env)) assert.ok(!/^(RATE_LIMIT|TRIPWIRE)_/.test(name), `${name} is set: this clause is about the defaults`);
+    let rows = 0;
+    let logs = 0;
+    for (const kit of kits) {
+      let text: string;
+      try {
+        text = readFileSync(kit.log, "utf8");
+      } catch {
+        continue;
+      }
+      logs++;
+      for (const line of text.split("\n").filter((l) => l !== "")) {
+        rows++;
+        const event = (JSON.parse(line) as { event?: unknown }).event;
+        assert.ok(event !== "rate-limited" && event !== "tripwire-read-burst" && event !== "principal-state-full", `${kit.log}: a ${String(event)} row on the defaults`);
+      }
+    }
+    assert.ok(logs > 0 && rows > 0, "the suite's nodes wrote logs to read");
+    record("the rate limit's and the tripwire's defaults trip nothing across the P1 evidence suite (CSR-WO-2007 §3.2)", `${String(logs)} node logs, ${String(rows)} rows: no rate-limited, tripwire-read-burst or principal-state-full row`);
+  });
+});

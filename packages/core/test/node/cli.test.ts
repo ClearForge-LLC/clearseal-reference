@@ -269,3 +269,44 @@ void describe("CSR-WO-1007b §1.6: what the manifest's audit rows say", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 });
+
+void describe("CSR-WO-2007 §1.4: the rate limit's and the tripwire's settings are read in the snapshot", () => {
+  void it("rewriting RATE_LIMIT_* and TRIPWIRE_* after capture changes nothing, and the node runs on the captured values", async () => {
+    const env: Record<string, string> = { ...base, RATE_LIMIT_BURST: "5", RATE_LIMIT_REFILL_PER_MINUTE: "1", TRIPWIRE_THRESHOLD: "3" };
+    const settings = captureSettings(env);
+    Object.assign(env, { RATE_LIMIT_BURST: "1000", RATE_LIMIT_REFILL_PER_MINUTE: "1000", TRIPWIRE_THRESHOLD: "1000" });
+    assert.deepEqual(settings.rateLimit, { burst: 5, refillPerMinute: 1, maxPrincipals: 10_000 }, "the captured budget, not the rewritten one");
+    assert.deepEqual(settings.tripwire, { threshold: 3, windowSeconds: 60, quietSeconds: 300, maxPrincipals: 1_000 });
+    assert.ok(Object.isFrozen(settings.rateLimit) && Object.isFrozen(settings.tripwire));
+    const rows: string[] = [];
+    const prepared = PreparedNode.prepare(settings, { audit: (event, fields) => rows.push(`${event} ${JSON.stringify(fields)}`) });
+    const { startNode } = await import("../../src/node/start.ts");
+    const t = await startNode({ definitions: [echo], configSchema }, prepared);
+    try {
+      const token = issuer.mint(TestIssuer.claims(Math.floor(Date.now() / 1000)));
+      const statuses: number[] = [];
+      for (let i = 0; i < 6; i++) statuses.push((await modern(t, "tools/call", { name: "echo", arguments: { text: String(i) } }, { headers: { authorization: `Bearer ${token}` } })).status);
+      assert.deepEqual(statuses, [200, 200, 200, 200, 200, 429], "a budget of 5, as captured");
+      assert.equal(rows.filter((r) => r.startsWith("tripwire-read-burst ")).length, 1, "a threshold of 3, as captured: one row");
+      assert.equal(rows.filter((r) => r.startsWith("rate-limited ")).length, 1);
+      pastes.push(`SNAPSHOT RATE_LIMIT_BURST=5 and TRIPWIRE_THRESHOLD=3 captured, then rewritten to 1000: six calls → ${statuses.join(", ")}; ${rows.filter((r) => /^(tripwire-read-burst|rate-limited) /.test(r)).join("; ")}`);
+    } finally {
+      await t.close();
+    }
+  });
+
+  for (const name of ["RATE_LIMIT_BURST", "RATE_LIMIT_REFILL_PER_MINUTE", "RATE_LIMIT_MAX_PRINCIPALS", "TRIPWIRE_THRESHOLD", "TRIPWIRE_WINDOW_SECONDS", "TRIPWIRE_QUIET_SECONDS", "TRIPWIRE_MAX_PRINCIPALS"]) {
+    void it(`${name}=0 refuses start, naming it`, async () => {
+      let caught: unknown;
+      try {
+        const node = await runNode({ ...base, [name]: "0" });
+        await node.close();
+      } catch (err) {
+        caught = err;
+      }
+      assert.ok(caught instanceof Error, `${name}=0: a node started`);
+      assert.match(caught.message, new RegExp(`^${name} must be a whole number from 1 to`));
+      pastes.push(`SETTING ${name}=0 → ${caught.name}: ${caught.message}`);
+    });
+  }
+});
