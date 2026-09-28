@@ -100,6 +100,8 @@ export class Tripwire {
   readonly #quietMs: number;
   /** In least-recently-used order: an entry is moved to the end each time it counts a call. */
   readonly #entries = new Map<string, Entry>();
+  /** While the table is full: the earliest time any entry can be spent (review F2). */
+  #nextSweepAt = Number.NEGATIVE_INFINITY;
 
   constructor(settings: TripwireSettings, clock: () => number, onBurst: OnBurst) {
     this.#settings = checkTripwire(settings);
@@ -129,8 +131,15 @@ export class Tripwire {
     }
   }
 
+  /** At the cap: drops every spent entry, wherever it is in the order, and notes when the next one can
+   *  be spent. An entry counted since is spent only later, so that time is a lower bound. */
   #sweep(now: number): void {
-    for (const [principal, e] of this.#entries) if (this.#spent(e, now)) this.#entries.delete(principal);
+    let next = Number.POSITIVE_INFINITY;
+    for (const [principal, e] of this.#entries) {
+      if (this.#spent(e, now)) this.#entries.delete(principal);
+      else next = Math.min(next, e.last + (e.armed ? this.#windowMs : this.#quietMs));
+    }
+    this.#nextSweepAt = next;
   }
 
   /**
@@ -142,7 +151,7 @@ export class Tripwire {
     this.#trim(now);
     let e = this.#entries.get(principal);
     if (e === undefined) {
-      if (this.#entries.size >= this.#settings.maxPrincipals) this.#sweep(now);
+      if (this.#entries.size >= this.#settings.maxPrincipals && now >= this.#nextSweepAt) this.#sweep(now);
       // TW-9: at the cap, the newcomer is not counted; no entry is evicted.
       if (this.#entries.size >= this.#settings.maxPrincipals) return true;
       e = { times: new Float64Array(this.#settings.threshold), next: 0, filled: 0, armed: true, last: now };

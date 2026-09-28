@@ -249,23 +249,25 @@ export async function startTransport(options: TransportOptions): Promise<Running
   // CSR-WO-2007: both controls' settings are checked before anything binds (RL-9, TW-10).
   let rateSettings: Readonly<RateLimitSettings>;
   let tripSettings: Readonly<TripwireSettings>;
+  let readOnly: ReadonlySet<string>;
   try {
     rateSettings = checkRateLimit(options.rateLimit ?? DEFAULT_RATE_LIMIT);
     tripSettings = checkTripwire(options.tripwire ?? DEFAULT_TRIPWIRE);
+    // The tools the tripwire counts: the admitted tools whose pinned capability class is read_only,
+    // read once from the registry's own frozen snapshot (the class the gate hashed). reachTargets is
+    // the registry's one public accessor for the class; the placeholder corpus is never run.
+    readOnly = new Set(
+      registry
+        .reachTargets(Object.fromEntries(registry.list().map((t) => [t.definition.name, [{}]])))
+        .filter((t) => t.capabilityClass === "read_only")
+        .map((t) => t.name),
+    );
   } catch (err) {
     await options.validationPool?.close();
     throw err;
   }
+  // Monotonic, never the wall clock (RL-6, TW-7).
   const monotonic = options.monotonic ?? (() => performance.now());
-  // The tools the tripwire counts: the admitted tools whose pinned capability class is read_only, read
-  // once from the registry's own frozen snapshot (the class the gate hashed). reachTargets is the
-  // registry's one public accessor for the class; the placeholder corpus is never run.
-  const readOnly: ReadonlySet<string> = new Set(
-    registry
-      .reachTargets(Object.fromEntries(registry.list().map((t) => [t.definition.name, [{}]])))
-      .filter((t) => t.capabilityClass === "read_only")
-      .map((t) => t.name),
-  );
   const limiter = new RateLimiter(rateSettings, monotonic);
   // At a table's cap, one principal-state-full row per episode: a newcomer is served untracked by the
   // limiter, or not counted by the tripwire, and the operator should know (RL-8, TW-9).

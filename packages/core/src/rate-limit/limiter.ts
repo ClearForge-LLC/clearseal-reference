@@ -89,6 +89,9 @@ export class RateLimiter {
   /** In least-recently-used order: a bucket is moved to the end each time it is used. */
   readonly #buckets = new Map<string, Bucket>();
   readonly #perMs: number;
+  /** While the table is full: the earliest time any bucket can be full, so no sweep before it can free
+   *  a slot (review F2: a sweep per untracked request cost O(n) each). */
+  #nextSweepAt = Number.NEGATIVE_INFINITY;
 
   constructor(settings: RateLimitSettings, clock: () => number) {
     this.#settings = checkRateLimit(settings);
@@ -106,7 +109,8 @@ export class RateLimiter {
     return Math.min(this.#settings.burst, b.tokens + Math.max(0, now - b.at) * this.#perMs);
   }
 
-  /** RL-7: drops, from the least recently used end, every bucket that has refilled to full by `now`. */
+  /** RL-7: drops full buckets from the least recently used end, stopping at the first that is not full;
+   *  the rest are dropped by the sweep when the table is full. */
   #trim(now: number): void {
     for (const [principal, b] of this.#buckets) {
       if (this.#level(b, now) < this.#settings.burst - EPSILON) break;
@@ -114,9 +118,16 @@ export class RateLimiter {
     }
   }
 
-  /** RL-7, at the cap: drops every full bucket, wherever it is in the order. */
+  /** RL-7, at the cap: drops every full bucket, wherever it is in the order, and notes when the next
+   *  one can be full. A bucket used since only becomes full later, so that time is a lower bound. */
   #sweep(now: number): void {
-    for (const [principal, b] of this.#buckets) if (this.#level(b, now) >= this.#settings.burst - EPSILON) this.#buckets.delete(principal);
+    let next = Number.POSITIVE_INFINITY;
+    for (const [principal, b] of this.#buckets) {
+      const level = this.#level(b, now);
+      if (level >= this.#settings.burst - EPSILON) this.#buckets.delete(principal);
+      else next = Math.min(next, now + (this.#settings.burst - level) / this.#perMs);
+    }
+    this.#nextSweepAt = next;
   }
 
   /**
@@ -129,7 +140,7 @@ export class RateLimiter {
     let bucket = this.#buckets.get(principal);
     let untracked = false;
     if (bucket === undefined) {
-      if (this.#buckets.size >= this.#settings.maxPrincipals) this.#sweep(now);
+      if (this.#buckets.size >= this.#settings.maxPrincipals && now >= this.#nextSweepAt) this.#sweep(now);
       // RL-8: at the cap, the newcomer is served untracked; no tracked bucket is evicted.
       if (this.#buckets.size >= this.#settings.maxPrincipals) untracked = true;
       else bucket = { tokens: this.#settings.burst, at: now };

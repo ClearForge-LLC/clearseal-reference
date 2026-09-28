@@ -88,6 +88,42 @@ void describe("CSR-WO-2007 rate limit: over budget is 429, and nobody else is to
     }
   });
 
+  void it("RL-6: without an injected clock the transport's default is monotonic, never the wall clock", async () => {
+    const { startTransport } = await import("../../src/transport/server.ts");
+    const { pinForTest } = await import("../fixtures/pin.ts");
+    const { compileSchema } = await import("../../src/transport/schema.ts");
+    const { DEFAULT_LIMITS } = await import("../../src/transport/config.ts");
+    const { PrincipalVerifier, readTool, writeTool } = await import("./principals.ts");
+    const t = await startTransport({ registry: pinForTest([readTool, writeTool], compileSchema, DEFAULT_LIMITS), serverInfo: { name: "@clearseal/core", version: "0.0.0" }, verifier: new PrincipalVerifier(), rateLimit: { burst: 1, refillPerMinute: 1, maxPrincipals: 10 }, audit: () => undefined });
+    const realNow = Date.now;
+    try {
+      assert.equal((await call(t, "alice", "read", "1")).status, 200);
+      // The wall clock jumps a day ahead; a limiter on it would have refilled.
+      Date.now = () => realNow() + 86_400_000;
+      assert.equal((await call(t, "alice", "read", "2")).status, 429, "a day on the wall clock refilled nothing");
+    } finally {
+      Date.now = realNow;
+      await t.close();
+    }
+  });
+
+  void it("one principal-state-full row per episode: a second episode, after the table has had room, writes a second", async () => {
+    const r = await rig({ rateLimit: { burst: 1, refillPerMinute: 60, maxPrincipals: 2 } });
+    try {
+      for (const p of ["alice", "bob"]) await call(r.t, p, "read", "1");
+      await call(r.t, "fresh0", "read", "1");
+      await call(r.t, "fresh1", "read", "1");
+      assert.equal(r.of("principal-state-full").length, 1, "one episode, one row");
+      r.clock.advance(1_000);
+      await call(r.t, "carol", "read", "1");
+      await call(r.t, "dave", "read", "1");
+      await call(r.t, "fresh2", "read", "1");
+      assert.deepEqual(r.of("principal-state-full").map((f) => f["principal"]), ["fresh0", "fresh2"], "the table had room (carol was tracked), so filling it again is a second episode");
+    } finally {
+      await r.close();
+    }
+  });
+
   void it("state caps: filling the limiter with principals neither refuses a fresh honest principal nor resets a limited one", async () => {
     const r = await rig({ rateLimit: { burst: 1, refillPerMinute: 1, maxPrincipals: 3 } });
     try {

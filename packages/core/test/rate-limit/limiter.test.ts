@@ -97,6 +97,35 @@ void describe("CSR-WO-2007 rate limit: bounded memory", () => {
   });
 });
 
+void describe("CSR-WO-2007 rate limit: the sweep, and a clock that steps back (review F1, F5)", () => {
+  void it("RL-7: at the cap, a full bucket behind one still refilling is swept, and the newcomer is tracked", () => {
+    const clock = fakeClock();
+    const limiter = new RateLimiter({ burst: 2, refillPerMinute: 60, maxPrincipals: 2 }, clock.now);
+    // x drains its bucket first, so it is ahead in the order and full only after 2 s; y takes one
+    // token later and is full after 1 s. At 1.6 s, y is full and x is not.
+    limiter.take("x");
+    limiter.take("x");
+    clock.advance(500);
+    limiter.take("y");
+    clock.advance(1_100);
+    const z = limiter.take("z");
+    assert.equal(outcome(z), "ok", "z is served");
+    assert.equal(z.ok && z.untracked, false, "and tracked: the sweep dropped y's full bucket, which the idle trim could not reach behind x's");
+    assert.equal(outcome(limiter.take("z")), "ok");
+    assert.equal(outcome(limiter.take("z")), "refused 1 s", "z has a budget of its own, so it is limited");
+  });
+
+  void it("a clock that steps back is treated as not having moved: no token is refilled twice", () => {
+    let t = 10_000;
+    const limiter = new RateLimiter({ burst: 1, refillPerMinute: 60, maxPrincipals: 10 }, () => t);
+    assert.equal(outcome(limiter.take("a")), "ok");
+    t = 5_000;
+    assert.equal(outcome(limiter.take("a")), "refused 1 s", "stepping back refills nothing");
+    t = 10_500;
+    assert.equal(outcome(limiter.take("a")), "refused 1 s", "half a second after the last real reading is half a token, not five and a half");
+  });
+});
+
 void describe("CSR-WO-2007 rate limit: settings (RL-9)", () => {
   void it("unset or empty variables take the defaults", () => {
     assert.deepEqual(rateLimitFromEnv({}), DEFAULT_RATE_LIMIT);

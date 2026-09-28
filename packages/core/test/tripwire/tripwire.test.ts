@@ -148,6 +148,21 @@ void describe("CSR-WO-2007 tripwire: bounded memory", () => {
   });
 });
 
+void describe("CSR-WO-2007 tripwire: the sweep (review F1)", () => {
+  void it("TW-8: at the cap, a spent entry behind a live one is swept, and the newcomer is counted", () => {
+    const { tw, clock, bursts } = rig({ maxPrincipals: 2 });
+    // alice fires first, so she is ahead in the order and live through her 30 s quiet period; bob reads
+    // once, later, and is spent 10 s after. At 11.5 s, bob is spent and alice is not.
+    read(tw, "alice", 5);
+    clock.advance(1_000);
+    tw.observe("bob");
+    clock.advance(10_500);
+    read(tw, "carol", 5);
+    assert.deepEqual(bursts, ["alice 5 in 10 s", "carol 5 in 10 s"], "carol was counted: the sweep dropped bob's spent entry, which the idle trim could not reach behind alice's");
+    assert.equal(tw.size, 2);
+  });
+});
+
 void describe("CSR-WO-2007 tripwire: settings (TW-10)", () => {
   void it("unset or empty variables take the defaults", () => {
     assert.deepEqual(tripwireFromEnv({}), DEFAULT_TRIPWIRE);

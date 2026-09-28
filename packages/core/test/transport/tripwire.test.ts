@@ -96,6 +96,19 @@ void describe("CSR-WO-2007 tripwire: one loud row per burst, and no call changed
     }
   });
 
+  void it("one principal-state-full row per episode for the tripwire too", async () => {
+    const r = await rig({ tripwire: { ...SETTINGS, maxPrincipals: 2 } });
+    try {
+      for (const p of ["alice", "bob", "fresh0", "fresh1"]) await call(r.t, p, "read", "1");
+      assert.equal(r.of("principal-state-full").length, 1);
+      r.clock.advance(10_001);
+      for (const p of ["carol", "dave", "fresh2"]) await call(r.t, p, "read", "1");
+      assert.deepEqual(r.of("principal-state-full").map((f) => `${String(f["principal"])} ${String(f["control"])}`), ["fresh0 tripwire", "fresh2 tripwire"]);
+    } finally {
+      await r.close();
+    }
+  });
+
   void it("state caps: filling the tripwire with principals neither silences nor re-fires a principal already in a burst", async () => {
     const r = await rig({ tripwire: { ...SETTINGS, maxPrincipals: 3 } });
     try {

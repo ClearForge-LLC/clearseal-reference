@@ -17,8 +17,10 @@ never a row per call.
 ## What counts, and why refused calls count
 
 A `tools/call` counts when the tool it names is admitted (registered by the pin gate) and its pinned
-capability class is `read_only`. It is counted where dispatch finds the tool, before the call's headers
-and arguments are checked, so a call that is then refused for its arguments still counts. The reason: a
+capability class is `read_only`. It is counted where dispatch finds the tool: after the era, version,
+`_meta` and mirrored `Mcp-Method`/`Mcp-Name` gates (a call refused there never names a tool), and before
+the `Mcp-Param-*` headers and the arguments are checked, so a call then refused for its arguments still
+counts. The reason: a
 sweep is a sweep whether or not each call is well formed, and a tripwire that only counted successful
 reads could be kept quiet by an attacker whose probes fail. A false alarm costs one audit row; a missed
 sweep costs the detection. The class is the pinned one, read once at start from the registry's own
@@ -35,7 +37,7 @@ frozen snapshot (the same value the gate hashed), never a tool's annotations.
 | TW-5 | Reads spread wider than the window do not fire: only reads within one window count together. | the threshold's reads, each a window apart → no row |
 | TW-6 | It never refuses, delays or alters a call: it runs synchronously where dispatch finds the tool, and any failure inside it, its audit write included, is caught. | a burst answered byte for byte as the same burst with the tripwire not firing; an audit sink that throws on the tripwire's row changes no answer |
 | TW-7 | Time is the injected monotonic clock, never the wall clock. | a frozen clock keeps a spread of reads in one window while real time passes |
-| TW-8 | Memory is bounded: at most `maxPrincipals` entries of at most `threshold` timestamps each; an entry that can no longer affect a decision (armed and idle past the window, or fired and idle past the quiet period) is dropped. | reads left idle → none held |
+| TW-8 | Memory is bounded: at most `maxPrincipals` entries of at most `threshold` timestamps each. An entry that can no longer affect a decision (armed and idle past the window, or fired and idle past the quiet period) is dropped: from the least-recently-used end on each counted call, and wherever it is when the table is full (the sweep, run no earlier than the first moment an entry can be spent). | reads left idle → none held; at the cap, a spent entry behind a live one is dropped for a newcomer |
 | TW-9 | At the cap, a principal with no entry is not counted, and one `principal-state-full` row says so per episode; no entry is evicted, so a fired entry is never re-armed early and one burst never writes two rows. | the table full of fired principals, then many newcomers: no fired principal fires again inside its burst |
 | TW-10 | The settings are validated before start: each a whole number from 1 to its ceiling, and `threshold × maxPrincipals` at most 5,000,000; anything else refuses start, naming the variable. | `0`, `-1`, `x`, over a ceiling, over the product, each refused by name |
 
