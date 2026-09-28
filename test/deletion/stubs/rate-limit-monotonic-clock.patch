@@ -1,0 +1,11 @@
+--- a/packages/core/src/rate-limit/limiter.ts
++++ b/packages/core/src/rate-limit/limiter.ts
+@@ -124,7 +124,7 @@
+    * the truth: after that long, the principal is served (RL-3, RL-4).
+    */
+   take(principal: string): Take {
+-    const now = this.#clock();
++    const now = performance.now();
+     this.#trim(now);
+     let bucket = this.#buckets.get(principal);
+     let untracked = false;

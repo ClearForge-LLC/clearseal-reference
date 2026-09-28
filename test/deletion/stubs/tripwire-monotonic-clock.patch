@@ -1,0 +1,11 @@
+--- a/packages/core/src/tripwire/tripwire.ts
++++ b/packages/core/src/tripwire/tripwire.ts
+@@ -138,7 +138,7 @@
+    * full and the principal was not counted (TW-9), so the caller can say so once.
+    */
+   observe(principal: string): boolean {
+-    const now = this.#clock();
++    const now = performance.now();
+     this.#trim(now);
+     let e = this.#entries.get(principal);
+     if (e === undefined) {

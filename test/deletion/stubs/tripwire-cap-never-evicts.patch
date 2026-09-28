@@ -1,0 +1,11 @@
+--- a/packages/core/src/tripwire/tripwire.ts
++++ b/packages/core/src/tripwire/tripwire.ts
+@@ -144,7 +144,7 @@
+     if (e === undefined) {
+       if (this.#entries.size >= this.#settings.maxPrincipals) this.#sweep(now);
+       // TW-9: at the cap, the newcomer is not counted; no entry is evicted.
+-      if (this.#entries.size >= this.#settings.maxPrincipals) return true;
++      if (this.#entries.size >= this.#settings.maxPrincipals) this.#entries.delete(this.#entries.keys().next().value as string);
+       e = { times: new Float64Array(this.#settings.threshold), next: 0, filled: 0, armed: true, last: now };
+     } else {
+       this.#entries.delete(principal);

@@ -1,0 +1,46 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -438,21 +438,6 @@
+       const principal = await authenticate(req);
+       principalId = principal.id;
+ 
+-      // 4a. rate: every authenticated request takes a token, whatever it is, before a capacity slot
+-      //     is taken or the body is read (RL-5). Over budget: 429 with Retry-After, and one
+-      //     rate-limited row (RL-1).
+-      const taken = limiter.take(principal.id);
+-      if (!taken.ok) {
+-        audit("rate-limited", { principal: principal.id, retryAfterS: taken.retryAfterS });
+-        throw audited(new Refusal(429, INVALID_REQUEST, `Too Many Requests: this principal is over its request budget; retry after ${String(taken.retryAfterS)} s`, { retryAfterS: taken.retryAfterS }, { "Retry-After": String(taken.retryAfterS) }));
+-      }
+-      if (taken.untracked) {
+-        if (!full.rate) {
+-          full.rate = true;
+-          audit("principal-state-full", { principal: principal.id, control: "rate-limit", cap: rateSettings.maxPrincipals });
+-        }
+-      } else if (limiter.size < rateSettings.maxPrincipals) full.rate = false;
+-
+       // 5. capacity
+       if (inFlight >= limits.maxInFlight) throw refusal(503, INTERNAL_ERROR, "The server is at capacity; retry later", "capacity", undefined, { "Retry-After": "1" });
+       inFlight++;
+@@ -477,6 +462,21 @@
+         if (err instanceof Refusal) REASONS.set(err, "framing");
+         throw err;
+       }
++
++      // 4a. rate: every authenticated request takes a token, whatever it is, before a capacity slot
++      //     is taken or the body is read (RL-5). Over budget: 429 with Retry-After, and one
++      //     rate-limited row (RL-1).
++      const taken = limiter.take(principal.id);
++      if (!taken.ok) {
++        audit("rate-limited", { principal: principal.id, retryAfterS: taken.retryAfterS });
++        throw audited(new Refusal(429, INVALID_REQUEST, `Too Many Requests: this principal is over its request budget; retry after ${String(taken.retryAfterS)} s`, { retryAfterS: taken.retryAfterS }, { "Retry-After": String(taken.retryAfterS) }));
++      }
++      if (taken.untracked) {
++        if (!full.rate) {
++          full.rate = true;
++          audit("principal-state-full", { principal: principal.id, control: "rate-limit", cap: rateSettings.maxPrincipals });
++        }
++      } else if (limiter.size < rateSettings.maxPrincipals) full.rate = false;
+ 
+       // 9, 10: era, headers, dispatch
+       const ctx: DispatchContext = {

@@ -1,0 +1,11 @@
+--- a/packages/core/src/rate-limit/limiter.ts
++++ b/packages/core/src/rate-limit/limiter.ts
+@@ -109,7 +109,7 @@
+   /** RL-7: drops, from the least recently used end, every bucket that has refilled to full by `now`. */
+   #trim(now: number): void {
+     for (const [principal, b] of this.#buckets) {
+-      if (this.#level(b, now) < this.#settings.burst - EPSILON) break;
++      if (b.at < Number.POSITIVE_INFINITY) break;
+       this.#buckets.delete(principal);
+     }
+   }

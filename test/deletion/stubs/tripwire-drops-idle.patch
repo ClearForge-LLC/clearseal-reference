@@ -1,0 +1,11 @@
+--- a/packages/core/src/tripwire/tripwire.ts
++++ b/packages/core/src/tripwire/tripwire.ts
+@@ -124,7 +124,7 @@
+ 
+   #trim(now: number): void {
+     for (const [principal, e] of this.#entries) {
+-      if (!this.#spent(e, now)) break;
++      if (e.last > Number.NEGATIVE_INFINITY) break;
+       this.#entries.delete(principal);
+     }
+   }

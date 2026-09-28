@@ -1,0 +1,11 @@
+--- a/packages/core/src/rate-limit/limiter.ts
++++ b/packages/core/src/rate-limit/limiter.ts
+@@ -136,7 +136,7 @@
+     } else {
+       this.#buckets.delete(principal);
+     }
+-    if (bucket === undefined) return { ok: true, untracked };
++    if (bucket === undefined) return untracked ? { ok: false, retryAfterS: 1 } : { ok: true, untracked };
+     bucket.tokens = this.#level(bucket, now);
+     bucket.at = Math.max(bucket.at, now);
+     this.#buckets.set(principal, bucket);
