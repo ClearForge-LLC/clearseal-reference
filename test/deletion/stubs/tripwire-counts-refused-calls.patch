@@ -1,6 +1,6 @@
 --- a/packages/core/src/transport/dispatch.ts
 +++ b/packages/core/src/transport/dispatch.ts
-@@ -261,7 +261,6 @@
+@@ -264,7 +264,6 @@
    // A tool the pin gate refused is named, so the operator can find it in the start-up log; any
    // other unknown name is not echoed (CSR-WO-1001 §1.4).
    if (tool === undefined) throw new Refusal(400, INVALID_PARAMS, ctx.registry.pinning?.isRefused(name) === true ? `The tool "${name}" is refused by the pin gate` : "Unknown tool");
@@ -8,11 +8,11 @@
    const args = params["arguments"] ?? {};
    if (!isPlainObject(args)) throw new Refusal(400, INVALID_PARAMS, "params.arguments must be an object");
    const modern = era === MODERN_VERSION;
-@@ -280,6 +279,7 @@
+@@ -283,6 +282,7 @@
      throw audited(new Refusal(500, INTERNAL_ERROR, "Internal error"));
    }
    if (!valid) throw new Refusal(400, INVALID_PARAMS, `Invalid arguments for tool ${name}`);
 +  ctx.toolNamed(name);
    const binding = { principal: ctx.principal.id, method: "tools/call", tool: name, args: argumentsDigest(args) };
-   // CSR-WO-2001: a tool that needs approval runs only on a grant for this principal, tool and arguments,
-   // redeemed once (approval/RULES.md APR-1…APR-3). Anything else answers here, before the handler.
+ 
+   // CSR-WO-1002 §1.6: a fresh cage per call, from the tool's pinned domain (empty if none).
