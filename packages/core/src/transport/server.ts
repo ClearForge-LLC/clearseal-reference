@@ -275,6 +275,9 @@ export async function startTransport(options: TransportOptions): Promise<Running
     if (needing.length > 0 && options.approval === undefined) throw new Error(`the tools ${needing.join(", ")} need approval and no approval backend was given: the node does not start without one (approval/RULES.md APR-14)`);
     // Review L1: only the core's own service, never an object that merely has a gate.
     if (options.approval !== undefined && !ApprovalService.isGenuine(options.approval)) throw new TypeError("the transport takes only an ApprovalService the core constructed (approval/RULES.md APR-14)");
+    // APR-20: calls waiting for a decision hold in-flight slots, so they may hold at most half of them.
+    const waits = options.approval?.settings;
+    if (waits !== undefined && waits.waitSeconds > 0 && waits.maxWaiting * 2 > limits.maxInFlight) throw new Error(`APPROVAL_MAX_WAITING (${String(waits.maxWaiting)}) must be at most half the in-flight cap (${String(limits.maxInFlight)}) when APPROVAL_WAIT_SECONDS is set: waiting calls must never hold the slots other calls need (approval/RULES.md APR-20)`);
   } catch (err) {
     await options.validationPool?.close();
     throw err;

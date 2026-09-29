@@ -5,6 +5,8 @@
 
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 
+import { visible } from "./visible.ts";
+
 /** Why a call's approval did not grant (APR-2…APR-4, APR-11, APR-12). */
 export type CallRefusal = "pending" | "declined" | "expired" | "used" | "wrong-principal" | "wrong-tool" | "wrong-arguments" | "unknown" | "too-many" | "too-large";
 
@@ -92,6 +94,19 @@ function same(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
+const IGNORABLE = /[\p{Default_Ignorable_Code_Point}\p{White_Space}]/gu;
+
+/**
+ * A principal as an identity, for APR-5 (APR-21): default-ignorable code points and white space
+ * removed, NFKC, and a Unicode case fold (upper then lower case, so `ß` and `SS` meet), then the
+ * removal again for anything NFKC produced. Two names equal after this are one person for the
+ * self-approval refusal; it only ever widens that refusal.
+ */
+export function identityOf(principal: string): string {
+  return principal.replace(IGNORABLE, "").normalize("NFKC").toUpperCase().toLowerCase().normalize("NFKC").replace(IGNORABLE, "");
+}
+
+
 export class ApprovalBook {
   readonly #o: BookOptions;
   readonly #secrets: NonNullable<BookOptions["secrets"]>;
@@ -173,7 +188,11 @@ export class ApprovalBook {
       return { kind: "refused", reason };
     };
     if (e === undefined) return refuse("unknown");
-    if (!same(e.call.principal, call.principal)) return refuse("wrong-principal");
+    // APR-24: another principal's request is, to this caller, no request at all; the row says why.
+    if (!same(e.call.principal, call.principal)) {
+      refuse("wrong-principal");
+      return { kind: "refused", reason: "unknown" };
+    }
     if (e.call.tool !== call.tool) return refuse("wrong-tool");
     if (!same(e.call.digest, call.digest)) return refuse("wrong-arguments");
     if (e.state === "expired") return refuse("expired");
@@ -225,8 +244,8 @@ export class ApprovalBook {
       return { kind: "refused", reason };
     };
     if (e.state === "expired") return refuse("expired");
-    // C1: the approver is never the requester.
-    if (same(approver, e.call.principal)) return refuse("self-approval");
+    // C1: the approver is never the requester, compared as identities (APR-21).
+    if (same(identityOf(approver), identityOf(e.call.principal))) return refuse("self-approval");
     // The architect's ruling on the standard §3: Rule-of-Two is discharged by a human only.
     if (via === "delegated" && e.call.humanOnly) return refuse("human-required");
     // B1: a decline is terminal.
@@ -243,11 +262,6 @@ export class ApprovalBook {
     }
     this.#wake(e.id);
     return { kind: "decided" };
-  }
-
-  /** A decision attempt with no valid approver token (APR-9): audited, decides nothing. */
-  decisionUnauthenticated(): void {
-    this.#o.onEvent("approval-decision-refused", { principal: "unauthenticated", kind: "unauthenticated", via: "delegated" });
   }
 
   /** A delegated approver's decision (APR-5, APR-6, APR-9: `approver` is its verified `sub`). */
@@ -276,7 +290,8 @@ export class ApprovalBook {
   }
 
   #describe(e: Entry): Described {
-    return Object.freeze({ requestId: e.id, tool: e.call.tool, requester: e.call.principal, arguments: e.call.argumentsJson, humanOnly: e.call.humanOnly, expiresInSeconds: Math.max(0, Math.ceil((e.deadline - this.#o.clock()) / 1000)) });
+    // APR-18: what the approver reads shows every invisible or control code point.
+    return Object.freeze({ requestId: e.id, tool: visible(e.call.tool), requester: visible(e.call.principal), arguments: visible(e.call.argumentsJson), humanOnly: e.call.humanOnly, expiresInSeconds: Math.max(0, Math.ceil((e.deadline - this.#o.clock()) / 1000)) });
   }
 
   #linkEntry(linkToken: string): Entry | { kind: "refused"; reason: DecisionRefusal } {
@@ -290,14 +305,18 @@ export class ApprovalBook {
     return e;
   }
 
-  /** A human's decision through the confirm-URL (APR-5, APR-8): the link and the code, both. */
+  /**
+   * A human's decision through the confirm-URL (APR-5, APR-8): the link and the code, both. A link that
+   * names no request (`unknown`) writes no row here: nothing is behind it, and the listener counts it
+   * into one row per burst (APR-22). A link that names a request but is used, burned or expired is a
+   * real link replayed or leaked: its row names the request, the tool and the kind (APR-15).
+   */
   decideByLink(linkToken: string, code: string, decision: Decision, humanApprover: string): { kind: "decided" } | { kind: "refused"; reason: DecisionRefusal } {
     const e = this.#linkEntry(linkToken);
     if ("kind" in e) {
       const id = this.#byLink.get(linkToken);
       const known = id === undefined ? undefined : this.#entries.get(id);
-      if (known === undefined) this.#o.onEvent("approval-decision-refused", { principal: "unauthenticated", kind: e.reason, via: "human" });
-      else this.#event("approval-decision-refused", known, { kind: e.reason, approver: humanApprover, via: "human" });
+      if (known !== undefined) this.#event("approval-decision-refused", known, { kind: e.reason, approver: humanApprover, via: "human" });
       return e;
     }
     if (!same(code.toUpperCase(), e.secret.code)) {

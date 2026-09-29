@@ -1,6 +1,8 @@
 // Notifiers (CSR-WO-2001 §1.4; approval/RULES.md APR-10, APR-16). A notifier is the only place the
 // confirm-URL's link and code go: never the audit store, never a response to the caller.
 
+import { visible } from "./visible.ts";
+
 /** What an approver is told. */
 export interface Notification {
   readonly requestId: string;
@@ -14,6 +16,15 @@ export interface Notification {
   readonly expiresInSeconds: number;
 }
 
+/**
+ * APR-19: the notification as it is written out, every caller-influenced field (the requester and the
+ * tool) through the approver's-view escape, so a requester cannot write a line of its own or a
+ * terminal control. The request id, link and code are the node's own.
+ */
+export function shown(n: Notification): Notification {
+  return { ...n, requester: visible(n.requester), tool: visible(n.tool) };
+}
+
 export interface Notifier {
   /** Delivers one notification; rejects when it could not. */
   notify(n: Notification): Promise<void>;
@@ -21,7 +32,8 @@ export interface Notifier {
 
 /** Development: one line on stderr. The operator's terminal is the out-of-band channel. */
 export class StderrNotifier implements Notifier {
-  notify(n: Notification): Promise<void> {
+  notify(notification: Notification): Promise<void> {
+    const n = shown(notification);
     process.stderr.write(`[approval] ${n.requester} asks to run ${n.tool} (request ${n.requestId}${n.humanOnly ? ", a human must decide" : ""}); open ${n.link} and enter the code ${n.code} within ${String(n.expiresInSeconds)} s\n`);
     return Promise.resolve();
   }
@@ -56,7 +68,7 @@ export class WebhookNotifier implements Notifier {
   async notify(n: Notification): Promise<void> {
     let res: Response;
     try {
-      res = await fetch(this.#url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(n), redirect: "manual", signal: AbortSignal.timeout(this.#timeoutMs) });
+      res = await fetch(this.#url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(shown(n)), redirect: "manual", signal: AbortSignal.timeout(this.#timeoutMs) });
     } catch (err) {
       throw new NotifyError(err instanceof Error && err.name === "TimeoutError" ? "timeout" : "unreachable");
     }

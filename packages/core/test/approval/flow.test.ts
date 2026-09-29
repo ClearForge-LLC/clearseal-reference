@@ -79,16 +79,17 @@ void describe("CSR-WO-2001 approval: a grant for one call, once", () => {
     try {
       const id = approvalOf(await r.call("alice", "deploy", "prod")).requestId;
       assert.equal(await approveByLink(r, 0), 200);
-      const refusals: [string, () => Promise<unknown>][] = [
-        ["wrong-principal", () => r.call("mallory", "deploy", "prod", id)],
-        ["wrong-tool", () => r.call("alice", "publish", "prod", id)],
-        ["wrong-arguments", () => r.call("alice", "deploy", "staging", id)],
-        ["unknown", () => r.call("alice", "deploy", "prod", "0123456789abcdef01234567")],
-        ["unknown", () => r.call("alice", "deploy", "prod", { requestId: 7 })],
+      // APR-24: another principal's id answers the caller "unknown"; only the audit row says why.
+      const refusals: [string, string, () => Promise<unknown>][] = [
+        ["wrong-principal", "unknown", () => r.call("mallory", "deploy", "prod", id)],
+        ["wrong-tool", "wrong-tool", () => r.call("alice", "publish", "prod", id)],
+        ["wrong-arguments", "wrong-arguments", () => r.call("alice", "deploy", "staging", id)],
+        ["unknown", "unknown", () => r.call("alice", "deploy", "prod", "0123456789abcdef01234567")],
+        ["unknown", "unknown", () => r.call("alice", "deploy", "prod", { requestId: 7 })],
       ];
-      for (const [kind, attempt] of refusals) {
+      for (const [kind, answered, attempt] of refusals) {
         const reply = (await attempt()) as Parameters<typeof approvalOf>[0];
-        assert.equal(approvalOf(reply).status, kind, reply.text);
+        assert.equal(approvalOf(reply).status, answered, reply.text);
         pastes.push(`APPROVAL ${kind}: ${((reply.json as { result: { content: { text: string }[] } }).result.content[0] as { text: string }).text}`);
       }
       assert.deepEqual(r.entered, [], "no refused attempt ran, and none consumed the grant");

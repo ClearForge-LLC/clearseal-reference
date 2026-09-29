@@ -59,6 +59,9 @@ are on by default, with defaults no honest single client reaches; the `RATE_LIMI
 edition that does sets `APPROVAL_BACKEND=listener`: such a tool runs only after a different principal
 approves that exact call on a second listener the caller cannot reach, and a call that discharges
 Rule-of-Two is approved by a person only. The `APPROVAL_*` settings are in `.env.example`.
+The webhook URL is the operator's to choose, and the node checks only that it is `https`: it does
+not refuse an IP literal, a private address or a cloud metadata address. Name the service that
+delivers the notification to a person, by its host name, and nothing else.
 
 **The notes root is part of the pinned contract.** `notes.read`'s containment domain is the root,
 and the domain is hashed. Moving the store is a code change (the root in `src/notes.ts`) that changes

@@ -91,6 +91,13 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     discharges Rule-of-Two is decided by a person only (the standard §3).
   - The construction refusal of `elevated` tools lifts only when `APPROVAL_BACKEND` is configured in
     the settings snapshot. Every step is audited without a link, a code or an argument value.
+  - Red-team amendment (APR-18…APR-24). The approver's view and the notifiers show every invisible
+    or control code point as a visible `\u{XXXX}` escape. The bounded wait is capped per principal
+    and in all, so waiting calls cannot take the slots other calls need. Self-approval is compared
+    on identities (case, width, white space and invisible code points folded). The approval
+    listener is rate limited per remote address, and unauthenticated refusals are audited as one
+    row per window. Its same-address check compares resolved addresses and wildcards. Another
+    principal's request id answers `unknown`.
 - **CSR-WO-2007:** tripwire and rate limit, as two controls.
   - A per-principal rate limit after authentication (`packages/core/src/rate-limit/`): a token bucket
     per verified principal. Every authenticated request takes a token before a capacity slot is taken

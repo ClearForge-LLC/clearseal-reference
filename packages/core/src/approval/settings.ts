@@ -27,6 +27,13 @@ export interface ApprovalSettings {
   readonly webhookUrl: string;
   readonly maxPending: number;
   readonly maxPendingPerPrincipal: number;
+  /** APR-20: calls that may wait at once, per principal and in all; over either, pending at once. */
+  readonly maxWaitingPerPrincipal: number;
+  readonly maxWaiting: number;
+  /** APR-22: the approval listener's per-address rate limit. */
+  readonly listenerRateBurst: number;
+  readonly listenerRateRefillPerMinute: number;
+  readonly listenerRateMaxAddresses: number;
 }
 
 /** The defaults, each with its reason in approval/RULES.md. */
@@ -44,6 +51,13 @@ export const DEFAULT_APPROVAL: Readonly<ApprovalSettings> = Object.freeze({
   webhookUrl: "",
   maxPending: 1_000,
   maxPendingPerPrincipal: 3,
+  maxWaitingPerPrincipal: 1,
+  // A quarter of the transport's default in-flight cap (32): waiting calls never take the slots other
+  // calls need (APR-20).
+  maxWaiting: 8,
+  listenerRateBurst: 60,
+  listenerRateRefillPerMinute: 60,
+  listenerRateMaxAddresses: 10_000,
 });
 
 /** The bounded wait's ceiling: below the transport's 30 s handler timeout (APR-13). */
@@ -56,6 +70,11 @@ const INTEGERS: Readonly<Record<string, { key: keyof ApprovalSettings; min: numb
   APPROVAL_WAIT_SECONDS: { key: "waitSeconds", min: 0, max: MAX_WAIT_SECONDS },
   APPROVAL_MAX_PENDING: { key: "maxPending", min: 1, max: 100_000 },
   APPROVAL_MAX_PENDING_PER_PRINCIPAL: { key: "maxPendingPerPrincipal", min: 1, max: 100 },
+  APPROVAL_MAX_WAITING_PER_PRINCIPAL: { key: "maxWaitingPerPrincipal", min: 1, max: 100 },
+  APPROVAL_MAX_WAITING: { key: "maxWaiting", min: 1, max: 10_000 },
+  APPROVAL_LISTENER_RATE_BURST: { key: "listenerRateBurst", min: 1, max: 1_000_000 },
+  APPROVAL_LISTENER_RATE_REFILL_PER_MINUTE: { key: "listenerRateRefillPerMinute", min: 1, max: 6_000_000 },
+  APPROVAL_LISTENER_RATE_MAX_ADDRESSES: { key: "listenerRateMaxAddresses", min: 1, max: 1_000_000 },
 });
 
 /** A principal as the audit writes one bare: no control character, at most 256 characters. */

@@ -54,6 +54,7 @@ export const EVENTS: Readonly<Record<string, EventRule>> = Object.freeze({
   "approval-expired": { principal: "caller", fields: { request: "code", tool: "tool", phase: "code" } },
   "approval-refused": { principal: "caller", fields: { request: "code", tool: "tool", kind: "code" } },
   "approval-decision-refused": { principal: "caller-or-unauthenticated", fields: { request: "code", tool: "tool", kind: "code", approver: "principal", via: "code" } },
+  "approval-unauthenticated-burst": { principal: "unauthenticated", fields: { count: "int", windowS: "int" } },
   "audit-resumed": { principal: "node", fields: { fromSeq: "int", unanchored: "int" } },
 });
 

@@ -105,6 +105,11 @@ void describe("CSR-WO-2001 approval: settings validation", () => {
       APPROVAL_WEBHOOK_URL: "https://hooks.example.invalid/x",
       APPROVAL_MAX_PENDING: "100000",
       APPROVAL_MAX_PENDING_PER_PRINCIPAL: "100",
+      APPROVAL_MAX_WAITING_PER_PRINCIPAL: "2",
+      APPROVAL_MAX_WAITING: "4",
+      APPROVAL_LISTENER_RATE_BURST: "10",
+      APPROVAL_LISTENER_RATE_REFILL_PER_MINUTE: "20",
+      APPROVAL_LISTENER_RATE_MAX_ADDRESSES: "30",
     });
     assert.deepEqual(s, {
       backend: "listener",
@@ -120,6 +125,11 @@ void describe("CSR-WO-2001 approval: settings validation", () => {
       webhookUrl: "https://hooks.example.invalid/x",
       maxPending: 100_000,
       maxPendingPerPrincipal: 100,
+      maxWaitingPerPrincipal: 2,
+      maxWaiting: 4,
+      listenerRateBurst: 10,
+      listenerRateRefillPerMinute: 20,
+      listenerRateMaxAddresses: 30,
     });
     assert.ok(Object.isFrozen(s));
   });

@@ -13,6 +13,9 @@ export type GateOutcome = { kind: "granted"; requestId: string; approver: string
 /** The retry hint on a pending answer, in seconds. */
 export const RETRY_HINT_SECONDS = 5;
 
+/** The window unauthenticated refusals are counted over, one row each (APR-22). */
+export const UNAUTHENTICATED_WINDOW_SECONDS = 60;
+
 /** A request id as the book issues one: what the gate accepts from a caller's `_meta`. */
 const REQUEST_ID = /^[A-Za-z0-9-]{1,64}$/;
 
@@ -36,10 +39,18 @@ export class ApprovalService {
   readonly settings: Readonly<ApprovalSettings>;
   readonly delegatedVerifier: Verifier | undefined;
   readonly listens: boolean;
+  /** The monotonic clock the book runs on; the listener's rate limit runs on it too (APR-22). */
+  readonly clock: () => number;
   readonly #notifier: Notifier;
   readonly #audit: ApprovalServiceOptions["audit"];
   /** The base of every link, fixed once the listener is bound (or the configured public URL). */
   #base: string;
+  /** APR-20: calls waiting now, by principal, and in all. */
+  readonly #waiting = new Map<string, number>();
+  #waitingTotal = 0;
+  /** APR-22: unauthenticated refusals in the open window, and the timer that writes their row. */
+  #unauthenticated = 0;
+  #unauthenticatedTimer: NodeJS.Timeout | undefined;
 
   /** True only for an instance this class constructed (review L1): the transport serves an elevated tool
    *  only behind a genuine service, whose gate and book are the core's own and frozen. */
@@ -53,6 +64,7 @@ export class ApprovalService {
     this.#audit = o.audit;
     this.delegatedVerifier = o.delegatedVerifier;
     this.listens = o.listens;
+    this.clock = o.clock;
     this.#base = o.settings.publicUrl !== "" ? o.settings.publicUrl : "http://approval.invalid";
     this.book = new ApprovalBook({
       requestTtlMs: o.settings.requestTtlSeconds * 1000,
@@ -65,6 +77,49 @@ export class ApprovalService {
     });
     Object.freeze(this.book);
     Object.freeze(this);
+  }
+
+  /** Calls waiting now (APR-20; for tests and health). */
+  get waiting(): number {
+    return this.#waitingTotal;
+  }
+
+  /** APR-20: takes a waiting place for `principal`, or refuses when either cap is reached. */
+  #enterWait(principal: string): boolean {
+    const mine = this.#waiting.get(principal) ?? 0;
+    if (mine >= this.settings.maxWaitingPerPrincipal || this.#waitingTotal >= this.settings.maxWaiting) return false;
+    this.#waiting.set(principal, mine + 1);
+    this.#waitingTotal++;
+    return true;
+  }
+
+  #leaveWait(principal: string): void {
+    const mine = (this.#waiting.get(principal) ?? 1) - 1;
+    if (mine <= 0) this.#waiting.delete(principal);
+    else this.#waiting.set(principal, mine);
+    this.#waitingTotal--;
+  }
+
+  /**
+   * APR-22: a refusal on the approval listener that no authenticated approver is behind. Counted, not
+   * written: the first opens a window, and when it closes one `approval-unauthenticated-burst` row
+   * carries the count, so junk requests cannot fill the audit store a row each.
+   */
+  noteUnauthenticated(): void {
+    this.#unauthenticated++;
+    if (this.#unauthenticatedTimer !== undefined) return;
+    this.#unauthenticatedTimer = setTimeout(() => this.flushUnauthenticated(), UNAUTHENTICATED_WINDOW_SECONDS * 1000);
+    this.#unauthenticatedTimer.unref();
+  }
+
+  /** Writes the open window's row now (the timer, and the listener's close). */
+  flushUnauthenticated(): void {
+    clearTimeout(this.#unauthenticatedTimer);
+    this.#unauthenticatedTimer = undefined;
+    if (this.#unauthenticated === 0) return;
+    const count = this.#unauthenticated;
+    this.#unauthenticated = 0;
+    this.#audit("approval-unauthenticated-burst", { principal: "unauthenticated", count, windowS: UNAUTHENTICATED_WINDOW_SECONDS });
   }
 
   /** Set by the listener once bound, when no public URL is configured. */
@@ -110,8 +165,13 @@ export class ApprovalService {
     if (o.secret !== undefined) this.#notify(o.id, call, o.secret);
     else this.#audit("approval-refused", { principal: call.principal, request: o.id, tool: call.tool, kind: "pending" });
     const waitMs = this.settings.waitSeconds * 1000;
-    if (waitMs > 0 && this.book.stateOf(o.id) === "pending") {
-      await this.book.waitFor(o.id, waitMs, signal);
+    // APR-20: a call over either waiting cap answers pending at once; it never holds a slot to wait.
+    if (waitMs > 0 && this.book.stateOf(o.id) === "pending" && this.#enterWait(call.principal)) {
+      try {
+        await this.book.waitFor(o.id, waitMs, signal);
+      } finally {
+        this.#leaveWait(call.principal);
+      }
       if (this.book.stateOf(o.id) === "approved" && signal?.aborted !== true) {
         const r = this.book.redeem(o.id, call);
         if (r.kind === "granted") return { kind: "granted", requestId: o.id, approver: r.approver };

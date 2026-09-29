@@ -86,6 +86,7 @@ Kinds of field:
 | `approval-expired` | `approval/book.ts` | caller | request (code), tool (tool), phase (code) |
 | `approval-refused` | `approval/book.ts`, `approval/service.ts`, `transport/dispatch.ts` | caller | request (code), tool (tool), kind (code) |
 | `approval-decision-refused` | `approval/book.ts` | caller, else unauthenticated | request (code), tool (tool), kind (code), approver (principal), via (code) |
+| `approval-unauthenticated-burst` | `approval/service.ts` (red-team amendment, approval/RULES.md APR-22) | unauthenticated | count (int), windowS (int) |
 | `audit-resumed` | `audit/store.ts` | node | fromSeq (int), unanchored (int) |
 | any other event | — | unattributed | written as `unlisted`: its name and fields in one keyed digest |
 

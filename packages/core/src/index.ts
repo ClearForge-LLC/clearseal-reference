@@ -21,7 +21,8 @@ export { checkRateLimit, DEFAULT_RATE_LIMIT, RateLimitConfigError, rateLimitFrom
 export { checkTripwire, DEFAULT_TRIPWIRE, MAX_TRIPWIRE_TIMESTAMPS, type OnBurst, Tripwire, TripwireConfigError, tripwireFromEnv, type TripwireSettings } from "./tripwire/tripwire.ts";
 export { ApprovalBook, type Call as ApprovalCall, type CallRefusal as ApprovalCallRefusal, type Decision as ApprovalDecision, type DecisionRefusal as ApprovalDecisionRefusal, MAX_WRONG_CODES } from "./approval/book.ts";
 export { ApprovalListenerError, type RunningApprovalListener, startApprovalListener } from "./approval/listener.ts";
-export { MemoryNotifier, type Notification, type Notifier, NotifyError, StderrNotifier, WebhookNotifier } from "./approval/notifier.ts";
+export { MemoryNotifier, type Notification, type Notifier, NotifyError, shown, StderrNotifier, WebhookNotifier } from "./approval/notifier.ts";
+export { visible } from "./approval/visible.ts";
 export { humanOnly } from "./approval/policy.ts";
 export { ApprovalService, type ApprovalServiceOptions, type GateOutcome, RETRY_HINT_SECONDS, testApprovalBackend } from "./approval/service.ts";
 export { ApprovalConfigError, approvalFromEnv, type ApprovalSettings, DEFAULT_APPROVAL, MAX_WAIT_SECONDS, webhookUrlProblem } from "./approval/settings.ts";

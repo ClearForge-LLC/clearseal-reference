@@ -9,11 +9,13 @@
 //
 // Responses never carry the link or the code (APR-10).
 
+import { lookup } from "node:dns/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { AddressInfo } from "node:net";
+import { type AddressInfo, isIP } from "node:net";
 
 import type { Decision, DecisionRefusal } from "./book.ts";
 import type { ApprovalService } from "./service.ts";
+import { RateLimiter } from "../rate-limit/limiter.ts";
 import { JsonParseError, parseJsonStrict } from "../transport/json.ts";
 
 /** The approval listener would share the main listener's address and port (APR-7). */
@@ -24,6 +26,8 @@ export class ApprovalListenerError extends Error {
 export interface RunningApprovalListener {
   readonly port: number;
   readonly url: string;
+  /** Remote addresses the rate limit holds a bucket for now (APR-22; for tests and health). */
+  addresses(): number;
   close(): Promise<void>;
 }
 
@@ -87,17 +91,67 @@ function parseDecision(bytes: Buffer | undefined): { decision: Decision; code?: 
   return { decision: o["decision"], ...(typeof code === "string" ? { code } : {}) };
 }
 
+/** An address in one form (APR-23): lower case, IPv6 compressed, an IPv4-mapped IPv6 address as IPv4. */
+export function canonicalAddress(address: string): string {
+  const a = address.toLowerCase().replace(/^\[(.*)\]$/, "$1");
+  if (isIP(a) !== 6) return a;
+  let compressed: string;
+  try {
+    compressed = new URL(`http://[${a}]`).hostname.slice(1, -1);
+  } catch {
+    // An address a URL cannot hold (a link-local one with a zone id) is compared as written.
+    return a;
+  }
+  const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(compressed);
+  if (mapped === null) return compressed;
+  const hi = parseInt(mapped[1] ?? "0", 16);
+  const lo = parseInt(mapped[2] ?? "0", 16);
+  return [hi >> 8, hi & 255, lo >> 8, lo & 255].join(".");
+}
+
+/** Every address a host names: an IP literal itself, a name what it resolves to; the name if neither. */
+async function addressesOf(host: string): Promise<Set<string>> {
+  const h = canonicalAddress(host);
+  if (isIP(h) !== 0) return new Set([h]);
+  try {
+    return new Set((await lookup(h, { all: true })).map((a) => canonicalAddress(a.address)).concat(h));
+  } catch {
+    return new Set([h]);
+  }
+}
+
+const WILDCARDS: ReadonlySet<string> = new Set(["0.0.0.0", "::"]);
+
+/**
+ * APR-23: whether two listen hosts can serve one address. Compared as addresses, case-insensitively and
+ * after resolution, and a wildcard overlaps every address: refusing a pair that could not in fact
+ * collide is the safe direction.
+ */
+export async function hostsOverlap(a: string, b: string): Promise<boolean> {
+  const [x, y] = await Promise.all([addressesOf(a), addressesOf(b)]);
+  for (const v of x) if (WILDCARDS.has(v) || y.has(v)) return true;
+  for (const v of y) if (WILDCARDS.has(v)) return true;
+  return false;
+}
+
 /**
  * Starts the approval listener for `service`. Refuses to start on the main listener's address and port
  * (APR-7), before binding.
  */
 export async function startApprovalListener(service: ApprovalService, main: { host: string; port: number }): Promise<RunningApprovalListener> {
   const { host, port, humanApprover } = service.settings;
-  const norm = (h: string): string => (h === "localhost" ? "127.0.0.1" : h.toLowerCase());
-  if (port !== 0 && port === main.port && norm(host) === norm(main.host)) throw new ApprovalListenerError(`the approval listener cannot share the main listener's address and port (${host}:${String(port)}): the approval channel must be one the caller cannot reach`);
+  if (port !== 0 && port === main.port && (await hostsOverlap(host, main.host))) throw new ApprovalListenerError(`the approval listener cannot share the main listener's address and port (${host}:${String(port)}): the approval channel must be one the caller cannot reach`);
   let allowedHosts: string[] = [];
+  // APR-22: a budget per remote address, by the core's own limiter, before any other work.
+  const limiter = new RateLimiter({ burst: service.settings.listenerRateBurst, refillPerMinute: service.settings.listenerRateRefillPerMinute, maxPrincipals: service.settings.listenerRateMaxAddresses }, service.clock);
 
   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    const taken = limiter.take(canonicalAddress(req.socket.remoteAddress ?? ""));
+    if (!taken.ok) {
+      res.setHeader("Retry-After", String(taken.retryAfterS));
+      send(res, 429, { error: "rate-limited" });
+      return;
+    }
     const hosts = req.headersDistinct.host ?? [];
     if (hosts.length !== 1 || !allowedHosts.includes((hosts[0] ?? "").toLowerCase())) {
       send(res, 403, { error: "host-not-allowed" });
@@ -128,7 +182,11 @@ export async function startApprovalListener(service: ApprovalService, main: { ho
       }
       const r = service.book.decideByLink(key, body.code, body.decision, humanApprover);
       if (r.kind === "decided") send(res, 200, { decided: body.decision });
-      else send(res, STATUS[r.reason], { error: r.reason });
+      else {
+        // APR-22: a link that names no request: counted, not a row each.
+        if (r.reason === "unknown") service.noteUnauthenticated();
+        send(res, STATUS[r.reason], { error: r.reason });
+      }
       return;
     }
     // A delegated approver: its own bearer, for the approval audience (APR-9).
@@ -145,7 +203,8 @@ export async function startApprovalListener(service: ApprovalService, main: { ho
     }
     const approver = verdict.ok ? verdict.principal.id : "";
     if (!verdict.ok || approver === "") {
-      service.book.decisionUnauthenticated();
+      // APR-22: counted into one row per window, not a row each.
+      service.noteUnauthenticated();
       send(res, 401, { error: "unauthenticated" });
       return;
     }
@@ -179,7 +238,7 @@ export async function startApprovalListener(service: ApprovalService, main: { ho
   });
   const bound = (server.address() as AddressInfo).port;
   // The same check once both are bound: a main listener on port 0 is known only now.
-  if (bound === main.port && norm(host) === norm(main.host)) {
+  if (bound === main.port && (await hostsOverlap((server.address() as AddressInfo).address, main.host))) {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     throw new ApprovalListenerError("the approval listener cannot share the main listener's address and port");
   }
@@ -191,9 +250,13 @@ export async function startApprovalListener(service: ApprovalService, main: { ho
   return Object.freeze({
     port: bound,
     url: `http://${authority}`,
+    addresses: () => limiter.size,
     close: () =>
       new Promise<void>((resolve) => {
-        server.close(() => resolve());
+        server.close(() => {
+          service.flushUnauthenticated();
+          resolve();
+        });
         server.closeAllConnections();
       }),
   });
