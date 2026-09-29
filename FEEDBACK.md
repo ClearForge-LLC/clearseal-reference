@@ -1,7 +1,8 @@
 # FEEDBACK: CSR-WO-2001 (approval)
 
-Branch `wo/CSR-WO-2001`, cut from `main` at `bfccccf`. Parked as one unmerged pull request. Built on
-Node v24.21.0. Spec first: `approval/RULES.md` was committed before any code.
+Branch `wo/CSR-WO-2001`, cut from `main` at `bfccccf`. Parked as one unmerged pull request (#72),
+amended after the red team (see *Red-team amendment*). Built on Node v24.21.0. Spec first:
+`approval/RULES.md` was committed before any code, both times.
 
 ## Gates
 
@@ -17,6 +18,99 @@ Node v24.21.0. Spec first: `approval/RULES.md` was committed before any code.
   `provenance` green (`build`, `attest`; `release` skipped).
 - The pull request was opened by the architect: the S25 connection needed re-authentication, so no
   builder token was minted.
+
+## Red-team amendment (gate ruling 2026-09-29)
+
+The red team's pass at `31d8fb9` found no Critical or High, three Medium, three Low and one Info (981/981
+tests passing). All seven are fixed on this branch, spec first: `approval/RULES.md` APR-18…APR-24 were
+committed (`25c6599`) before the code. Each has a red-proof, a regression test in
+`packages/core/test/approval/redteam.test.ts` and at least one control-deletion row.
+
+**The harness was not on this machine.** `/workspace/clearseal-72-harness/attacks/` does not exist here,
+so each repro is written from the amendment's description and named after its harness file. I matched
+files to findings by name and by the order they were listed: a7-whole-call → M1, a6b-wait-capacity → M2,
+a2-self-approve → L1, a10-operator-principal → M3, a5-resources → L2, a2c-localhost-case → L3,
+a8-pending-ids → Info. The a10 mapping is my inference. It also has a case in L1's test: a requester named
+`OPERATOR` cannot approve through the confirm-URL, whose approver is `operator`.
+
+### Gates at the amendment's head
+
+- `npm run check` exits 0: 924 core and teaching tests (904 before the amendment), spike 0102 69,
+  spike 0101 8, `test:subset` 4.
+- `control-deletion`: the self-test passes. The four shards turned all 224 rows red by assertion
+  (211 before; 13 new): 281, 303, 302 and 316 s.
+- Both leak gates exit 0, run unpiped with the exit code checked directly, before the push.
+- CI: the pull request's checks on the pushed head. Their results are in the builder's report, not a later
+  commit, so the head they ran on is the head that is parked.
+
+### Each item, its rule, its test
+
+| Item | Rule | What changed | Rows |
+|---|---|---|---|
+| M1 approver view | APR-18 | `approval/visible.ts`, one helper, escapes every `Cc`, `Cf`, `Zl`, `Zp`, `Cs` and default-ignorable code point as `\u{XXXX}`. That covers the bidi controls, the zero-width characters, C0, DEL and C1, and the tag characters. The book's description (`book.ts`) applies it to the tool, the requester and the whole call, so both listener views get it. | `approval-view-escaped`, `approval-visible-classes` |
+| M3 notifier line | APR-19 | `shown()` in `notifier.ts` escapes the requester and the tool in the stderr line and in the webhook body. `auth/verifier.ts` is unchanged. | `notifier-stderr-escaped`, `notifier-webhook-escaped` |
+| M2 bounded wait | APR-20 | Waiting calls are capped at `APPROVAL_MAX_WAITING_PER_PRINCIPAL` (default 1) and `APPROVAL_MAX_WAITING` (default 8, a quarter of the in-flight cap of 32). A call over either cap answers pending at once, never 503. The counters are released in `finally`. With a wait set, the transport refuses to start when the total cap is over half the in-flight cap. | `approval-wait-cap-principal`, `approval-wait-cap-total`, `transport-wait-cap-below-inflight` |
+| L1 self-approval | APR-21 | `identityOf` removes default-ignorable code points and white space, applies NFKC, case-folds (upper then lower), and removes again. APR-5 compares the results on both paths. | `approval-self-approval-identity` |
+| L2 listener abuse | APR-22 | The core's `RateLimiter` limits each remote address, on its own `APPROVAL_LISTENER_RATE_*` settings (60 burst, 60 a minute, 10,000 addresses); over the budget the answer is 429 with Retry-After. A rejected bearer or a link naming no request is counted, not written: one `approval-unauthenticated-burst` row per 60 s window carries the count, in the tripwire's shape. | `approval-listener-rate-limit`, `approval-unauthenticated-aggregated`, `approval-replayed-link-row` |
+| L3 host check | APR-23 | `hostsOverlap` compares the approval and main hosts as addresses: lower case, IPv6 compressed, IPv4-mapped as IPv4, names resolved. A wildcard overlaps everything. The check runs before binding, and again after on the actually bound address. | `approval-host-overlap` |
+| Info existence oracle | APR-24 | Another principal's request id now answers the caller `unknown`, identical to a made-up id except for the echoed id; the audit row keeps `wrong-principal`. **This amends WO §1.2's refusal list for the caller only**, as ruled. | `approval-id-not-confirmed` |
+
+The amendment moved six stubs' lines, so they were rewritten with the same edits on the new lines:
+`approval-binds-principal`, `approval-no-self-approval`, `approval-listener-not-main-port`,
+`approval-secrets-never-described`, `approval-bounded-wait` and `webhook-no-redirect`. Six more were
+re-targeted with their edits unchanged. The 13 new rows, the six rewritten ones and the re-targeted
+ones each turned red when run alone, and again in the full four-shard run.
+
+### Test pastes
+
+```
+M1 visible: pay \u{202E}evil\u{2066} to\u{200B} x\u{0085}
+M1 approver sees: {"arguments":{"target":"prod\u{202E}\u{2066}gnp.exe\u{2069}\u{200B}\u{200D}\u{FEFF}\u{0085}\u{009B}\u{007F}\u{E0041}"}}
+M3 stderr: [approval] mallory\u{000A}[approval] operator asks to run deploy (request req-2); open http://evil.invalid and enter the code AAAA within 600 s\u{000D}\u{001B}[2K asks to run deploy (request req-1); open http://127.0.0.1:3031/approval/link/link-1 and enter the code CODE0001 within 600 s
+M2 one principal: 40 calls → 1 waited, 39 pending at once, never 503; bob's read → 200, ran
+M2 twenty principals: 8 waited, 12 pending at once; bob's read → 200, ran
+L1 self-approval refused for: Dave/dave, trailing space, zero-width insert, fullwidth letters
+L2 10,000 junk (5,000 forged bearers → 401, 5,000 unknown links → 404) → rows: [{"event":"approval-unauthenticated-burst","fields":{"principal":"unauthenticated","count":10000,"windowS":60}}]
+L2 2,000 from one address → 60 answered, 1940 × 429; the approver from another address → 200, decided 200
+L3 refused before binding: LOCALHOST vs main 127.0.0.1; localhost vs main 127.0.0.1; ::ffff:127.0.0.1 vs main 127.0.0.1; 0.0.0.0 vs main 127.0.0.1; :: vs main 127.0.0.1; 127.0.0.1 vs main ::; 127.0.0.1 vs main 0.0.0.0
+INFO another principal's id → Approval refused for deploy: unknown (request <id>). Nothing has run. No such request is known.
+```
+
+The approver in the L2 test connects from `127.0.0.2`, the flood from `127.0.0.1`. The whole of 127/8
+is loopback on the Linux and Windows runners, but not on macOS, which is not in the CI matrix.
+
+### Review of the amendment
+
+A fresh review subagent checked the amendment's diff against the amendment message. It found every item
+met and `auth/verifier.ts` unchanged. Its defects, and what I did:
+
+| # | Severity | Finding | Done |
+|---|---|---|---|
+| 1 | High | A test used a private IPv4 address, which the leak gate refuses. | Replaced with `::1`. |
+| 2 | Medium | Under its stub, the transport-refusal test started a transport and never closed it, so the row timed out instead of failing (confirmed: it missed). | The test now closes anything that starts; the row is red by assertion. |
+| 3 | Medium | Listener lockout behind a proxy: behind the reverse proxy `APPROVAL_PUBLIC_URL` implies, every client shares one address and one budget. Anyone sending more than one request a second keeps the approver on 429. It fails closed, but it is a denial of approvals. | **Not changed: for you.** The ruling says per remote address, and `X-Forwarded-For` is spoofable. The options are a trusted-proxy setting that names the proxy whose forwarded address is believed, or charging only failed requests (an attacker on the same address still empties the bucket). |
+| 4 | Medium | Counting used, burned and expired links anonymously dropped their request, tool and kind. Only a real link token triggers them, so they are replays or leaks, not junk, and APR-15 wants them by kind. | Fixed: only a link naming no request is counted. A replayed link keeps its own row (test, and row `approval-replayed-link-row`). APR-22's wording says so. |
+| 5 | Low | Address rotation: at the 10,000-address cap the limiter serves newcomers untracked (RL-8), so an attacker with an IPv6 /64 can fill the table. Rows and memory stay bounded; verifier CPU does not. | Recorded. Keying IPv6 on its /64 would close it; not built without a ruling. |
+| 6 | Low | The M2 test fired 40 calls at once against the in-flight cap of 32, so a genuine capacity 503 could fail it on a slow runner. | Fixed: the first call waits, and the other 39 go one at a time, each required to answer within 2 s. |
+| 7 | Low | `hostsOverlap` uses `dns.lookup` with no timeout, and on a lookup failure compares the name only. | The post-bind check now compares the actually bound address. A slow resolver still delays start by the OS's resolver timeout. A name that cannot be looked up cannot be bound either. |
+| 8 | Low | The burst row's timer is unref'd, so a crash or `process.exit` loses up to 60 s of count. A refusal after close opens a new window. | Recorded. The listener's close flushes the open window. |
+| 9 | Info | `canonicalAddress` threw on an IPv6 zone id, so a link-local client would get a 500. | Fixed: such an address is compared as written (test). |
+| 10 | Info | `visible` does not escape a backslash, so a requester that literally contains the six characters `\u{202E}` looks like an escaped one. | Recorded: it hides nothing (both show the same visible text). In the arguments, JSON already doubles a literal backslash. |
+| 11 | Info | The caller-facing pending/refusal text echoes the caller's own request id. | No change: it goes back to the same caller only, never to an approver. |
+
+### Known, and not in scope (with the reason)
+
+- **Notification retry.** A failed notification (`approval-notify-failed`) is not retried. The request
+  can only expire, so it fails closed.
+- **A webhook URL naming an IP literal or a metadata address.** The operator sets the URL, and the node
+  checks only `https`. The teaching README now says so and tells operators to name the delivering
+  service by its host name.
+- **Gaps the red team did not run.** A `requestState` swap on a live node: the existing review-M1 test
+  covers the modern era's input responses, not a sealed request state. Code-compare timing: the code
+  is compared with `timingSafeEqual` at equal lengths. Clock manipulation: every clock is injected and
+  monotonic. None of these three is a cheap test, so none was added. Memory at the 1,000-pending cap
+  was cheap: a test fills the book to the default cap and shows one more refused, with nobody notified
+  and the table no larger.
 
 ## Read this first
 
