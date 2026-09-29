@@ -11,9 +11,12 @@ Node v24.21.0. Spec first: `approval/RULES.md` was committed before any code.
   final code (262, 279, 280 and 288 s).
 - `node scripts/leak-gate.mjs --tree` and `--history` exit 0, run unpiped with the exit code checked
   directly, before every push.
-- CI: the pull request's checks, recorded in the next commit from its first run.
-- The minted token lived in a mode-0600 scratch file, was never written to git config or a remote
-  URL, and was deleted after the pull request was opened.
+- CI on the pull request's first run (#72, at `f5f0f67`): `ci` green, twelve jobs: `test` on
+  ubuntu-latest and windows-latest, `leak-gate`, `audit`, `sbom`, `control-deletion-self-test`,
+  `control-deletion-plan`, the four `control-deletion` shards and the `control-deletion` aggregate;
+  `provenance` green (`build`, `attest`; `release` skipped).
+- The pull request was opened by the architect: the S25 connection needed re-authentication, so no
+  builder token was minted.
 
 ## Read this first
 
