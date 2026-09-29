@@ -1,11 +1,11 @@
 --- a/packages/core/src/approval/service.ts
 +++ b/packages/core/src/approval/service.ts
-@@ -110,7 +110,7 @@
-     if (o.secret !== undefined) this.#notify(o.id, call, o.secret);
+@@ -166,7 +166,7 @@
      else this.#audit("approval-refused", { principal: call.principal, request: o.id, tool: call.tool, kind: "pending" });
      const waitMs = this.settings.waitSeconds * 1000;
--    if (waitMs > 0 && this.book.stateOf(o.id) === "pending") {
-+    if (waitMs > 0 && this.book.stateOf(o.id) === "pending" && waitMs < 0) {
-       await this.book.waitFor(o.id, waitMs, signal);
-       if (this.book.stateOf(o.id) === "approved" && signal?.aborted !== true) {
-         const r = this.book.redeem(o.id, call);
+     // APR-20: a call over either waiting cap answers pending at once; it never holds a slot to wait.
+-    if (waitMs > 0 && this.book.stateOf(o.id) === "pending" && this.#enterWait(call.principal)) {
++    if (waitMs > 0 && this.book.stateOf(o.id) === "pending" && this.#enterWait(call.principal) && waitMs < 0) {
+       try {
+         await this.book.waitFor(o.id, waitMs, signal);
+       } finally {

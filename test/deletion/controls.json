@@ -3270,6 +3270,208 @@
       "mustFail": [
         "review L5: APPROVAL_WAIT_SECONDS no shorter than APPROVAL_REQUEST_TTL_SECONDS refuses start"
       ]
+    },
+    {
+      "id": "approval-view-escaped",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team M1, APR-18: the approver's view shows every invisible or control code point escaped",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-view-escaped.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-18: a call hiding text reaches the approver escaped, on the link and to a delegated approver, never raw",
+        "APR-18: the requester and the tool are shown escaped too"
+      ]
+    },
+    {
+      "id": "approval-visible-classes",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team M1, APR-18: the escape covers controls, format characters and every default-ignorable code point",
+      "touches": [
+        "packages/core/src/approval/visible.ts"
+      ],
+      "stub": "stubs/approval-visible-classes.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-18: every class is shown as a visible escape; plain text is unchanged",
+        "APR-18: a call hiding text reaches the approver escaped, on the link and to a delegated approver, never raw"
+      ]
+    },
+    {
+      "id": "notifier-stderr-escaped",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team M3, APR-19: the stderr notifier line shows caller-influenced fields escaped",
+      "touches": [
+        "packages/core/src/approval/notifier.ts"
+      ],
+      "stub": "stubs/notifier-stderr-escaped.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-19: the stderr line stays one line, with no carriage return or escape sequence"
+      ]
+    },
+    {
+      "id": "notifier-webhook-escaped",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team M3, APR-19: the webhook body shows caller-influenced fields escaped",
+      "touches": [
+        "packages/core/src/approval/notifier.ts"
+      ],
+      "stub": "stubs/notifier-webhook-escaped.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-19: the webhook body carries the requester escaped"
+      ]
+    },
+    {
+      "id": "approval-wait-cap-principal",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team M2, APR-20: at most maxWaitingPerPrincipal calls per principal wait at once",
+      "touches": [
+        "packages/core/src/approval/service.ts"
+      ],
+      "stub": "stubs/approval-wait-cap-principal.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-20: one principal's 40 calls hold one wait; another principal's read_only call is served"
+      ]
+    },
+    {
+      "id": "approval-wait-cap-total",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team M2, APR-20: at most maxWaiting calls wait at once in all",
+      "touches": [
+        "packages/core/src/approval/service.ts"
+      ],
+      "stub": "stubs/approval-wait-cap-total.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-20: many principals' waits are capped in all at maxWaiting; the rest answer pending at once"
+      ]
+    },
+    {
+      "id": "transport-wait-cap-below-inflight",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team M2, APR-20: a waiting cap over half the in-flight cap refuses start",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/transport-wait-cap-below-inflight.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-20: a waiting cap over half the in-flight cap refuses start"
+      ]
+    },
+    {
+      "id": "approval-self-approval-identity",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team L1, APR-21: self-approval is compared on identities, not bytes",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-self-approval-identity.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-21: each variant is refused as self-approval, delegated and by the confirm-URL",
+        "APR-21: a requester whose name folds to the operator's cannot approve through the confirm-URL"
+      ]
+    },
+    {
+      "id": "approval-listener-rate-limit",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team L2, APR-22: the approval listener is rate limited per remote address",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-listener-rate-limit.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-22: over the per-address budget, 429 with Retry-After; an approver from another address is served",
+        "APR-22: a 429 carries Retry-After and does no other work"
+      ]
+    },
+    {
+      "id": "approval-unauthenticated-aggregated",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team L2, APR-22: unauthenticated refusals are one row per window, not one each",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-unauthenticated-aggregated.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-22: 10,000 junk requests → one burst row with the count, no row each, bounded state"
+      ]
+    },
+    {
+      "id": "approval-host-overlap",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team L3, APR-23: the same-address check compares resolved addresses, case-insensitively, and wildcards",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-host-overlap.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-23: hosts overlap case-insensitively, by resolution, and through a wildcard",
+        "APR-23: each spelling on the main listener's port is refused before binding"
+      ]
+    },
+    {
+      "id": "approval-replayed-link-row",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team L2 review, APR-22 and APR-15: a replayed link keeps its own row naming its request; only a link naming nothing is counted",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-replayed-link-row.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-22: a replayed link keeps its own row, naming the request; only a link that names nothing is counted"
+      ]
+    },
+    {
+      "id": "approval-id-not-confirmed",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Red team Info, APR-24: another principal's request id answers unknown to the caller",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-id-not-confirmed.patch",
+      "tests": [
+        "packages/core/test/approval/redteam.test.ts",
+        "packages/core/test/approval/flow.test.ts"
+      ],
+      "mustFail": [
+        "APR-24: another principal's id answers unknown, as a made-up id does; the row keeps wrong-principal; the grant still redeems",
+        "APR-2: a grant redeemed by another principal, for another tool, with other arguments, after expiry, or with an unknown id → each refused by name"
+      ]
     }
   ]
 }

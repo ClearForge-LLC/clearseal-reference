@@ -1,11 +1,11 @@
 --- a/packages/core/src/approval/listener.ts
 +++ b/packages/core/src/approval/listener.ts
-@@ -94,7 +94,7 @@
+@@ -140,7 +140,7 @@
+  */
  export async function startApprovalListener(service: ApprovalService, main: { host: string; port: number }): Promise<RunningApprovalListener> {
    const { host, port, humanApprover } = service.settings;
-   const norm = (h: string): string => (h === "localhost" ? "127.0.0.1" : h.toLowerCase());
--  if (port !== 0 && port === main.port && norm(host) === norm(main.host)) throw new ApprovalListenerError(`the approval listener cannot share the main listener's address and port (${host}:${String(port)}): the approval channel must be one the caller cannot reach`);
-+  if (port !== 0 && port === main.port && norm(host) === norm(main.host) && port < 0) throw new ApprovalListenerError(`the approval listener cannot share the main listener's address and port (${host}:${String(port)}): the approval channel must be one the caller cannot reach`);
+-  if (port !== 0 && port === main.port && (await hostsOverlap(host, main.host))) throw new ApprovalListenerError(`the approval listener cannot share the main listener's address and port (${host}:${String(port)}): the approval channel must be one the caller cannot reach`);
++  if (port !== 0 && port === main.port && (await hostsOverlap(host, main.host)) && port < 0) throw new ApprovalListenerError(`the approval listener cannot share the main listener's address and port (${host}:${String(port)}): the approval channel must be one the caller cannot reach`);
    let allowedHosts: string[] = [];
- 
-   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+   // APR-22: a budget per remote address, by the core's own limiter, before any other work.
+   const limiter = new RateLimiter({ burst: service.settings.listenerRateBurst, refillPerMinute: service.settings.listenerRateRefillPerMinute, maxPrincipals: service.settings.listenerRateMaxAddresses }, service.clock);

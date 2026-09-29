@@ -1,0 +1,12 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -190,8 +190,7 @@
+     if (e === undefined) return refuse("unknown");
+     // APR-24: another principal's request is, to this caller, no request at all; the row says why.
+     if (!same(e.call.principal, call.principal)) {
+-      refuse("wrong-principal");
+-      return { kind: "refused", reason: "unknown" };
++      return refuse("wrong-principal");
+     }
+     if (e.call.tool !== call.tool) return refuse("wrong-tool");
+     if (!same(e.call.digest, call.digest)) return refuse("wrong-arguments");

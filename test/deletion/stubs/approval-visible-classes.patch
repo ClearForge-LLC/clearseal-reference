@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/visible.ts
++++ b/packages/core/src/approval/visible.ts
+@@ -9,7 +9,7 @@
+  * selectors, the Hangul fillers). Escaping too much only makes a view longer; escaping too little can
+  * hide or reorder what an approver reads.
+  */
+-const INVISIBLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cs}\p{Default_Ignorable_Code_Point}]/gu;
++const INVISIBLE = /[\p{Zl}\p{Zp}]/gu;
+ 
+ /** `text` with every invisible or control code point shown as `\u{XXXX}`; anything else unchanged. */
+ export function visible(text: string): string {

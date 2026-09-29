@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/listener.ts
++++ b/packages/core/src/approval/listener.ts
+@@ -147,7 +147,7 @@
+ 
+   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+     const taken = limiter.take(canonicalAddress(req.socket.remoteAddress ?? ""));
+-    if (!taken.ok) {
++    if (!taken.ok && taken.retryAfterS < 0) {
+       res.setHeader("Retry-After", String(taken.retryAfterS));
+       send(res, 429, { error: "rate-limited" });
+       return;

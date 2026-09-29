@@ -1,7 +1,7 @@
 --- a/packages/core/src/approval/book.ts
 +++ b/packages/core/src/approval/book.ts
-@@ -300,7 +300,7 @@
-       else this.#event("approval-decision-refused", known, { kind: e.reason, approver: humanApprover, via: "human" });
+@@ -319,7 +319,7 @@
+       if (known !== undefined) this.#event("approval-decision-refused", known, { kind: e.reason, approver: humanApprover, via: "human" });
        return e;
      }
 -    if (!same(code.toUpperCase(), e.secret.code)) {

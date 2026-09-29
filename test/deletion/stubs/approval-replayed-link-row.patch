@@ -1,0 +1,10 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -316,7 +316,6 @@
+     if ("kind" in e) {
+       const id = this.#byLink.get(linkToken);
+       const known = id === undefined ? undefined : this.#entries.get(id);
+-      if (known !== undefined) this.#event("approval-decision-refused", known, { kind: e.reason, approver: humanApprover, via: "human" });
+       return e;
+     }
+     if (!same(code.toUpperCase(), e.secret.code)) {

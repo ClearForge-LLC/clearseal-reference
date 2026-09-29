@@ -1,0 +1,22 @@
+--- a/packages/core/src/approval/listener.ts
++++ b/packages/core/src/approval/listener.ts
+@@ -184,7 +184,10 @@
+       if (r.kind === "decided") send(res, 200, { decided: body.decision });
+       else {
+         // APR-22: a link that names no request: counted, not a row each.
+-        if (r.reason === "unknown") service.noteUnauthenticated();
++        if (r.reason === "unknown") {
++          service.noteUnauthenticated();
++          service.flushUnauthenticated();
++        }
+         send(res, STATUS[r.reason], { error: r.reason });
+       }
+       return;
+@@ -205,6 +208,7 @@
+     if (!verdict.ok || approver === "") {
+       // APR-22: counted into one row per window, not a row each.
+       service.noteUnauthenticated();
++      service.flushUnauthenticated();
+       send(res, 401, { error: "unauthenticated" });
+       return;
+     }

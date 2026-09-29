@@ -5,7 +5,7 @@
      let res: Response;
      try {
 -      res = await fetch(this.#url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(shown(n)), redirect: "manual", signal: AbortSignal.timeout(this.#timeoutMs) });
-+      res = await fetch(this.#url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(shown(n)), redirect: "follow", signal: AbortSignal.timeout(this.#timeoutMs) });
++      res = await fetch(this.#url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(n), redirect: "manual", signal: AbortSignal.timeout(this.#timeoutMs) });
      } catch (err) {
        throw new NotifyError(err instanceof Error && err.name === "TimeoutError" ? "timeout" : "unreachable");
      }
