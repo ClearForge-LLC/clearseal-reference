@@ -42,6 +42,23 @@ One rule per line, each with its red-proof (`test/approval/`) and a control-dele
 | APR-16 | The webhook URL is `https` (an `http` one refuses start: the check is where the URL is configured, `approvalFromEnv`; a direct caller constructing `WebhookNotifier` is trusted with its URL, review L2); the notifier verifies TLS and follows no redirect. | an `http` URL → start refused; a redirect → not followed; an unverifiable certificate → refused |
 | APR-17 | An approver sees the whole call or decides nothing: a call whose serialized form exceeds 16 KiB is refused approval (`too-large`), never shown cut (review M2). | a 17 KB call → refused, nobody notified; a 15 KB call → pending |
 
+
+### The red-team amendment (gate ruling 2026-09-29)
+
+An external red team's pass over this build found three Medium, three Low and one Info. Each is fixed by
+a rule below, with its red-proof and a control-deletion row. Two of them amend a rule above: APR-24
+changes what APR-2's `wrong-principal` tells the caller, and APR-21 widens APR-5's comparison.
+
+| Rule | Statement | Red-proof |
+|---|---|---|
+| APR-18 | The approver's view shows every invisible or control code point as a visible `\u{XXXX}` escape: C0, DEL and C1 controls, format characters (the bidi controls U+202A–202E, U+2066–2069, U+200E/F and U+061C, the zero-width U+200B–200D, U+2060 and U+FEFF, and the tag characters), line and paragraph separators, lone surrogates, and every other default-ignorable code point. Applied to the tool, the requester and the call on the approval listener. One helper, `approval/visible.ts` (red team M1). | a call carrying each class → shown escaped on the listener, none raw in the response bytes; plain text unchanged |
+| APR-19 | The notifiers put every caller-influenced field (the requester and the tool) through the same helper, in the stderr line and in the webhook body, so a requester cannot forge a line with a newline, a carriage return or an escape sequence (red team M3). | a requester carrying `\n`, `\r` and ESC → one stderr line, escaped; the webhook body escaped |
+| APR-20 | The bounded wait is capped: at most `maxWaitingPerPrincipal` calls per principal (default 1) and `maxWaiting` in all (default 8, a quarter of the default in-flight cap of 32) wait at once. A call over either cap answers pending at once, never `503`. The transport refuses to start with a wait set when `maxWaiting` exceeds half its in-flight cap (red team M2). | one principal fires 40 calls and many principals one each → at most one and eight wait; another principal's `read_only` call is served |
+| APR-21 | APR-5's comparison is on identities, not bytes: approver and requester are compared after removing default-ignorable code points and white space, NFKC, and a Unicode case fold; equal after that is refused as `self-approval`. It only widens a refusal, so matching too much is the safe direction (red team L1). | `Dave`/`dave`, a trailing space, an inserted zero-width space, fullwidth letters → each refused, on both paths |
+| APR-22 | The approval listener is rate limited per remote address, by the core's own limiter on its own settings; over the budget a request answers `429` with `Retry-After` and does no other work. Refusals that no authenticated approver is behind (a bearer the verifier rejects; a link refused before its code is checked) are audited as one `approval-unauthenticated-burst` row per 60-second window, with the count (the tripwire's shape), not one row each (red team L2). | 10,000 junk requests → bounded rows and a bounded table; an approver from another address is served |
+| APR-23 | APR-7's same-address check compares hosts case-insensitively and by what they resolve to: `localhost`, `127.0.0.1`, `::1` and `::ffff:127.0.0.1` are compared as addresses, and a wildcard (`0.0.0.0`, `::`) overlaps every address, so the approval listener cannot start on any address the main listener already serves on its port (red team L3). | `LOCALHOST`, `localhost`, `::ffff:127.0.0.1` and `0.0.0.0` against a main listener on `127.0.0.1`, and `127.0.0.1` against a main on `::` → each refused before binding |
+| APR-24 | A request id held by another principal answers the caller `unknown`, exactly as an id that does not exist, so an id's existence is never confirmed to a principal that did not request it; the audit row keeps `wrong-principal` (red team Info; amends APR-2 for the caller only). | another principal's id → `unknown`, the row says `wrong-principal`, and the grant still redeems for its requester |
+
 ## Choices, and why
 
 **Pending is a tool result with `isError: true`, not a JSON-RPC error.** The model that made the call must
@@ -87,6 +104,11 @@ are the approval-listener backend and a deterministic test backend.
 | `APPROVAL_WEBHOOK_URL` | unset | Required, `https`, when the notifier is `webhook`. |
 | `APPROVAL_MAX_PENDING` | 1,000 | Bounds the table; a request is a few hundred bytes. |
 | `APPROVAL_MAX_PENDING_PER_PRINCIPAL` | 3 | An injected model can have three questions in front of the approver, not three hundred. |
+| `APPROVAL_MAX_WAITING_PER_PRINCIPAL` | 1 | APR-20: one principal holds at most one in-flight slot in a wait; its other calls answer pending at once. |
+| `APPROVAL_MAX_WAITING` | 8 | APR-20: a quarter of the default in-flight cap (32), so waiting calls can never take the slots other calls need; at most half the cap, or start is refused. |
+| `APPROVAL_LISTENER_RATE_BURST` | 60 | APR-22: a person reading and deciding makes a handful of requests; sixty at once is far more than any approver needs. |
+| `APPROVAL_LISTENER_RATE_REFILL_PER_MINUTE` | 60 | APR-22: one a second, sustained. |
+| `APPROVAL_LISTENER_RATE_MAX_ADDRESSES` | 10,000 | APR-22: bounds the limiter's table, as `RATE_LIMIT_MAX_PRINCIPALS` does the main listener's. |
 
 ## Inputs to the decision (standard §9 step 6)
 
