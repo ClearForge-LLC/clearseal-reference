@@ -221,7 +221,7 @@ red-proof, and the teaching edition demonstrates every rung except exec.
   computed as an obligation, `owned_state` with a pinned one-line recoverability basis.
 - `CSR-WO-2001a` — (deferred; trigger: a client this reference must serve honours in-call approval, and a tool class
   whose claim is "a human is present") the in-call (MRTR) approval tier for contained `state_change`.
-- `CSR-WO-2001` — (WO written 2026-09-28; grant then reinvoke, separate approval listener, human or delegated approver, never the requester) approval: the `ApprovalBackend` interface; grants bound to (principal, tool,
+- `CSR-WO-2001` — (built, merged `336a65e` 2026-09-30, with the Grok red-team amendment and the 2026-09-30 ruling; grant then reinvoke, separate approval listener, human or delegated approver, never the requester; Rule-of-Two approvals human-only) approval: the `ApprovalBackend` interface; grants bound to (principal, tool,
   argument digest, nonce, expiry) with the approver recorded, single-use, redemption a separate
   audited event; MRTR `requestState` consumed on first use and a decline terminal (`-0101` B1);
   a grant redeemable only by its requesting principal (`-0101` B2); the tier per capability class
