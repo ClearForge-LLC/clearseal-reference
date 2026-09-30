@@ -59,6 +59,19 @@ changes what APR-2's `wrong-principal` tells the caller, and APR-21 widens APR-5
 | APR-23 | APR-7's same-address check compares hosts case-insensitively and by what they resolve to: `localhost`, `127.0.0.1`, `::1` and `::ffff:127.0.0.1` are compared as addresses, and a wildcard (`0.0.0.0`, `::`) overlaps every address, so the approval listener cannot start on any address the main listener already serves on its port (red team L3). | `LOCALHOST`, `localhost`, `::ffff:127.0.0.1` and `0.0.0.0` against a main listener on `127.0.0.1`, and `127.0.0.1` against a main on `::` → each refused before binding |
 | APR-24 | A request id held by another principal answers the caller `unknown`, exactly as an id that does not exist, so an id's existence is never confirmed to a principal that did not request it; the audit row keeps `wrong-principal` (red team Info; amends APR-2 for the caller only). | another principal's id → `unknown`, the row says `wrong-principal`, and the grant still redeems for its requester |
 
+### The architect's ruling on the listener's rate limit (2026-09-30)
+
+These rules refine APR-22 and APR-18. APR-26 replaces APR-22's "over the budget, 429 and no other
+work" for a request that carries a credential.
+
+| Rule | Statement | Red-proof |
+|---|---|---|
+| APR-25 | The address a request is attributed to is its socket peer, unless the operator names trusted proxies (`APPROVAL_TRUSTED_PROXIES`: exact addresses or CIDRs, default none). A peer in that list is attributed to the rightmost `X-Forwarded-For` entry that is not itself in the list. If there is no such entry, or the header is missing or malformed, the request is attributed to the peer: the shared budget, never a spoofed one. `X-Forwarded-For` from a peer not in the list is ignored entirely. The list is validated in the snapshot (R1). | a spoofed header from an untrusted peer is ignored; a trusted peer with a client chain is keyed on the right entry; client-supplied left entries are ignored; a malformed header falls back to the peer |
+| APR-26 | A valid approver is never throttled by an address. The address budget is charged only for requests that do not authenticate: a rejected bearer, a link that is unknown, used, burned or expired, a wrong code, or anything else that fails. A request whose credential verifies is charged to that approver's own budget (the delegated approver's `sub`, or the confirm-URL's approver), and is served even when its address budget is empty. So with the address budget empty, a request that presents a credential (a bearer, or a link) is still checked: valid → served; invalid → 429. A request with no credential is 429 at once (R2). | an attacker on the approver's address empties the budget; the delegated approver and a confirm-URL human then each decide; the attacker's next request is still 429 |
+| APR-27 | APR-8's cap holds under APR-26. A confirm-URL link burns after 5 wrong codes, and the burn is a terminal, audited event: an `approval-decision-refused` row with kind `link-burned` and the request id, never a code. The request stays pending until it expires, and no new link is issued: it fails closed. Because APR-26 checks a credential even with the address budget empty, this cap, not the budget, is what bounds code guessing (R3). | 5 wrong codes, the last with the address budget empty, burn the link in one row; a 6th try with the right code is refused; the request is still pending |
+| APR-28 | An IPv6 address is keyed by its /64 prefix, an IPv4 address by the whole address, and an IPv4-mapped IPv6 address as IPv4. One network cannot fill the table, or escape its budget, by rotating addresses within its /64 (R4). | 10,000 addresses from one /64 share one budget and one table entry |
+| APR-29 | The escape helper also shows a literal backslash as `\u{005C}`, so every `\u{` in the approver's view or a notifier line is an escape the helper produced, never text the caller supplied (R5; amends APR-18). | a name containing the literal text `\u{202E}` is shown as `\u{005C}u{202E}` |
+
 ## Choices, and why
 
 **Pending is a tool result with `isError: true`, not a JSON-RPC error.** The model that made the call must
@@ -109,6 +122,7 @@ are the approval-listener backend and a deterministic test backend.
 | `APPROVAL_LISTENER_RATE_BURST` | 60 | APR-22: a person reading and deciding makes a handful of requests; sixty at once is far more than any approver needs. |
 | `APPROVAL_LISTENER_RATE_REFILL_PER_MINUTE` | 60 | APR-22: one a second, sustained. |
 | `APPROVAL_LISTENER_RATE_MAX_ADDRESSES` | 10,000 | APR-22: bounds the limiter's table, as `RATE_LIMIT_MAX_PRINCIPALS` does the main listener's. |
+| `APPROVAL_TRUSTED_PROXIES` | none | APR-25: without a proxy named, `X-Forwarded-For` is caller-supplied text; the socket peer is the only address the node can trust. A comma-separated list of addresses and CIDRs. |
 
 ## Inputs to the decision (standard §9 step 6)
 
