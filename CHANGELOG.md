@@ -98,6 +98,10 @@ ClearForge-LLC/clearseal-reference/.github/workflows/provenance.yml`.
     listener is rate limited per remote address, and unauthenticated refusals are audited as one
     row per window. Its same-address check compares resolved addresses and wildcards. Another
     principal's request id answers `unknown`.
+  - The architect's ruling of 2026-09-30 (APR-25…APR-29). `X-Forwarded-For` is believed only from a
+    trusted proxy (`APPROVAL_TRUSTED_PROXIES`). A valid approver is never throttled by its address:
+    only failed requests are charged to it. The per-link wrong-code cap burns a link in its own
+    audited row. An IPv6 address is keyed by its /64. The escape helper also escapes the backslash.
 - **CSR-WO-2007:** tripwire and rate limit, as two controls.
   - A per-principal rate limit after authentication (`packages/core/src/rate-limit/`): a token bucket
     per verified principal. Every authenticated request takes a token before a capacity slot is taken

@@ -7,11 +7,12 @@
  * zero-width characters, the byte-order mark, the tag characters), the line and paragraph separators
  * (`Zl`, `Zp`), lone surrogates (`Cs`), and every other default-ignorable code point (variation
  * selectors, the Hangul fillers). Escaping too much only makes a view longer; escaping too little can
- * hide or reorder what an approver reads.
+ * hide or reorder what an approver reads. And the backslash itself (APR-29), so every `\u{` in a view is
+ * an escape this helper wrote, never text a caller supplied to look like one.
  */
-const INVISIBLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cs}\p{Default_Ignorable_Code_Point}]/gu;
+const INVISIBLE = /[\\\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cs}\p{Default_Ignorable_Code_Point}]/gu;
 
-/** `text` with every invisible or control code point shown as `\u{XXXX}`; anything else unchanged. */
+/** `text` with every invisible or control code point, and every backslash, shown as `\u{XXXX}`. */
 export function visible(text: string): string {
   return text.replace(INVISIBLE, (c) => `\\u{${(c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}}`);
 }

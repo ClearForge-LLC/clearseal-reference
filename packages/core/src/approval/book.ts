@@ -275,6 +275,11 @@ export class ApprovalBook {
     return this.#decide(e, approver, decision, "delegated");
   }
 
+  /** Whether a link token was ever issued and is still held: a table lookup, with no sweep (APR-26). */
+  hasLink(linkToken: string): boolean {
+    return this.#byLink.has(linkToken);
+  }
+
   /** The request behind a link, for an approver to read (APR-8: reading does not decide). */
   describeLink(linkToken: string): Described | { kind: "refused"; reason: DecisionRefusal } {
     const e = this.#linkEntry(linkToken);
@@ -322,6 +327,9 @@ export class ApprovalBook {
     if (!same(code.toUpperCase(), e.secret.code)) {
       e.wrongCodes++;
       this.#event("approval-decision-refused", e, { kind: "wrong-code", approver: humanApprover, via: "human" });
+      // APR-27: the last wrong code burns the link, as its own terminal row: the request stays pending
+      // until it expires, and no new link is issued.
+      if (e.wrongCodes >= MAX_WRONG_CODES) this.#event("approval-decision-refused", e, { kind: "link-burned", approver: humanApprover, via: "human" });
       return { kind: "refused", reason: "wrong-code" };
     }
     const result = this.#decide(e, humanApprover, decision, "human");

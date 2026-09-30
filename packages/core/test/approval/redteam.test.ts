@@ -326,7 +326,8 @@ void describe("CSR-WO-2001 red team L2 (a5-resources): the listener is rate limi
       assert.ok(l.addresses() <= 2);
       await l.close();
       const burst = l.rows.filter((r) => r.event === "approval-unauthenticated-burst");
-      assert.deepEqual(burst.map((r) => r.fields["count"]), [DEFAULT_APPROVAL.listenerRateBurst], "only the requests the limit let through were refused for authentication, in one row");
+      // APR-26: a bearer is checked even with the budget empty, so every forged one is a counted refusal.
+      assert.deepEqual(burst.map((r) => r.fields["count"]), [2_000], "every forged bearer counted, in one row");
       pastes.push(`L2 2,000 from one address → ${String(served)} answered, ${String(limited)} × 429; the approver from another address → ${String(approver.status)}, decided ${String(decided.status)}`);
     } finally {
       await l.close();
@@ -352,11 +353,11 @@ void describe("CSR-WO-2001 red team L2 (a5-resources): the listener is rate limi
     }
   });
 
-  void it("APR-22: a 429 carries Retry-After and does no other work", async () => {
+  void it("APR-22, APR-26: over the budget, a request with no credential is 429 at once, with Retry-After, and does no other work", async () => {
     const l = await listenerRig({ listenerRateBurst: 1 });
     try {
-      await (await fetch(`${l.url}/approval/requests/x`, { headers: { authorization: "Bearer forged" } })).text();
-      const res = await fetch(`${l.url}/approval/requests/x`, { headers: { authorization: "Bearer forged" } });
+      await (await fetch(`${l.url}/approval/requests/x`)).text();
+      const res = await fetch(`${l.url}/approval/requests/x`);
       assert.equal(res.status, 429);
       assert.equal(res.headers.get("retry-after"), "1");
       await res.text();

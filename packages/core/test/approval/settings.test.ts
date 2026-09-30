@@ -110,6 +110,7 @@ void describe("CSR-WO-2001 approval: settings validation", () => {
       APPROVAL_LISTENER_RATE_BURST: "10",
       APPROVAL_LISTENER_RATE_REFILL_PER_MINUTE: "20",
       APPROVAL_LISTENER_RATE_MAX_ADDRESSES: "30",
+      APPROVAL_TRUSTED_PROXIES: "127.0.0.1, ::FFFF:127.0.0.2, 2001:db8::/32",
     });
     assert.deepEqual(s, {
       backend: "listener",
@@ -130,6 +131,7 @@ void describe("CSR-WO-2001 approval: settings validation", () => {
       listenerRateBurst: 10,
       listenerRateRefillPerMinute: 20,
       listenerRateMaxAddresses: 30,
+      trustedProxies: ["127.0.0.1", "127.0.0.2", "2001:db8::/32"],
     });
     assert.ok(Object.isFrozen(s));
   });

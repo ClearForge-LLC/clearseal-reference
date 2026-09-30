@@ -3,6 +3,8 @@
 // default here, so this is never a second read of the environment. Each value is validated; anything
 // invalid refuses start, naming the variable.
 
+import { canonicalAddress, trustedProxyProblem } from "./address.ts";
+
 /** An approval setting that refuses start (N4), naming the variable. */
 export class ApprovalConfigError extends Error {
   override name = "ApprovalConfigError";
@@ -34,6 +36,8 @@ export interface ApprovalSettings {
   readonly listenerRateBurst: number;
   readonly listenerRateRefillPerMinute: number;
   readonly listenerRateMaxAddresses: number;
+  /** APR-25: the proxies whose `X-Forwarded-For` is believed; empty: none, the socket peer only. */
+  readonly trustedProxies: readonly string[];
 }
 
 /** The defaults, each with its reason in approval/RULES.md. */
@@ -58,6 +62,7 @@ export const DEFAULT_APPROVAL: Readonly<ApprovalSettings> = Object.freeze({
   listenerRateBurst: 60,
   listenerRateRefillPerMinute: 60,
   listenerRateMaxAddresses: 10_000,
+  trustedProxies: Object.freeze([]),
 });
 
 /** The bounded wait's ceiling: below the transport's 30 s handler timeout (APR-13). */
@@ -150,6 +155,16 @@ export function approvalFromEnv(env: Readonly<Record<string, string | undefined>
     const problem = webhookUrlProblem(webhook);
     if (problem !== undefined) throw new ApprovalConfigError(`APPROVAL_WEBHOOK_URL ${problem}`);
     out["webhookUrl"] = webhook;
+  }
+  const proxies = get("APPROVAL_TRUSTED_PROXIES");
+  if (proxies !== undefined) {
+    const entries = proxies.split(",").map((e) => e.trim());
+    if (entries.length > 1_000) throw new ApprovalConfigError("APPROVAL_TRUSTED_PROXIES names at most 1000 addresses or CIDRs");
+    for (const entry of entries) {
+      const problem = entry === "" ? "is empty" : trustedProxyProblem(entry);
+      if (problem !== undefined) throw new ApprovalConfigError(`APPROVAL_TRUSTED_PROXIES: ${JSON.stringify(entry.slice(0, 64))} ${problem}; write addresses and CIDRs, separated by commas`);
+    }
+    out["trustedProxies"] = Object.freeze(entries.map((e) => (e.includes("/") ? `${canonicalAddress(e.split("/")[0] ?? "")}/${e.split("/")[1] ?? ""}` : canonicalAddress(e))));
   }
   if (out["notifier"] === "webhook" && out["webhookUrl"] === "") throw new ApprovalConfigError("APPROVAL_WEBHOOK_URL is required when APPROVAL_NOTIFIER is webhook");
   // Review L5: a wait no shorter than the request's lifetime would outlive the request it waits for.
