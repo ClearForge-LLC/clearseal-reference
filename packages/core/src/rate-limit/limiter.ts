@@ -131,6 +131,18 @@ export class RateLimiter {
   }
 
   /**
+   * What `take` would decide for `key` now, taking nothing and changing nothing (for the approval
+   * listener, which charges an address only for a request that fails: approval/RULES.md APR-26).
+   */
+  peek(key: string): Take {
+    const bucket = this.#buckets.get(key);
+    if (bucket === undefined) return { ok: true, untracked: this.#buckets.size >= this.#settings.maxPrincipals };
+    const level = this.#level(bucket, this.#clock());
+    if (level >= 1 - EPSILON) return { ok: true, untracked: false };
+    return { ok: false, retryAfterS: Math.max(1, Math.ceil(Math.max(0, 1 - level) / this.#perMs / 1000)) };
+  }
+
+  /**
    * Takes one token for `principal` (RL-1…RL-5). A refused request takes nothing, so `retryAfterS` is
    * the truth: after that long, the principal is served (RL-3, RL-4).
    */

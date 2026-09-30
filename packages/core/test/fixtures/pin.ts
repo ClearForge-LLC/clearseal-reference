@@ -16,7 +16,7 @@ export function asPinnable(tool: Tool | PinnableTool): PinnableTool {
 }
 
 /** Approves the tools in memory and builds the registry from the gate's admission. */
-export function pinForTest(tools: readonly (Tool | PinnableTool)[], compile: SchemaCompiler, limits: Pick<Limits, "maxSchemaDepth" | "maxSchemaNodes">, strict = true, extra: Pick<PinnedRegistryOptions, "execToolsForbidden" | "cageFor"> = {}): PinnedRegistry {
+export function pinForTest(tools: readonly (Tool | PinnableTool)[], compile: SchemaCompiler, limits: Pick<Limits, "maxSchemaDepth" | "maxSchemaNodes">, strict = true, extra: Pick<PinnedRegistryOptions, "execToolsForbidden" | "cageFor" | "approvalBackend"> = {}): PinnedRegistry {
   const pinnable = tools.map(asPinnable);
   const gate = PinGate.load(serializeManifest(buildManifest(pinnable)));
   return new PinnedRegistry(gate.admit(pinnable), { compile, limits, strict, ...extra });

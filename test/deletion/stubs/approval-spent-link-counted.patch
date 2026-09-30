@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/listener.ts
++++ b/packages/core/src/approval/listener.ts
+@@ -187,7 +187,7 @@
+         return;
+       }
+       const d = service.book.describeLink(key);
+-      if (!budget.ok && "kind" in d) {
++      if (!budget.ok && "kind" in d && key.length < 0) {
+         service.noteUnauthenticated();
+         limited(budget.retryAfterS);
+         return;

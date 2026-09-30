@@ -1,10 +1,10 @@
 --- a/packages/core/src/pinning/registry.ts
 +++ b/packages/core/src/pinning/registry.ts
-@@ -85,7 +85,6 @@
+@@ -91,7 +91,6 @@
    constructor(admission: Admission, options: PinnedRegistryOptions) {
      // Not extensible by subclassing: a subclass could override get() and serve an unpinned tool.
      if (new.target !== PinnedRegistry) throw new TypeError("PinnedRegistry cannot be subclassed");
 -    if (!isIssuedAdmission(admission)) throw new TypeError("a pinned registry is built only from PinGate.admit's Admission");
      const tools = new Map<string, RegisteredTool>();
      const execForbidden = options.execToolsForbidden ?? execToolsForbiddenFromEnv();
-     const cageFor = options.cageFor ?? ((domain: Domain, policy: CagePolicy) => recordingCageFactory(domain, policy));
+     const approvalBackend = options.approvalBackend ?? DEFAULT_APPROVAL_BACKEND;

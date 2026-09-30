@@ -47,12 +47,15 @@ export interface Obligation {
 export type ObligationInput = Pick<CapabilityTag, "capability_class" | "untrusted_input_facing" | "privacy_sensitive" | "elevated">;
 
 /**
- * Whether the node has an approval backend. None exists until CSR-WO-2001 registers one, so this is
- * "none", fail closed. It is a constant, not an option: an option would let a caller say
- * "configured" and serve an elevated tool with no gate behind it.
+ * Whether the node has an approval backend. The registry takes it from the settings snapshot
+ * (CSR-WO-2001: APPROVAL_BACKEND), and without one it is "none", fail closed: every elevated tool is
+ * refused at construction. "configured" cannot serve an elevated tool with no gate behind it: the
+ * transport refuses to start when a registered tool needs approval and it was given no backend, and
+ * dispatch refuses such a call without one (approval/RULES.md APR-14).
  */
 export type ApprovalBackend = "none" | "configured";
-export const APPROVAL_BACKEND: ApprovalBackend = "none";
+/** The registry's default when no approval backend is configured. */
+export const DEFAULT_APPROVAL_BACKEND: ApprovalBackend = "none";
 
 /** The longest recoverability basis, in code points: one line a reviewer reads without wrapping
  *  (RULES.md CAP-5 records why 120). */

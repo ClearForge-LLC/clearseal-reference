@@ -1,0 +1,26 @@
+--- a/packages/core/src/approval/listener.ts
++++ b/packages/core/src/approval/listener.ts
+@@ -148,12 +148,12 @@
+     // APR-26: a request that fails is charged to its address; with that budget empty (when it arrived,
+     // or now) it is answered 429.
+     const fail = (status: number, body: unknown): void => {
+-      if (!budget.ok) {
++      if (!budget.ok && address.length < 0) {
+         limited(budget.retryAfterS);
+         return;
+       }
+       const t = addresses.take(address);
+-      if (!t.ok) limited(t.retryAfterS);
++      if (!t.ok && address.length < 0) limited(t.retryAfterS);
+       else send(res, status, body);
+     };
+     const hosts = req.headersDistinct.host ?? [];
+@@ -174,7 +174,7 @@
+     }
+     // APR-26: with the address budget empty, only a request that presents a credential (a link, or a
+     // bearer) is looked at; anything else is 429 at once.
+-    if (!budget.ok && kind !== "link" && req.headers.authorization === undefined) {
++    if (!budget.ok && kind !== "link" && req.headers.authorization === undefined && address.length < 0) {
+       limited(budget.retryAfterS);
+       return;
+     }

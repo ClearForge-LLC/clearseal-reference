@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -148,7 +148,7 @@
+       mine++;
+     }
+     // APR-11, APR-12: bounded per principal and in all; the refusal notifies nobody.
+-    if (mine >= this.#o.maxPendingPerPrincipal || this.#entries.size >= this.#o.maxPending) {
++    if (mine >= this.#o.maxPendingPerPrincipal) {
+       this.#o.onEvent("approval-refused", { principal: call.principal, tool: call.tool, kind: "too-many" });
+       return { kind: "refused", reason: "too-many" };
+     }

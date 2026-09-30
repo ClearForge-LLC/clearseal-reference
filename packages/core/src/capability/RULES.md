@@ -141,12 +141,15 @@ That includes an empty string.
 > bespoke round-trip (§3, line 110)
 
 **Rule.**
-- `elevated: true` promises that a human confirms every call. The confirmation gate is CSR-WO-2001's
-  and does not exist yet, so any `elevated` tool is refused at construction, on any rung.
-- The approval backend is not an option a caller can set. `ladder.ts` holds it as a constant,
-  `APPROVAL_BACKEND = "none"`, which CSR-WO-2001 replaces. A registry option would let a caller pass
-  "configured" and serve an elevated tool with no gate behind it.
-- Because of this, approval cannot discharge Rule-of-Two yet (CAP-2, CAP-3).
+- `elevated: true` promises that every call is approved first. The gate is CSR-WO-2001's
+  (`approval/RULES.md`). Without an approval backend configured in the settings snapshot
+  (`APPROVAL_BACKEND`), any `elevated` tool is refused at construction, on any rung, exactly as before
+  it existed: the registry's default is `DEFAULT_APPROVAL_BACKEND = "none"`.
+- "configured" never serves an elevated tool with no gate behind it: the transport refuses to start
+  when a registered tool needs approval and it was given no backend, and dispatch refuses such a call
+  without one (APR-14).
+- With a backend configured, approval discharges Rule-of-Two (CAP-2, CAP-3), and such an approval is
+  decided only by a human (APR-6: the standard's §3 names a human confirmation).
 
 **Refusal:** `tool "<name>": elevated requires an approval backend; none is configured`.
 **Red-proof:** "any elevated tool is refused while no approval backend exists".

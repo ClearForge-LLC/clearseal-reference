@@ -310,3 +310,42 @@ void describe("CSR-WO-2007 §1.4: the rate limit's and the tripwire's settings a
     });
   }
 });
+
+void describe("CSR-WO-2001 §1.6, §1.7: the approval backend comes from the snapshot", () => {
+  const deploy: PinnableTool = { name: "deploy", description: "Deploys.", inputSchema: { type: "object", properties: { target: { type: "string" } } }, capability: tag("deploy", { capability_class: "state_change", elevated: true }), handler: () => Promise.resolve({ content: [{ type: "text", text: "deployed" }] }) };
+
+  void it("without APPROVAL_BACKEND an elevated tool refuses start; with APPROVAL_BACKEND=listener the node starts, its approval listener apart, and gates the call", async () => {
+    const manifest = join(DIR, "approval-manifest.json");
+    writeFileSync(manifest, serializeManifest(buildManifest([deploy])));
+    const env = { ...base, CLEARSEAL_MANIFEST: manifest };
+    const { startNode } = await import("../../src/node/start.ts");
+    const refusedPrep = PreparedNode.prepare(captureSettings(env));
+    await assert.rejects(() => startNode({ definitions: [deploy], configSchema }, refusedPrep), /elevated requires an approval backend; none is configured/);
+    await refusedPrep.close();
+    const settings = captureSettings({ ...env, APPROVAL_BACKEND: "listener", APPROVAL_LISTENER_PORT: "0" });
+    assert.equal(settings.approval.backend, "listener");
+    const t = await startNode({ definitions: [deploy], configSchema }, PreparedNode.prepare(settings));
+    try {
+      assert.match(t.approvalUrl ?? "", /^http:\/\/127\.0\.0\.1:\d+$/);
+      assert.notEqual(new URL(t.approvalUrl ?? "http://x").port, String(t.port), "its own port");
+      const token = issuer.mint(TestIssuer.claims(Math.floor(Date.now() / 1000)));
+      const reply = await modern(t, "tools/call", { name: "deploy", arguments: { target: "prod" } }, { headers: { authorization: `Bearer ${token}` } });
+      const status = ((reply.json as { result?: { _meta?: Record<string, { status?: string }> } }).result?._meta?.["clearseal/approval"] ?? {}).status;
+      assert.equal(status, "pending");
+      pastes.push(`APPROVAL node: no APPROVAL_BACKEND → refused at construction; APPROVAL_BACKEND=listener → started, approval listener ${t.approvalUrl === undefined ? "missing" : "on its own port"}, deploy → ${String(status)}`);
+    } finally {
+      await t.close();
+    }
+  });
+});
+
+void describe("CSR-WO-2001 APR-9: the delegated approvers' verifier is the core's, for the approval audience", () => {
+  void it("APPROVAL_AUDIENCE gives a verifier with the node's issuer and that audience, never the node's", () => {
+    const settings = captureSettings({ ...base, APPROVAL_AUDIENCE: "https://approve.example.invalid/decide" });
+    assert.ok(settings.approvalVerifier !== undefined);
+    assert.equal(settings.approvalVerifier.audience, "https://approve.example.invalid/decide");
+    assert.equal(settings.approvalVerifier.issuer, settings.verifier.issuer);
+    assert.notEqual(settings.approvalVerifier.audience, settings.verifier.audience);
+    assert.equal(captureSettings(base).approvalVerifier, undefined, "no approval audience, no delegated approvers");
+  });
+});

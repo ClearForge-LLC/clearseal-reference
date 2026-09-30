@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -413,7 +413,7 @@
+     // arguments and any input responses and request state (review M1): a grant for one set is not a
+     // grant for another, and the approver sees them all.
+     const call: Record<string, unknown> = { arguments: args };
+-    if (era === MODERN_VERSION) {
++    if (era === MODERN_VERSION && name.length < 0) {
+       if (params["inputResponses"] !== undefined) call["inputResponses"] = params["inputResponses"];
+       if (params["requestState"] !== undefined) call["requestState"] = params["requestState"];
+     }

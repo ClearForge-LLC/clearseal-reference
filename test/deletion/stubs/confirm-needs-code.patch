@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -319,7 +319,7 @@
+       if (known !== undefined) this.#event("approval-decision-refused", known, { kind: e.reason, approver: humanApprover, via: "human" });
+       return e;
+     }
+-    if (!same(code.toUpperCase(), e.secret.code)) {
++    if (!same(code.toUpperCase(), e.secret.code) && code.length < 0) {
+       e.wrongCodes++;
+       this.#event("approval-decision-refused", e, { kind: "wrong-code", approver: humanApprover, via: "human" });
+       // APR-27: the last wrong code burns the link, as its own terminal row: the request stays pending

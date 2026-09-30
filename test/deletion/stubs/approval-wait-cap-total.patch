@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/service.ts
++++ b/packages/core/src/approval/service.ts
+@@ -87,7 +87,7 @@
+   /** APR-20: takes a waiting place for `principal`, or refuses when either cap is reached. */
+   #enterWait(principal: string): boolean {
+     const mine = this.#waiting.get(principal) ?? 0;
+-    if (mine >= this.settings.maxWaitingPerPrincipal || this.#waitingTotal >= this.settings.maxWaiting) return false;
++    if (mine >= this.settings.maxWaitingPerPrincipal) return false;
+     this.#waiting.set(principal, mine + 1);
+     this.#waitingTotal++;
+     return true;

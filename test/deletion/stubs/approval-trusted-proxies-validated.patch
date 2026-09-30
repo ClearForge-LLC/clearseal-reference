@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/settings.ts
++++ b/packages/core/src/approval/settings.ts
+@@ -161,7 +161,7 @@
+     const entries = proxies.split(",").map((e) => e.trim());
+     if (entries.length > 1_000) throw new ApprovalConfigError("APPROVAL_TRUSTED_PROXIES names at most 1000 addresses or CIDRs");
+     for (const entry of entries) {
+-      const problem = entry === "" ? "is empty" : trustedProxyProblem(entry);
++      const problem = entry === "" ? undefined : trustedProxyProblem(entry) === "" ? "never" : undefined;
+       if (problem !== undefined) throw new ApprovalConfigError(`APPROVAL_TRUSTED_PROXIES: ${JSON.stringify(entry.slice(0, 64))} ${problem}; write addresses and CIDRs, separated by commas`);
+     }
+     out["trustedProxies"] = Object.freeze(entries.map((e) => (e.includes("/") ? `${canonicalAddress(e.split("/")[0] ?? "")}/${e.split("/")[1] ?? ""}` : canonicalAddress(e))));

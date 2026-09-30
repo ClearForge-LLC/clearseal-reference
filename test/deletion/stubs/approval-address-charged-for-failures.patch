@@ -1,0 +1,13 @@
+--- a/packages/core/src/approval/listener.ts
++++ b/packages/core/src/approval/listener.ts
+@@ -152,9 +152,7 @@
+         limited(budget.retryAfterS);
+         return;
+       }
+-      const t = addresses.take(address);
+-      if (!t.ok) limited(t.retryAfterS);
+-      else send(res, status, body);
++      send(res, status, body);
+     };
+     const hosts = req.headersDistinct.host ?? [];
+     if (hosts.length !== 1 || !allowedHosts.includes((hosts[0] ?? "").toLowerCase())) {

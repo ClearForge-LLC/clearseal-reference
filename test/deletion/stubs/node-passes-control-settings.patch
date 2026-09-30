@@ -1,11 +1,11 @@
 --- a/packages/core/src/node/start.ts
 +++ b/packages/core/src/node/start.ts
-@@ -329,8 +329,6 @@
+@@ -339,8 +339,6 @@
        audit: prepared.audit,
        ...(prepared.store === undefined ? {} : { argumentDigest: prepared.store.digester.args }),
        // The snapshot's settings for the two CSR-WO-2007 controls, never a later read.
 -      rateLimit: settings.rateLimit,
 -      tripwire: settings.tripwire,
+       ...(approval === undefined ? {} : { approval }),
      }),
    );
- }

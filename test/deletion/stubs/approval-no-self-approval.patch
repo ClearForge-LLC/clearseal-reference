@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -245,7 +245,7 @@
+     };
+     if (e.state === "expired") return refuse("expired");
+     // C1: the approver is never the requester, compared as identities (APR-21).
+-    if (same(identityOf(approver), identityOf(e.call.principal))) return refuse("self-approval");
++    if (same(identityOf(approver), identityOf(e.call.principal)) && approver.length < 0) return refuse("self-approval");
+     // The architect's ruling on the standard §3: Rule-of-Two is discharged by a human only.
+     if (via === "delegated" && e.call.humanOnly) return refuse("human-required");
+     // B1: a decline is terminal.

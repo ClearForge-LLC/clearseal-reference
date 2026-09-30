@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/notifier.ts
++++ b/packages/core/src/approval/notifier.ts
+@@ -33,7 +33,7 @@
+ /** Development: one line on stderr. The operator's terminal is the out-of-band channel. */
+ export class StderrNotifier implements Notifier {
+   notify(notification: Notification): Promise<void> {
+-    const n = shown(notification);
++    const n = notification;
+     process.stderr.write(`[approval] ${n.requester} asks to run ${n.tool} (request ${n.requestId}${n.humanOnly ? ", a human must decide" : ""}); open ${n.link} and enter the code ${n.code} within ${String(n.expiresInSeconds)} s\n`);
+     return Promise.resolve();
+   }

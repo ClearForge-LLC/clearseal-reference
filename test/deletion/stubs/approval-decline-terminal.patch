@@ -1,0 +1,12 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -230,8 +230,7 @@
+     // The architect's ruling on the standard §3: Rule-of-Two is discharged by a human only.
+     if (via === "delegated" && e.call.humanOnly) return refuse("human-required");
+     // B1: a decline is terminal.
+-    if (e.state === "declined") return refuse("declined");
+-    if (e.state !== "pending") return refuse("decided");
++    if (e.state !== "pending" && e.state !== "declined") return refuse("decided");
+     e.approver = approver;
+     if (decision === "approve") {
+       e.state = "approved";

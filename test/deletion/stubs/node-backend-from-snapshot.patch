@@ -1,0 +1,11 @@
+--- a/packages/core/src/node/start.ts
++++ b/packages/core/src/node/start.ts
+@@ -322,7 +322,7 @@
+   }
+   let registry: PinnedRegistry;
+   try {
+-    registry = new PinnedRegistry(prepared.gate.admit(edition.definitions), { compile: pool.compile, limits, strict: settings.pinStrict, execToolsForbidden: settings.execToolsForbidden, approvalBackend: approval === undefined ? "none" : "configured" });
++    registry = new PinnedRegistry(prepared.gate.admit(edition.definitions), { compile: pool.compile, limits, strict: settings.pinStrict, execToolsForbidden: settings.execToolsForbidden, approvalBackend: "configured" });
+   } catch (err) {
+     await pool.close();
+     throw err;

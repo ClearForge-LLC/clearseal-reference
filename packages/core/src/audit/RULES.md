@@ -49,6 +49,7 @@ Kinds of field:
 - `config`: a string of at most 2048 characters with no control character. It comes from the operator's configuration, never from a request.
 - `argdigest`: an `hmac-sha256:<kid>:<base64url>` string.
 - `digest`: always written as a keyed digest.
+- `principal`: a principal's id as the principal column allows one (at most 512 characters, no control character): an approver (CSR-WO-2001). Anything else is digested.
 
 | Event | Written by | principal | Fields (kind) |
 |---|---|---|---|
@@ -77,6 +78,15 @@ Kinds of field:
 | `rate-limited` | `transport/server.ts` (CSR-WO-2007, rate-limit/RULES.md RL-1) | caller | retryAfterS (int) |
 | `tripwire-read-burst` | `transport/server.ts` (CSR-WO-2007, tripwire/RULES.md TW-2) | caller | count (int), windowS (int) |
 | `principal-state-full` | `transport/server.ts` (CSR-WO-2007, RL-8, TW-9) | caller | control (code), cap (int) |
+| `approval-requested` | `approval/book.ts` (CSR-WO-2001, APR-15) | caller | request (code), tool (tool), args (argdigest), human (code) |
+| `approval-notified` | `approval/service.ts` | caller | request (code), tool (tool) |
+| `approval-notify-failed` | `approval/service.ts` | caller | request (code), tool (tool), reason (code) |
+| `approval-approved`, `approval-declined` | `approval/book.ts` | caller | request (code), tool (tool), approver (principal), via (code) |
+| `approval-redeemed` | `approval/book.ts` | caller | request (code), tool (tool), approver (principal), args (argdigest) |
+| `approval-expired` | `approval/book.ts` | caller | request (code), tool (tool), phase (code) |
+| `approval-refused` | `approval/book.ts`, `approval/service.ts`, `transport/dispatch.ts` | caller | request (code), tool (tool), kind (code) |
+| `approval-decision-refused` | `approval/book.ts` | caller, else unauthenticated | request (code), tool (tool), kind (code), approver (principal), via (code) |
+| `approval-unauthenticated-burst` | `approval/service.ts` (red-team amendment, approval/RULES.md APR-22) | unauthenticated | count (int), windowS (int) |
 | `audit-resumed` | `audit/store.ts` | node | fromSeq (int), unanchored (int) |
 | any other event | — | unattributed | written as `unlisted`: its name and fields in one keyed digest |
 

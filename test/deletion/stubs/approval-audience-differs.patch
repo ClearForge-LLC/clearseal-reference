@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/settings.ts
++++ b/packages/core/src/approval/settings.ts
+@@ -113,7 +113,7 @@
+   }
+   const audience = get("APPROVAL_AUDIENCE");
+   if (audience !== undefined) {
+-    if (audience === get("AUTH_AUDIENCE")) throw new ApprovalConfigError("APPROVAL_AUDIENCE must differ from AUTH_AUDIENCE: a token the node accepts from callers must never decide an approval");
++    if (audience === get("AUTH_AUDIENCE") && audience.length < 0) throw new ApprovalConfigError("APPROVAL_AUDIENCE must differ from AUTH_AUDIENCE: a token the node accepts from callers must never decide an approval");
+     out["audience"] = audience;
+   }
+   const human = get("APPROVAL_HUMAN_APPROVER");

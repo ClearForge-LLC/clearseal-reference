@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -377,7 +377,7 @@
+       return;
+     }
+     const path = target.split("?", 1)[0] ?? "";
+-    const isEndpoint = path === config.endpointPath;
++    const isEndpoint = path === config.endpointPath || path.startsWith("/approval/");
+     const isHealth = path === "/health";
+     const isPrm = path === PRM_PATH || path === `${PRM_PATH}${config.endpointPath}`;
+     if (!isEndpoint && !isHealth && !isPrm) {

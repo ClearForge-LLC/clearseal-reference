@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -189,7 +189,7 @@
+     };
+     if (e === undefined) return refuse("unknown");
+     // APR-24: another principal's request is, to this caller, no request at all; the row says why.
+-    if (!same(e.call.principal, call.principal)) {
++    if (!same(e.call.principal, call.principal) && call.principal.length < 0) {
+       refuse("wrong-principal");
+       return { kind: "refused", reason: "unknown" };
+     }
