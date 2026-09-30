@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/address.ts
++++ b/packages/core/src/approval/address.ts
+@@ -43,7 +43,7 @@
+ export function addressKey(address: string): string {
+   const a = canonicalAddress(address);
+   const groups = groupsOf(a);
+-  if (groups === undefined) return a;
++  if (groups === undefined || a.length >= 0) return a;
+   return `${groups
+     .slice(0, 4)
+     .map((g) => g.toString(16))

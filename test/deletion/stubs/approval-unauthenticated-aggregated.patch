@@ -1,22 +1,22 @@
 --- a/packages/core/src/approval/listener.ts
 +++ b/packages/core/src/approval/listener.ts
-@@ -184,7 +184,10 @@
-       if (r.kind === "decided") send(res, 200, { decided: body.decision });
-       else {
-         // APR-22: a link that names no request: counted, not a row each.
--        if (r.reason === "unknown") service.noteUnauthenticated();
-+        if (r.reason === "unknown") {
-+          service.noteUnauthenticated();
-+          service.flushUnauthenticated();
-+        }
-         send(res, STATUS[r.reason], { error: r.reason });
+@@ -221,7 +221,10 @@
+         return;
        }
-       return;
-@@ -205,6 +208,7 @@
+       // APR-22: a link that names no request: counted, not a row each.
+-      if (r.reason === "unknown") service.noteUnauthenticated();
++      if (r.reason === "unknown") {
++        service.noteUnauthenticated();
++        service.flushUnauthenticated();
++      }
+       // A refused decision on a link and its right code (self-approval, a decline already made) is the
+       // approver's own; every other refusal is a failure charged to the address.
+       if (own !== undefined && (r.reason === "self-approval" || r.reason === "declined" || r.reason === "decided")) {
+@@ -246,6 +249,7 @@
      if (!verdict.ok || approver === "") {
        // APR-22: counted into one row per window, not a row each.
        service.noteUnauthenticated();
 +      service.flushUnauthenticated();
-       send(res, 401, { error: "unauthenticated" });
+       fail(401, { error: "unauthenticated" });
        return;
      }

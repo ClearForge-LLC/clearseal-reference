@@ -8,4 +8,4 @@
 +    if (!same(code.toUpperCase(), e.secret.code) && code.length < 0) {
        e.wrongCodes++;
        this.#event("approval-decision-refused", e, { kind: "wrong-code", approver: humanApprover, via: "human" });
-       return { kind: "refused", reason: "wrong-code" };
+       // APR-27: the last wrong code burns the link, as its own terminal row: the request stays pending

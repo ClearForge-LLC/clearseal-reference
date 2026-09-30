@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/listener.ts
++++ b/packages/core/src/approval/listener.ts
+@@ -250,7 +250,7 @@
+       return;
+     }
+     // APR-26: a verified approver is charged to its own budget, and served though its address's is empty.
+-    const t = approvers.take(`delegated:${approver}`);
++    const t = addresses.take(address);
+     if (!t.ok) {
+       limited(t.retryAfterS);
+       return;

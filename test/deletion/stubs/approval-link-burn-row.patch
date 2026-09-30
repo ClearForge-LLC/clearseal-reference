@@ -1,0 +1,10 @@
+--- a/packages/core/src/approval/book.ts
++++ b/packages/core/src/approval/book.ts
+@@ -329,7 +329,6 @@
+       this.#event("approval-decision-refused", e, { kind: "wrong-code", approver: humanApprover, via: "human" });
+       // APR-27: the last wrong code burns the link, as its own terminal row: the request stays pending
+       // until it expires, and no new link is issued.
+-      if (e.wrongCodes >= MAX_WRONG_CODES) this.#event("approval-decision-refused", e, { kind: "link-burned", approver: humanApprover, via: "human" });
+       return { kind: "refused", reason: "wrong-code" };
+     }
+     const result = this.#decide(e, humanApprover, decision, "human");

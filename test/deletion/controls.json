@@ -3407,7 +3407,7 @@
       ],
       "mustFail": [
         "APR-22: over the per-address budget, 429 with Retry-After; an approver from another address is served",
-        "APR-22: a 429 carries Retry-After and does no other work"
+        "APR-22, APR-26: over the budget, a request with no credential is 429 at once, with Retry-After, and does no other work"
       ]
     },
     {
@@ -3471,6 +3471,209 @@
       "mustFail": [
         "APR-24: another principal's id answers unknown, as a made-up id does; the row keeps wrong-principal; the grant still redeems",
         "APR-2: a grant redeemed by another principal, for another tool, with other arguments, after expiry, or with an unknown id → each refused by name"
+      ]
+    },
+    {
+      "id": "approval-xff-trusted-only",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R1, APR-25: X-Forwarded-For is read only from a trusted proxy",
+      "touches": [
+        "packages/core/src/approval/address.ts"
+      ],
+      "stub": "stubs/approval-xff-trusted-only.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-25: the attribution rules, as a function",
+        "APR-25: from a peer not in the list, a spoofed header is ignored: every request shares the peer's budget"
+      ]
+    },
+    {
+      "id": "approval-xff-rightmost-untrusted",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R1, APR-25: behind a trusted proxy, the rightmost entry that is not a trusted proxy; the client's left entries are ignored",
+      "touches": [
+        "packages/core/src/approval/address.ts"
+      ],
+      "stub": "stubs/approval-xff-rightmost-untrusted.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-25: the attribution rules, as a function",
+        "APR-25: behind a trusted proxy, each client has its own budget, keyed on the rightmost untrusted entry"
+      ]
+    },
+    {
+      "id": "approval-xff-malformed-falls-back",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R1, APR-25: a missing or malformed X-Forwarded-For falls back to the peer, never to the client's text",
+      "touches": [
+        "packages/core/src/approval/address.ts"
+      ],
+      "stub": "stubs/approval-xff-malformed-falls-back.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-25: the attribution rules, as a function",
+        "APR-25: behind a trusted proxy, each client has its own budget, keyed on the rightmost untrusted entry"
+      ]
+    },
+    {
+      "id": "approval-trusted-proxies-validated",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R1, APR-25: APPROVAL_TRUSTED_PROXIES is validated in the snapshot",
+      "touches": [
+        "packages/core/src/approval/settings.ts"
+      ],
+      "stub": "stubs/approval-trusted-proxies-validated.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-25: APPROVAL_TRUSTED_PROXIES is validated in the snapshot"
+      ]
+    },
+    {
+      "id": "approval-valid-approver-not-throttled",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R2, APR-26: with the address budget empty, a request presenting a valid credential is still served",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-valid-approver-not-throttled.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-26: an attacker on the approver's address empties its budget; the delegated approver and a confirm-URL human each still decide; the attacker stays 429"
+      ]
+    },
+    {
+      "id": "approval-address-charged-for-failures",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R2, APR-26: a request that fails authentication is charged to its address",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-address-charged-for-failures.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts",
+        "packages/core/test/approval/redteam.test.ts"
+      ],
+      "mustFail": [
+        "APR-26: an attacker on the approver's address empties its budget; the delegated approver and a confirm-URL human each still decide; the attacker stays 429",
+        "APR-22: over the per-address budget, 429 with Retry-After; an approver from another address is served"
+      ]
+    },
+    {
+      "id": "approval-approver-own-budget",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R2, APR-26: a verified approver is charged to its own budget, never its address's",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-approver-own-budget.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-26: a verified approver is charged to its own budget, not its address's"
+      ]
+    },
+    {
+      "id": "approval-spent-link-counted",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R2 review H1, APR-26: with the address budget empty, a spent link is counted, never a row each",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-spent-link-counted.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-26: with the address budget empty, a spent link is counted, never a row each"
+      ]
+    },
+    {
+      "id": "approval-human-budget-per-request",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R2 review M1, APR-26: the confirm-URL's budget is kept per request",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-human-budget-per-request.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-26: the confirm-URL's budget is per request: a leaked link's reads never stop the human deciding another request"
+      ]
+    },
+    {
+      "id": "approval-link-burn-row",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R3, APR-27: the fifth wrong code burns the link in its own terminal audit row, naming the request",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-link-burn-row.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-27: five wrong codes burn the link in one terminal row; the sixth try, with the right code, is refused; the request stays pending"
+      ]
+    },
+    {
+      "id": "approval-link-burns-under-r2",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R3, APR-27 and APR-8: the per-link wrong-code cap holds with the address budget empty",
+      "touches": [
+        "packages/core/src/approval/book.ts"
+      ],
+      "stub": "stubs/approval-link-burns-under-r2.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-27: five wrong codes burn the link in one terminal row; the sixth try, with the right code, is refused; the request stays pending",
+        "APR-27: with the address budget empty (so R2 still checks every code), the fifth wrong code still burns the link"
+      ]
+    },
+    {
+      "id": "approval-ipv6-keyed-by-64",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R4, APR-28: an IPv6 address is keyed by its /64",
+      "touches": [
+        "packages/core/src/approval/address.ts"
+      ],
+      "stub": "stubs/approval-ipv6-keyed-by-64.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-28: the key",
+        "APR-28: 10,000 addresses from one /64 share one budget and one table entry"
+      ]
+    },
+    {
+      "id": "approval-visible-backslash",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2001 Ruling R5, APR-29: the escape helper shows a literal backslash escaped",
+      "touches": [
+        "packages/core/src/approval/visible.ts"
+      ],
+      "stub": "stubs/approval-visible-backslash.patch",
+      "tests": [
+        "packages/core/test/approval/ruling.test.ts"
+      ],
+      "mustFail": [
+        "APR-29: a literal backslash is shown escaped, so a look-alike escape is told apart from a real one",
+        "APR-29: in the approver's view and in the notifier line"
       ]
     }
   ]

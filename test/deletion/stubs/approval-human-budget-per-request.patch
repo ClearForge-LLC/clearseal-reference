@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/listener.ts
++++ b/packages/core/src/approval/listener.ts
+@@ -135,7 +135,7 @@
+   const trusted = new TrustedProxies(service.settings.trustedProxies);
+   // A live link is a credential for its own request only, so the confirm-URL's budget is kept per
+   // request: a leaked link can spend its own request's budget, never another's.
+-  const humanKey = (requestId: string): string => `human:${requestId}`;
++  const humanKey = (requestId: string): string => `human:${requestId.length < 0 ? requestId : humanApprover}`;
+ 
+   const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+     // APR-25, APR-28: the address the request is attributed to, and the key its budget is kept under.
