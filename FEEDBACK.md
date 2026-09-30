@@ -1,8 +1,9 @@
 # FEEDBACK: CSR-WO-2001 (approval)
 
 Branch `wo/CSR-WO-2001`, cut from `main` at `bfccccf`. Parked as one unmerged pull request (#72),
-amended after the red team (see *Red-team amendment*). Built on Node v24.21.0. Spec first:
-`approval/RULES.md` was committed before any code, both times.
+amended after the red team (see *Red-team amendment*) and again for the architect's ruling of
+2026-09-30 (see *Architect ruling 2026-09-30*). Built on Node v24.21.0. Spec first:
+`approval/RULES.md` was committed before any code, each time.
 
 ## Gates
 
@@ -18,6 +19,73 @@ amended after the red team (see *Red-team amendment*). Built on Node v24.21.0. S
   `provenance` green (`build`, `attest`; `release` skipped).
 - The pull request was opened by the architect: the S25 connection needed re-authentication, so no
   builder token was minted.
+
+## Architect ruling 2026-09-30
+
+Your ruling on the approval listener's rate limit, and on three of the items recorded as known, is built
+on this branch spec first: `approval/RULES.md` APR-25…APR-29 were committed (`6eae89a`) before the code.
+Each item has a regression test in `packages/core/test/approval/ruling.test.ts` and at least one
+control-deletion row. It is still one pull request (#72), and it is unmerged.
+
+### Gates at the ruling's head
+
+- `npm run check` exits 0: 938 core and teaching tests (924 before the ruling), spike 0102 69,
+  spike 0101 8, `test:subset` 4.
+- `control-deletion`: the self-test passes. The four shards turned all 237 rows red by assertion
+  (224 before; 13 new): 311, 329, 325 and 339 s.
+- Both leak gates exit 0, run unpiped with the exit code checked directly, before the push.
+- Push: over HTTPS with a builder token minted from the S25 (`clearforgekey`, narrowed to this repository). As in the red-team amendment, the architect opened the pull request; this time the mint succeeded, so SSH was not needed. The token lived only in a mode-0600 scratch file, was never written to git config or a remote URL, and was deleted after the push.
+- CI: the pull request's checks on the pushed head. Their results are in the builder's report, not in
+  a later commit.
+
+### Each item, its rule, its test
+
+| Item | Rule | What changed | Rows |
+|---|---|---|---|
+| R1 trusted proxy | APR-25 | `approval/address.ts` `clientAddress`: `APPROVAL_TRUSTED_PROXIES` takes addresses and CIDRs (a `BlockList`), is validated in the snapshot, and defaults to none. With no list, the key is the socket peer. When the peer is in the list, the key is the rightmost `X-Forwarded-For` entry that is not itself trusted. A missing or malformed header, or a chain of trusted proxies only, gives the peer. A header from an untrusted peer is never read. | `approval-xff-trusted-only`, `approval-xff-rightmost-untrusted`, `approval-xff-malformed-falls-back`, `approval-trusted-proxies-validated` |
+| R2 approver never throttled by address | APR-26 | The listener checks the address budget without charging it (`RateLimiter.peek`, new) and charges it only in `fail()`: a rejected bearer, an unknown, used, burned or expired link, a wrong code, and every other failure. A verified approver is charged to its own budget (a second limiter), and is served even when the address budget is empty. With the address budget empty, a request that presents a credential (a bearer, or a link) is still checked: valid → served; invalid → 429. A request with no credential is 429 at once. | `approval-valid-approver-not-throttled`, `approval-address-charged-for-failures`, `approval-approver-own-budget`, `approval-spent-link-counted`, `approval-human-budget-per-request` |
+| R3 per-link wrong-code cap | APR-27 (and APR-8) | The cap already existed: APR-8, red-proof *"a wrong code, a second use and an expired link are each refused; five wrong codes burn the link"* in `listener.test.ts`, row `confirm-link-burns`. It still holds under R2: a test burns the link with the address budget empty, and the new row `approval-link-burns-under-r2` removes the cap and fails that test. New: the fifth wrong code writes its own terminal row, `approval-decision-refused` with kind `link-burned` and the request id, never a code. The request stays pending until it expires, and no new link is issued. | `approval-link-burn-row`, `approval-link-burns-under-r2` |
+| R4 IPv6 /64 | APR-28 | `addressKey`: an IPv6 address is keyed by its /64, an IPv4 address by the whole address, and an IPv4-mapped address as IPv4. | `approval-ipv6-keyed-by-64` |
+| R5 unambiguous escapes | APR-29 | `visible.ts` also shows `\` as `\u{005C}`. | `approval-visible-backslash` |
+
+This ruling moved three stubs' lines. `approval-listener-rate-limit`, `approval-unauthenticated-aggregated`
+and `approval-visible-classes` were rewritten with the same edits on the new lines, and two more were
+re-targeted with their edits unchanged. One red-team test was renamed, and its row's `mustFail` follows
+it. Under R2 a request with a credential is no longer "429 and no other work", so that test now shows
+the no-credential case. The red-team L2 test's burst count is now 2,000, because every forged bearer
+is checked and counted.
+
+### Test pastes
+
+```
+R1 behind trusted 127.0.0.1: 127.0.0.5 → 401; 127.0.0.6 → 401; 127.0.0.5 → 429; "127.0.0.200, 127.0.0.5" → 429; garbage → 401 (the proxy's budget); 127.0.0.5:80 → 429
+R2 with the address budget empty: {"delegatedReads":200,"delegatedDecides":200,"humanReads":200,"humanDecides":200,"attackerBearer":429,"attackerNoCredential":429,"attackerLink":429}
+R3 five wrong codes → 403, 403, 403, 403, 403; the right code after → 410; request pending; burn row {"principal":"alice","request":"<id>","tool":"deploy","kind":"link-burned","approver":"operator","via":"human"}
+R4 10,000 addresses in 2001:db8:1:2::/64 → {"401":60,"429":9940}; table entries 1
+R5 literal dave\u{202E} → dave\u{005C}u{202E}; a real U+202E → dave\u{202E}
+```
+
+### Review of the ruling's diff
+
+A fresh review subagent checked the diff against your ruling. It found all five items met, every stub
+red by assertion, and no raw invisible characters in the tree. Its defects, and what I did:
+
+| # | Severity | Finding | Done |
+|---|---|---|---|
+| H1 | High | With the address budget empty, R2 still let a POST to a spent link (used, burned or expired) reach the book, which wrote a row on every call. Anyone holding a real link could burn it and then write one row per request for up to 15 minutes. | Fixed. With the address budget empty, a spent link is counted into APR-22's burst row and answered 429, with no row. Test and row `approval-spent-link-counted`. |
+| M1 | Medium | A GET on a live link was charged to one budget shared by every confirm-URL decision. So a leaked link, without its code, could empty that budget and stop the human deciding any request. | Fixed. The confirm-URL budget is kept per request: a live link is a credential for its own request only. Test and row `approval-human-budget-per-request`. |
+| L1 | Low | `fail()` charged against a budget read before `await`, so concurrent requests could see a stale "ok". | Fixed: `fail()` answers 429 whenever its own `take` is refused. |
+| L2 | Low | A verifier timeout (503) was no longer charged to the address. | Fixed: charged through `fail()`. |
+| L3 | Low | With the address budget empty, every junk link request swept the book (up to 1,000 entries). | Fixed: a link that was never issued is refused on a table lookup (`hasLink`), with no sweep. |
+| Info | Info | R5 turns every JSON escape in the arguments view into `\u{005C}…`. For example, `C:\\Users` is shown as `C:\u{005C}\u{005C}Users`. | Accepted: the ruling asked for it; noisy, still unambiguous. |
+| Info | Info | A malformed entry anywhere in the header, including the client-written left side, falls back to the peer. So a client behind the proxy can choose the proxy's shared budget over its own. | Accepted: that is the ruling's "fail toward shared". |
+| Info | Info | A CIDR written in IPv4-mapped form (`::ffff:0:0/96`) is canonicalised to IPv4 and fails the length check. | Accepted: start is refused (fails closed); write it as IPv4. |
+| Info | Info | Every IPv6 host whose first 64 bits are zero, and all traffic through one NAT64 prefix, share a key. The approver table is capped like the address table (RL-8: a newcomer past the cap is served untracked). | Recorded. |
+
+### Accepted as known (no change)
+
+- A crash, or `process.exit`, loses up to 60 s of the unauthenticated burst count (the row is written
+  when its window closes, or when the listener closes).
 
 ## Red-team amendment (gate ruling 2026-09-29)
 
