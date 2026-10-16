@@ -10,6 +10,6 @@
   "dependencies": {
     "http-message-signatures": "1.0.6",
     "jose": "6.2.12",
-    "structured-headers": "2.1.0"
+    "structured-headers": "2.1.1"
   }
 }
