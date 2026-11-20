@@ -9,6 +9,6 @@
     "probe": "node probe.ts"
   },
   "dependencies": {
-    "z-schema": "12.4.6"
+    "z-schema": "12.5.0"
   }
 }

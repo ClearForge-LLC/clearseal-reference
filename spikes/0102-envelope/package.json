@@ -8,8 +8,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "http-message-signatures": "1.0.6",
-    "jose": "6.2.12",
-    "structured-headers": "2.1.0"
+    "http-message-signatures": "1.0.10",
+    "jose": "6.2.17",
+    "structured-headers": "2.1.1"
   }
 }
