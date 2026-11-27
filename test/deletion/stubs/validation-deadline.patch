@@ -1,0 +1,12 @@
+--- a/packages/core/src/transport/schema-pool.ts
++++ b/packages/core/src/transport/schema-pool.ts
+@@ -102,9 +102,6 @@ export class ValidationPool {
+       const job = this.#queue.shift();
+       if (job === undefined) return;
+       slot.job = job;
+-      slot.timer = setTimeout(() => {
+-        this.#replace(slot, new ValidationTimeout(`validation exceeded ${String(this.#options.timeoutMs)} ms`));
+-      }, this.#options.timeoutMs);
+       slot.worker.postMessage({ id: job.id, op: "validate", key: job.key, value: job.value });
+     }
+   }

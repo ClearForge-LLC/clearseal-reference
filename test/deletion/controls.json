@@ -3675,6 +3675,24 @@
         "APR-29: a literal backslash is shown escaped, so a look-alike escape is told apart from a real one",
         "APR-29: in the approver's view and in the notifier line"
       ]
+    },
+    {
+      "id": "validation-deadline",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "a validation that overruns validationTimeoutMs is abandoned: its worker is terminated and the call answers 400 -32602 (the stub deletes the timer, so no deadline is armed)",
+      "touches": [
+        "packages/core/src/transport/schema-pool.ts"
+      ],
+      "stub": "stubs/validation-deadline.patch",
+      "tests": [
+        "packages/core/test/transport/adversarial.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/corrections.test.ts"
+      ],
+      "mustFail": [
+        "a validation slower than validationTimeoutMs is abandoned at the deadline with 400 -32602, and /health answers meanwhile",
+        "ST validation over validationTimeoutMs"
+      ]
     }
   ]
 }

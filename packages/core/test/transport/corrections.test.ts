@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 
 import { DEFAULT_LIMITS } from "../../src/transport/config.ts";
 import { pinForTest } from "../fixtures/pin.ts";
+import { costlyArguments } from "../fixtures/tools.ts";
 import { ValidationPool } from "../../src/transport/schema-pool.ts";
 import { startTransport } from "../../src/transport/server.ts";
 import { legacyHeaders, modern, raw, start } from "./helpers.ts";
@@ -47,8 +48,7 @@ void describe("WO §1.1 the validation pool closes with the server", () => {
 
   void it("WO §5.1 closing while a validation is in flight: the request fails cleanly and close() still resolves", async () => {
     const s = await start({ limits: { validationTimeoutMs: 10_000 } });
-    const tags = Array.from({ length: 20_000 }, (_, i) => ({ k: i }));
-    const call = modern(s.t, "tools/call", { name: "costly_schema", arguments: { tags } }).then(
+    const call = modern(s.t, "tools/call", { name: "costly_schema", arguments: costlyArguments() }).then(
       (r) => r.status,
       () => "connection closed",
     );
