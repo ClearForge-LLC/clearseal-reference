@@ -104,6 +104,9 @@ design depends on measured and recorded.
   trailer and full SHAs inside platform compare/commit URLs (public references by construction),
   with self-test cases; an explicit Node check joins `npm run check` (`.npmrc` stays — measured:
   the bot regenerates the lockfile under the exact pin).
+- `CSR-WO-0002b` — maintenance: the dependency bot's npm backlog (#81's ten bumps) landed from a
+  branch of our own, with the lint fix the bot's supersession dropped and the validation-deadline
+  test's fixture re-measured under the new validator; the bot's own branch is never pushed to.
 - `CSR-WO-0100` — spike: install the official SDK at a pinned version, start a stateless server,
   probe the negotiated protocol revision and whether `server/discover` is reachable; record the
   result in `architecture.md` §2.3. STOP.
@@ -385,6 +388,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | `CSR-WO-1005b` | Era-dependent HTTP status for JSON-RPC errors | Not planned; inserted after `-1005a` measured that a legacy client loses the error body at `400` |
 | `CSR-WO-1005a` | Transport corrections the `-0101` spike measured: an unclosed worker pool and a `500` for MRTR under the legacy era | Not planned; inserted because a spike on the substrate found two defects the substrate's own tests could not see from inside |
 | `CSR-WO-0002a` | Corrections from the `-0002` review: the gate admits the platform bot's commit shapes; engine strictness moves from `.npmrc` to an explicit check | Not planned; inserted because the bot's commits would fail the gate and its lockfile regeneration would fail the exact engine pin — both discovered by the builder before the first bot run |
+| `CSR-WO-0002b` | The bot's npm group (#81) landed from `wo/CSR-WO-0002b`: lint fix re-applied, shard-2 baseline failure measured and fixed | Not planned; inserted 2026-11-27 because a fix pushed onto the bot's branch (`4d84f80a`, 2026-10-07) was lost when the bot superseded its PR, and eight weekly group PRs failed while the build was paused |
 
 ## Amendments
 
