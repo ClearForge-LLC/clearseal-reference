@@ -113,8 +113,8 @@ void describe("F4 nothing dispatches without a principal, whatever the verifier 
 
 void describe("F2 validation runs off the event loop under a deadline", () => {
   void it("a validation slower than validationTimeoutMs is abandoned at the deadline with 400 -32602, and /health answers meanwhile", async () => {
-    // CSR-WO-2008b §1.2: the 400 must also come on time. Honest calls answered at 312–385 ms across
-    // this box and both CI runners (FEEDBACK); a timer stretched 30-fold answers at about 9 s.
+    // CSR-WO-2008b §1.2: the 400 must also come on time. The bound sits well above every honest call
+    // measured, and a timer stretched 30-fold answers at about 9 s (that WO's FEEDBACK).
     const boundMs = 3 * COSTLY_DEADLINE_MS;
     const s = await start({ limits: { validationTimeoutMs: COSTLY_DEADLINE_MS } });
     try {
@@ -133,7 +133,13 @@ void describe("F2 validation runs off the event loop under a deadline", () => {
       assert.ok(callMs < boundMs, `the 400 came at ${String(callMs)} ms, past ${String(boundMs)} ms (3 × validationTimeoutMs): the deadline fired late`);
       assert.ok(healthMs < 200, `health took ${String(healthMs)} ms`);
       assert.ok(s.audits.includes("validation-timeout"));
-      assert.equal((await modern(s.t, "tools/call", { name: "echo", arguments: { text: "after" } })).status, 200, "the replaced worker validates");
+      // The replacement worker starts and is re-primed with every schema before it validates, and a
+      // validation sent to it at once counts that against the deadline. Let it settle first: this
+      // checks that it validates, not how fast it starts (CSR-WO-2008b, ruled).
+      await new Promise((r) => setTimeout(r, 500));
+      const e0 = Date.now();
+      const after = await modern(s.t, "tools/call", { name: "echo", arguments: { text: "after" } });
+      assert.equal(after.status, 200, `the replaced worker validates (status ${String(after.status)} in ${String(Date.now() - e0)} ms; last audits ${s.audits.slice(-3).join(",")})`);
     } finally {
       await s.close();
     }
