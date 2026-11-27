@@ -10,6 +10,7 @@ import { pinForTest } from "../fixtures/pin.ts";
 import { compileSchema } from "../../src/transport/schema.ts";
 import { startTransport } from "../../src/transport/server.ts";
 import type { Verdict, Verifier } from "../../src/transport/verifier.ts";
+import { COSTLY_DEADLINE_MS, costlyArguments } from "../fixtures/tools.ts";
 import { held, legacyHeaders, modern, modernBody, modernHeaders, raw, type Reply, start } from "./helpers.ts";
 
 const code = (r: Reply): unknown => (r.json as { error?: { code: number } } | undefined)?.error?.code;
@@ -111,12 +112,15 @@ void describe("F4 nothing dispatches without a principal, whatever the verifier 
 });
 
 void describe("F2 validation runs off the event loop under a deadline", () => {
-  void it("a quadratic validation is abandoned at validationTimeoutMs with 400 -32602, and /health answers meanwhile", async () => {
-    const s = await start({ limits: { validationTimeoutMs: 300 } });
+  void it("a validation slower than validationTimeoutMs is abandoned at the deadline with 400 -32602, and /health answers meanwhile", async () => {
+    // CSR-WO-2008b §1.2: the 400 must also come on time. The bound sits well above every honest call
+    // measured, and a timer stretched 30-fold answers at about 9 s (that WO's FEEDBACK).
+    const boundMs = 3 * COSTLY_DEADLINE_MS;
+    const s = await start({ limits: { validationTimeoutMs: COSTLY_DEADLINE_MS } });
     try {
-      const tags = Array.from({ length: 20_000 }, (_, i) => ({ k: i }));
+      const args = costlyArguments();
       const t0 = Date.now();
-      const call = modern(s.t, "tools/call", { name: "costly_schema", arguments: { tags } });
+      const call = modern(s.t, "tools/call", { name: "costly_schema", arguments: args });
       await new Promise((r) => setTimeout(r, 50));
       const h0 = Date.now();
       assert.equal((await raw(s.t, { method: "GET", path: "/health" })).status, 200);
@@ -126,9 +130,16 @@ void describe("F2 validation runs off the event loop under a deadline", () => {
       console.log(`VALIDATION-DEADLINE status=${String(r.status)} code=${String(code(r))} call=${String(callMs)}ms health=${String(healthMs)}ms`);
       assert.equal(r.status, 400);
       assert.equal(code(r), -32602);
+      assert.ok(callMs < boundMs, `the 400 came at ${String(callMs)} ms, past ${String(boundMs)} ms (3 × validationTimeoutMs): the deadline fired late`);
       assert.ok(healthMs < 200, `health took ${String(healthMs)} ms`);
       assert.ok(s.audits.includes("validation-timeout"));
-      assert.equal((await modern(s.t, "tools/call", { name: "echo", arguments: { text: "after" } })).status, 200, "the replaced worker validates");
+      // The replacement worker starts and is re-primed with every schema before it validates, and a
+      // validation sent to it at once counts that against the deadline. Let it settle first: this
+      // checks that it validates, not how fast it starts (CSR-WO-2008b, ruled).
+      await new Promise((r) => setTimeout(r, 500));
+      const e0 = Date.now();
+      const after = await modern(s.t, "tools/call", { name: "echo", arguments: { text: "after" } });
+      assert.equal(after.status, 200, `the replaced worker validates (status ${String(after.status)} in ${String(Date.now() - e0)} ms; last audits ${s.audits.slice(-3).join(",")})`);
     } finally {
       await s.close();
     }

@@ -19,27 +19,25 @@ import { describe, it } from "node:test";
 import { DEFAULT_LIMITS } from "../../src/transport/config.ts";
 import { prepareTool } from "../../src/transport/registry.ts";
 import { compileSchema } from "../../src/transport/schema.ts";
-import { fixtureTools } from "../fixtures/tools.ts";
+import { COSTLY_DEADLINE_MS, costlyArguments, fixtureTools } from "../fixtures/tools.ts";
 
-/** The shortest deadline any test drives this fixture against. */
-const DEADLINE_MS = 300;
 /** How many deadlines the warm validation must last: the margin for a faster runner. */
 const MARGIN = 3;
 
 void describe("costly_schema outlasts the validation deadlines that use it", () => {
-  void it(`the deadline tests' input is valid, and validating it on a warm validator takes over ${String(MARGIN)} × ${String(DEADLINE_MS)} ms`, () => {
+  void it(`the deadline tests' input is valid, and validating it on a warm validator takes over ${String(MARGIN)} × ${String(COSTLY_DEADLINE_MS)} ms`, () => {
     const definition = fixtureTools().find((t) => t.name === "costly_schema");
     assert.ok(definition !== undefined);
     const { validate } = prepareTool(definition, compileSchema, DEFAULT_LIMITS);
     assert.ok(validate({ tags: [{ k: 0 }] }) === true, "the one-item warm-up is valid");
-    const tags = Array.from({ length: 20_000 }, (_, i) => ({ k: i }));
+    const args = costlyArguments();
     const t0 = performance.now();
-    const valid = validate({ tags }) === true;
+    const valid = validate(args) === true;
     const ms = Math.round(performance.now() - t0);
     const zschema = (JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../../../node_modules/z-schema/package.json"), "utf8")) as { version: string }).version;
     console.log(`COSTLY-SCHEMA warm=${String(ms)}ms valid=${String(valid)} z-schema=${zschema} platform=${process.platform}`);
     // Valid, so a 400 from the deadline tests can only be the deadline: invalid arguments answer 400 -32602 too.
     assert.ok(valid);
-    assert.ok(ms > MARGIN * DEADLINE_MS, `costly_schema validated in ${String(ms)} ms on a warm z-schema ${zschema}: the deadline tests can no longer drive the deadline; give the fixture a cost this validator cannot shortcut`);
+    assert.ok(ms > MARGIN * COSTLY_DEADLINE_MS, `costly_schema validated in ${String(ms)} ms on a warm z-schema ${zschema}: the deadline tests can no longer drive the deadline; give the fixture a cost this validator cannot shortcut`);
   });
 });

@@ -38,6 +38,15 @@ const COSTLY_BRANCHES = [{ required: ["k"] }, ...Array.from({ length: 1_499 }, (
 
 const text = (t: string): { content: { type: "text"; text: string }[] } => ({ content: [{ type: "text", text: t }] });
 
+/** The shortest validation deadline any test drives costly_schema against (adversarial F2, era-status's
+ *  fast server), and the one the canary in test/transport/costly-schema.test.ts measures against. */
+export const COSTLY_DEADLINE_MS = 300;
+
+/** The arguments every validation-deadline test sends costly_schema: 20,000 valid items. */
+export function costlyArguments(): { tags: { k: number }[] } {
+  return { tags: Array.from({ length: 20_000 }, (_, i) => ({ k: i })) };
+}
+
 /** Fixture tools, served only by tests. */
 export function fixtureTools(): PinnableTool[] {
   return [

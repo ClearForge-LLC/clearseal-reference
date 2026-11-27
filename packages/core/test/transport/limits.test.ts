@@ -3,9 +3,23 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 
 import { DEFAULT_LIMITS, resolveConfig, ConfigError } from "../../src/transport/config.ts";
 import { modern, modernBody, modernHeaders, raw, start } from "./helpers.ts";
+
+/**
+ * A full collection, under any launcher (CSR-WO-2008b §1.3). `globalThis.gc` exists only under
+ * `--expose-gc`, which neither scripts/test.mjs nor the control-deletion runner passes, and a silent
+ * `gc?.()` then measured unswept heap. Turning the flag on here gives a new context its `gc`.
+ */
+function collector(): () => void {
+  setFlagsFromString("--expose-gc");
+  const gc: unknown = runInNewContext("gc");
+  assert.equal(typeof gc, "function", "no gc() to collect with: the heap figure would be unswept");
+  return gc as () => void;
+}
 
 /** A discover request whose JSON body is exactly `size` bytes. */
 function bodyOfSize(size: number): string {
@@ -105,14 +119,15 @@ void describe("WO §5.7 statelessness: 1,000 sequential requests retain nothing 
     const s = await start({ rateLimit: { burst: 2_000, refillPerMinute: 600, maxPrincipals: 10 } });
     try {
       for (let i = 0; i < 100; i++) await modern(s.t, "tools/call", { name: "echo", arguments: { text: "warm" } });
-      globalThis.gc?.();
+      const gc = collector();
+      gc();
       const before = process.memoryUsage().heapUsed;
       for (let i = 0; i < 1000; i++) {
         const r = await modern(s.t, "tools/call", { name: "echo", arguments: { text: `n${String(i)}` } }, { headers: { "mcp-session-id": `s${String(i)}` } });
         assert.equal(r.status, 200);
         assert.equal(r.headers["mcp-session-id"], undefined);
       }
-      globalThis.gc?.();
+      gc();
       const growth = process.memoryUsage().heapUsed - before;
       console.log(`MEMORY 1000 sequential requests: heap growth ${String(Math.round(growth / 1024))} KiB, in-flight after ${String(s.t.inFlight())}`);
       assert.equal(s.t.inFlight(), 0);

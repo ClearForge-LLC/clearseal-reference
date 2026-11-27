@@ -1,5 +1,5 @@
 // JSON Schema 2020-12 validation for tools/call arguments (TL-10, BI-14…BI-18), through the one
-// pinned validator: z-schema 12.4.6. It was chosen by measurement (CSR-WO-1005 FEEDBACK): it
+// pinned validator: z-schema 12.8.0. It was chosen, at 12.4.6, by measurement (CSR-WO-1005 FEEDBACK): it
 // passed 1252 of 1252 required draft 2020-12 tests (excluding the remote-document tests); it
 // generates no code; it has no install script; and it has no loader unless one is installed.
 //

@@ -15,6 +15,7 @@ import { after, describe, it } from "node:test";
 import { DEFAULT_LIMITS, type Limits } from "../../src/transport/config.ts";
 import type { Tool, ToolResult } from "../../src/transport/registry.ts";
 import { pinForTest } from "../fixtures/pin.ts";
+import { COSTLY_DEADLINE_MS, costlyArguments } from "../fixtures/tools.ts";
 import { ValidationPool } from "../../src/transport/schema-pool.ts";
 import { startTransport, type RunningTransport } from "../../src/transport/server.ts";
 import type { Verifier } from "../../src/transport/verifier.ts";
@@ -30,7 +31,7 @@ interface Req {
 }
 /** status, and the JSON-RPC code (null: no body). */
 type Expect = [number, number | null];
-type ServerKey = "main" | "fast" | "small" | "noKey" | "slowVerifier" | "badVerifier" | "capacity";
+type ServerKey = "main" | "fast" | "deadline" | "small" | "noKey" | "slowVerifier" | "badVerifier" | "capacity";
 interface Case {
   error: string;
   server?: ServerKey;
@@ -60,7 +61,9 @@ interface Server {
 async function startServer(key: ServerKey): Promise<Server> {
   const limitsFor: Record<ServerKey, Partial<Limits>> = {
     main: {},
-    fast: { handlerTimeoutMs: 100, validationTimeoutMs: 300 },
+    fast: { handlerTimeoutMs: 100 },
+    // Its own server, so no later row meets a replacement worker still starting (see adversarial F2).
+    deadline: { validationTimeoutMs: COSTLY_DEADLINE_MS },
     small: { maxBodyBytes: 256 },
     noKey: {},
     slowVerifier: { verifierTimeoutMs: 50 },
@@ -162,7 +165,7 @@ const CASES: Case[] = [
   { error: "unknown tool", ...both([400, -32602], 200), build: (era) => call(era, "no_such_tool") },
   { error: "arguments not an object", ...both([400, -32602], 200), build: (era) => call(era, "echo", []) },
   { error: "arguments fail the input schema", ...both([400, -32602], 200), build: (era) => call(era, "echo", {}) },
-  { error: "validation over validationTimeoutMs", server: "fast", ...both([400, -32602], 200), build: (era) => call(era, "costly_schema", { tags: Array.from({ length: 20_000 }, (_, i) => ({ k: i })) }) },
+  { error: "validation over validationTimeoutMs", server: "deadline", ...both([400, -32602], 200), build: (era) => call(era, "costly_schema", costlyArguments()) },
   { error: "handler throws", ...both([500, -32603], 200), build: (era) => call(era, "throws_refusal") },
   { error: "handler over handlerTimeoutMs", server: "fast", ...both([500, -32603], 200), build: (era) => call(era, "slow") },
   { error: "result over maxResultBytes", ...both([500, -32603], 200), build: (era) => call(era, "big", { size: 300_000 }) },
