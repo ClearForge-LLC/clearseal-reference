@@ -12,7 +12,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 
 import { DEFAULT_LIMITS } from "../../src/transport/config.ts";
-import { prepareTool, type Tool } from "../../src/transport/registry.ts";
+import { prepareTool } from "../../src/transport/registry.ts";
 import { compileSchema } from "../../src/transport/schema.ts";
 import { fixtureTools } from "../fixtures/tools.ts";
 
@@ -25,15 +25,15 @@ void describe("costly_schema outlasts the validation deadlines that use it", () 
   void it(`the deadline tests' input is valid, and validating it uncapped takes over ${String(MARGIN)} × ${String(DEADLINE_MS)} ms`, () => {
     const definition = fixtureTools().find((t) => t.name === "costly_schema");
     assert.ok(definition !== undefined);
-    const { validate } = prepareTool(definition as Tool, compileSchema, DEFAULT_LIMITS);
+    const { validate } = prepareTool(definition, compileSchema, DEFAULT_LIMITS);
     const tags = Array.from({ length: 20_000 }, (_, i) => ({ k: i }));
     const t0 = performance.now();
-    const valid = validate({ tags });
+    const valid = validate({ tags }) === true;
     const ms = Math.round(performance.now() - t0);
     const zschema = (JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../../../node_modules/z-schema/package.json"), "utf8")) as { version: string }).version;
     console.log(`COSTLY-SCHEMA uncapped=${String(ms)}ms valid=${String(valid)} z-schema=${zschema} platform=${process.platform}`);
     // Valid, so a 400 from the deadline tests can only be the deadline: invalid arguments answer 400 -32602 too.
-    assert.equal(valid, true);
+    assert.ok(valid);
     assert.ok(ms > MARGIN * DEADLINE_MS, `costly_schema validated in ${String(ms)} ms under z-schema ${zschema}: the deadline tests can no longer drive the deadline; give the fixture a cost this validator cannot shortcut`);
   });
 });
