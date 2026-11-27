@@ -1,7 +1,7 @@
 {
   "manifest_version": 1,
   "canonical_form_version": 1,
-  "generated_at": "2026-09-26T04:55:20.431Z",
+  "generated_at": "2026-11-27T19:16:50.813Z",
   "tools": [
     {
       "name": "approve_target",
@@ -25,7 +25,7 @@
     },
     {
       "name": "costly_schema",
-      "tool_hash": "30583da5d5ee593861ffd71a88b5d6e90215d89bef906b25168956621b077c96"
+      "tool_hash": "a821e168d9a202f83226bbbd0983a096624faca22429d8af133e155745d5fc74"
     },
     {
       "name": "echo",
@@ -56,7 +56,7 @@
       "tool_hash": "2ff46a8be8ec8230746fc9e6bb47599a41bd36e2bc55ae22b875cfd21ef97929"
     }
   ],
-  "manifest_hash": "3a9bcac394074b413888195f459bf1e4f17fb62b5c5e78682e91cd45c33f6a52",
+  "manifest_hash": "c4844804a96be0665494b8721ae5ecacd2f8e8fa621c1ddac7f868f4b37c8818",
   "build": {
     "commit": null,
     "distribution_digest": null,

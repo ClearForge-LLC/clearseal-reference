@@ -101,7 +101,7 @@ const ROWS: Row[] = [
     name: "WO §5.1: HS256 keyed with the issuer's own public key",
     headers: () => {
       const input = `${seg(hdr({ alg: "HS256" }))}.${seg(claims())}`;
-      const secret = createPublicKey({ key: (issuer.keys[0] as SigningKey).jwk as never, format: "jwk" }).export({ type: "spki", format: "pem" });
+      const secret = createPublicKey({ key: (issuer.keys[0] as SigningKey).jwk, format: "jwk" }).export({ type: "spki", format: "pem" });
       return bearer(`${input}.${createHmac("sha256", secret).update(input).digest("base64url")}`);
     },
     error: "invalid_token",
