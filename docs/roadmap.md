@@ -241,6 +241,13 @@ red-proof, and the teaching edition demonstrates every rung except exec.
   partition, a CI matrix sized by one number, and an aggregate job that keeps the name
   `control-deletion`. Ruled by the gate: the job stays an optional check until the gate decides it
   should gate merges; designed now to scale, engaged as needed.
+- `CSR-WO-2008b` — the validation deadline gets its control-deletion row, F2 bounds the call near
+  `validationTimeoutMs`, the heap-growth measurement stops reading unswept heap, and the shard count
+  is re-sized to the five-minute rule; from `-0002b`'s FEEDBACK.
+- `CSR-WO-2010` — spike, then STOP: interop against the official `2026-07-28` implementations — the
+  SDK v2 client (`@modelcontextprotocol/client`) and the conformance suite's `2026-07-28` scenarios,
+  test-side only, never a runtime dependency. Answers whether an independent implementation of the
+  revision agrees with ours, and where it does not.
 - `CSR-WO-2008` — (built, merged `290077a` 2026-09-26: 45 controls; pulled forward during the P1 exit red-team, rows for every control built so far) the control-deletion job: each control stubbed out in turn, the suite required to
   fail for each; wired into CI as its own job.
 - `CSR-WO-2009` — the *resources* and *prompts* primitives (`resources/list`, `resources/read`,
@@ -388,7 +395,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | `CSR-WO-1005b` | Era-dependent HTTP status for JSON-RPC errors | Not planned; inserted after `-1005a` measured that a legacy client loses the error body at `400` |
 | `CSR-WO-1005a` | Transport corrections the `-0101` spike measured: an unclosed worker pool and a `500` for MRTR under the legacy era | Not planned; inserted because a spike on the substrate found two defects the substrate's own tests could not see from inside |
 | `CSR-WO-0002a` | Corrections from the `-0002` review: the gate admits the platform bot's commit shapes; engine strictness moves from `.npmrc` to an explicit check | Not planned; inserted because the bot's commits would fail the gate and its lockfile regeneration would fail the exact engine pin — both discovered by the builder before the first bot run |
-| `CSR-WO-0002b` | The bot's npm group (#81) landed from `wo/CSR-WO-0002b`: lint fix re-applied, shard-2 baseline failure measured and fixed | Not planned; inserted 2026-11-27 because a fix pushed onto the bot's branch (`4d84f80a`, 2026-10-07) was lost when the bot superseded its PR, and eight weekly group PRs failed while the build was paused |
+| `CSR-WO-0002b` | (built, merged `c17e696` 2026-11-27) The bot's npm group (#81) landed from `wo/CSR-WO-0002b`: lint fix re-applied, shard-2 baseline failure measured and fixed | Not planned; inserted 2026-11-27 because a fix pushed onto the bot's branch (`4d84f80a`, 2026-10-07) was lost when the bot superseded its PR, and eight weekly group PRs failed while the build was paused |
 
 ## Amendments
 
@@ -401,6 +408,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | 2026-09-25 | `-2009` (resources and prompts primitives) added to P2 under the completeness bar, after `-1005`'s conformance run showed every remaining failure was an unimplemented primitive. | The gate's ruling; sequenced after the controls so the primitives inherit pinning and validation rather than predating them. |
 | 2026-09-25 | `-1005a` inserted before `-1000`; `-2001` gains three acceptance lines from `-0101`; the client half of `-0101` added to the human track. | Same day; the spike's findings. |
 | 2026-09-26 | P1 exit gate clause on the supply-boundary test reworded to claim what it proves: red on each planted control in its corpus, best-effort against a hostile author, with the committed-manifest assembly path (`-1007`) as the guarantee. | The P1 exit red-team planted an edition whose aliasing passed the checker; a clause that says "a planted control" without a corpus claims more than static reading of JavaScript can deliver. |
+| 2026-11-27 | `-2008b` and `-2010` added to P2. P2's remaining order, ruled by the architect under the gate's standing delegation: `-2008b` → `-2010` → `-2003` → `-2004` → `-2009` → `-2005` → `-2006`. The list's previous order put `-2009` first although its own amendment sequences it after the controls; the amendment governs. Two facts in the 2026-09-25 rows are corrected in `architecture.md` §2.2 rather than here: SDK v2 *was* published (2026-07-27, new package names), and `2026-07-28` does not deprecate elicitation. Those rows are left as written. | `-0002b`'s FEEDBACK (an N5 gap: no deletion row for the validation deadline) and the same-day ground-truth measurement. `-2010` comes before the next control so an independent implementation checks the transport every later control sits on. |
 
 ## Provenance
 
