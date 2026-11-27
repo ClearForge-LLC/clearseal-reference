@@ -342,4 +342,4 @@ each push.
 
 ## CI
 
-CI-LINE
+Filled in by the architect at merge (`c17e696`): every job green on `b3fb254`, both the push and the pull-request runs, all four shards. `test (ubuntu-latest)`: `COSTLY-SCHEMA warm=1265ms valid=true z-schema=12.8.0 platform=linux`, `VALIDATION-DEADLINE status=400 code=-32602 call=323ms`. `test (windows-latest)`: `warm=1459ms … platform=win32`, `status=400 code=-32602 call=329ms`. Architect's local re-run on Node 24.21.0: 939 / 69 / 8 / 4, warm 1,642 ms.
