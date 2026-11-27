@@ -30,13 +30,10 @@ export function gate(): Gate {
 export const held = { gates: [] as Gate[] };
 
 /** costly_schema's branches (CSR-WO-0002b §1.3). An item `{ k }` matches the first and fails every
- *  other one, so a validator must try all 1,500 to know that exactly one matched: the cost is items ×
- *  branches, with no pairwise structure to key away. Sized for z-schema's fast path, not its first
- *  call: once a schema is cached, z-schema 12.8 checks valid data without building a report, about
- *  1.9 s here for the tests' 20,000 items, against about 37 s for the first, report-building call. Both
- *  must outlast the 300 ms deadline, since a worker that has validated this schema once takes the fast
- *  path. 1,503 subschemas, inside maxSchemaNodes (2,000). (The `uniqueItems` fixture this replaces
- *  stopped being costly in z-schema 12.7.0, which compares large arrays of objects by key.) */
+ *  other one, so a validator must try all 1,500 to know that exactly one matched: items × branches,
+ *  with no pairwise structure to key away. Sized so that z-schema's fast path, not only its first call,
+ *  outlasts the deadline (why: test/transport/costly-schema.test.ts). 1,503 subschemas, inside
+ *  maxSchemaNodes (2,000). */
 const COSTLY_BRANCHES = [{ required: ["k"] }, ...Array.from({ length: 1_499 }, (_, j) => ({ required: ["k", `m${String(j)}`] }))];
 
 const text = (t: string): { content: { type: "text"; text: string }[] } => ({ content: [{ type: "text", text: t }] });
