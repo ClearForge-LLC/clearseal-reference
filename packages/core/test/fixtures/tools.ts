@@ -29,6 +29,12 @@ export function gate(): Gate {
 
 export const held = { gates: [] as Gate[] };
 
+/** costly_schema's branches (CSR-WO-0002b §1.3). An item `{ k }` matches the first and fails every
+ *  other one, so a validator must try all 200 to know that exactly one matched: the cost is items ×
+ *  branches whatever the validator's version. (The `uniqueItems` fixture this replaces stopped being
+ *  costly in z-schema 12.7.0, which compares large arrays of objects by key, not pair by pair.) */
+const COSTLY_BRANCHES = [{ required: ["k"] }, ...Array.from({ length: 199 }, (_, j) => ({ required: ["k", `m${String(j)}`] }))];
+
 const text = (t: string): { content: { type: "text"; text: string }[] } => ({ content: [{ type: "text", text: t }] });
 
 /** Fixture tools, served only by tests. */
@@ -149,8 +155,8 @@ export function fixtureTools(): PinnableTool[] {
     {
       name: "costly_schema",
       capability: tag("costly_schema"),
-      description: "uniqueItems over objects: validation cost grows with the square of the array.",
-      inputSchema: { type: "object", properties: { tags: { type: "array", uniqueItems: true, items: { type: "object" } } } },
+      description: "oneOf over 200 branches: exactly one matches each item, so every item is checked against every branch.",
+      inputSchema: { type: "object", properties: { tags: { type: "array", items: { oneOf: COSTLY_BRANCHES } } } },
       handler: () => Promise.resolve(text("validated")),
     },
     {
