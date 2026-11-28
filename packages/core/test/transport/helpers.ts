@@ -5,7 +5,7 @@
 import { randomBytes } from "node:crypto";
 import { request as httpRequest, type IncomingHttpHeaders } from "node:http";
 
-import { ValidationPool } from "../../src/transport/schema-pool.ts";
+import { ValidationPool, type ValidationPoolOptions } from "../../src/transport/schema-pool.ts";
 import { loadPinnedRegistry } from "../../src/pinning/registry.ts";
 import { definitions } from "../fixtures/tools.ts";
 import { startTransport, type RunningTransport, type TransportOptions } from "../../src/transport/server.ts";
@@ -36,9 +36,13 @@ export interface Started {
   lines: string[];
 }
 
-export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifier | null; key?: Uint8Array | null; config?: TransportOptions["config"]; rateLimit?: TransportOptions["rateLimit"] } = {}): Promise<Started> {
+export async function start(opts: { limits?: Partial<Limits>; verifier?: Verifier | null; key?: Uint8Array | null; config?: TransportOptions["config"]; rateLimit?: TransportOptions["rateLimit"]; pool?: Partial<ValidationPoolOptions> } = {}): Promise<Started> {
   const limits = { ...DEFAULT_LIMITS, ...opts.limits };
-  const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
+  // The pool's own events reach the same seam as the transport's (CSR-WO-1005c).
+  const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs, ...opts.pool, onEvent: (event, fields) => {
+    audits.push(event);
+    lines.push(`${event} ${JSON.stringify(fields)}`);
+  } });
   // The fixture tools through the pin gate, against the manifest the CLI approved.
   const registry = loadPinnedRegistry(FIXTURE_MANIFEST, definitions, { compile: pool.compile, limits, strict: true });
   const audits: string[] = [];

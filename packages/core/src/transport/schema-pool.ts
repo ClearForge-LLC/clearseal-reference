@@ -9,8 +9,9 @@
 // online and has acknowledged every schema it was sent; until then `#pump` passes it by, so a
 // replacement's start-up never counts against the next call's deadline. Readiness has its own bound,
 // READY_TIMEOUT_MS: a worker that does not become ready within it is replaced again, and a job that
-// finds no ready worker within it is refused as a timeout is. So no call waits past its deadline plus
-// that bound, and none is ever answered without validation.
+// finds no ready worker for twice that (one replacement's whole window) is refused as a timeout is.
+// So no call waits for a worker past twice the bound, then past its deadline, and none is ever
+// answered without validation.
 
 import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,6 +56,10 @@ export interface ValidationPoolOptions {
   /** Hears the pool's own events: `validation-worker-not-ready` when a worker is replaced for not
    *  becoming ready within READY_TIMEOUT_MS. */
   onEvent?: (event: string, fields: Record<string, string | number>) => void;
+  /** Test seams: the readiness bound (default READY_TIMEOUT_MS) and the worker module for each
+   *  spawn (default the schema worker beside this file). */
+  readyTimeoutMs?: number;
+  workerUrl?: () => URL;
 }
 
 const ready = (slot: Slot): boolean => slot.online && slot.priming.size === 0;
@@ -69,9 +74,11 @@ export class ValidationPool {
   /** Priming compiles carry negative ids, so a reply is told apart from a validation's. */
   #nextPrimeId = -1;
   #closed = false;
+  readonly #readyMs: number;
 
   constructor(options: ValidationPoolOptions) {
     this.#options = options;
+    this.#readyMs = options.readyTimeoutMs ?? READY_TIMEOUT_MS;
     for (let i = 0; i < options.workers; i++) this.#slots.push(this.#spawn());
   }
 
@@ -102,7 +109,7 @@ export class ValidationPool {
 
   #spawn(): Slot {
     // The worker module sits beside this one, with the same extension (.ts in tests, .js built).
-    const url = new URL(`./schema-worker${extname(fileURLToPath(import.meta.url))}`, import.meta.url);
+    const url = this.#options.workerUrl?.() ?? new URL(`./schema-worker${extname(fileURLToPath(import.meta.url))}`, import.meta.url);
     const worker = new Worker(url);
     worker.unref();
     const slot: Slot = { worker, online: false, priming: new Set() };
@@ -119,9 +126,9 @@ export class ValidationPool {
     });
     slot.readyTimer = setTimeout(() => {
       if (ready(slot) || this.#closed) return;
-      this.#options.onEvent?.("validation-worker-not-ready", { limitMs: READY_TIMEOUT_MS });
+      this.#options.onEvent?.("validation-worker-not-ready", { limitMs: this.#readyMs });
       this.#replace(slot, new Error("validation worker did not become ready"));
-    }, READY_TIMEOUT_MS);
+    }, this.#readyMs);
     slot.readyTimer.unref();
     for (const [key, schema] of this.#schemas) this.#prime(slot, key, schema);
     return slot;
@@ -153,8 +160,9 @@ export class ValidationPool {
     if (this.#closed) return Promise.reject(new Error("validation pool closed"));
     return new Promise((resolve, reject) => {
       const job: Job = { id: this.#nextId++, key, value, resolve, reject };
-      // Refused only when no worker has been ready for the whole bound: a job queued behind ready
-      // workers that are busy waits for them, as it always has.
+      // Refused only when no worker has been ready for twice the bound, so a replacement for a worker
+      // that never became ready gets its whole window; a job queued behind ready workers that are
+      // busy waits for them, as it always has.
       const arm = (): void => {
         job.wait = setTimeout(() => {
           const i = this.#queue.indexOf(job);
@@ -164,8 +172,8 @@ export class ValidationPool {
             return;
           }
           this.#queue.splice(i, 1);
-          reject(new ValidationTimeout(`no validation worker became ready within ${String(READY_TIMEOUT_MS)} ms`));
-        }, READY_TIMEOUT_MS);
+          reject(new ValidationTimeout(`no validation worker became ready within ${String(2 * this.#readyMs)} ms`));
+        }, 2 * this.#readyMs);
       };
       arm();
       this.#queue.push(job);
