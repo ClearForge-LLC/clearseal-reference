@@ -218,7 +218,9 @@ tried each §5 attack and ran its own script against `compileSchemaReporting`.
 - `npm run check`, locally on `4fbfc3b`: 955 of 957 passed. The two failures,
   `frozen.test.ts`'s *admitted validator still runs* and `p1-exit`'s *containment* test, still
   asserted the old 400. Both were updated in `1d05484` and pass, with the transport, schema, pinning
-  and teaching suites. CI runs the whole suite and every shard on the final head: «CI».
+  and teaching suites. CI runs the whole suite and every shard: green on `b7aab66` (runs 46135818669 push and 46135824110
+  pull_request), with control-deletion shards taking 97–228 s, under five minutes. `b36f9f5` was red on
+  shard 22 (F3), and `1d05484` was red on the `refusal-audit-lines` MISS (F1).
 - Every touched row and every `validation-*` row is RED by assertion (above), as are the rows naming
   the tests edited in `1d05484`: all RED:
 
