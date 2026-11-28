@@ -53,7 +53,7 @@ address. Parked as one unmerged pull request.
 | 0.1 | `tools/list`, TTL and `cacheScope` | 200 with `ttlMs 60000`, `cacheScope "private"`; the client's second `listTools()` made **no** request (served from its cache) |
 | 0.1 | `tools/call`, `read_only` | 200, `notes.read` returns the note |
 | 0.1 | MRTR `input_required` round trip | fixture server: `server/discover`, `tools/call` → `input_required`, the client fulfils the elicitation and retries, → `Hello, spike!` (3 exchanges) |
-| 0.1 | a tool error | 200 with `isError: true` (*There is no note named missing.md.*); arguments failing the schema: 400 -32602, surfaced as `ProtocolError` |
+| 0.1 | a tool error | 200 with `isError: true` (*There is no note named missing.md.*); arguments failing the schema: 400 -32602, surfaced as `ProtocolError` (D10) |
 | 0.1 | `Mcp-Method`, `Mcp-Name` | the client sends `mcp-method: tools/call` and `mcp-name: notes.read` with `mcp-protocol-version: 2026-07-28`, matching the body and `_meta` |
 | 0.2 | the `2025-11-25` fallback | completes in the client's default mode: `initialize`, `notifications/initialized` 202, `GET` 405 (no stream), `tools/list`, `tools/call` |
 | 0.3 | 401 + protected-resource metadata | 401 with `WWW-Authenticate: Bearer resource_metadata="https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp"`; with a token-only `AuthProvider` the client surfaces the 401 and does not fetch the metadata |
@@ -61,7 +61,7 @@ address. Parked as one unmerged pull request.
 | 0.3 | `iss` | another issuer's token: 401. RFC 9207 (the client validating `iss` in an authorization response) **blocked**: needs an OAuth flow |
 | 0.3 | resource indicators (RFC 8707) | **blocked**: the client sends `resource` only in an OAuth authorization/token request, which needs an authorization server |
 | 0.4 | conformance, by scenario and check | above and in the findings |
-| 0.5 | security-relevant | none |
+| 0.5 | security-relevant | none found. The probes exercised authentication; the suite exercised Origin validation (`dns-rebinding-protection`, 2 of 2) and the header rules (`http-header-validation` 14 of 14, `http-custom-header-server-validation` 10 of 10, both unscored as *pending*). MRTR on the teaching node itself was not exercised by the client (no MRTR tool) |
 
 ## Findings table
 
@@ -75,16 +75,16 @@ than the specification. Specification text from `https://modelcontextprotocol.io
 | D2 | `prompts-list`, `prompts-get-simple`, `-with-args`, `-embedded-resource`, `-with-image` (5) | conformance | (b) | server/prompts, *Capabilities*: "Servers that support prompts **MUST** declare the `prompts` capability in their [`DiscoverResult`]" | `-2009` |
 | D3 | `caching`: `prompts/list`, `resources/list`, `resources/templates/list` have no caching hints (3; `resources/read` skipped) | conformance | (b) | server/utilities/caching, *Cacheable Results*: "Servers MUST include caching hints on results with `resultType: "complete"` returned by the following operations:" (the list names these). `tools/list` and `server/discover` carry them and pass | `-2009`, with its list TTLs |
 | D4 | `input-required-result-non-tool-request` (1): *prompts/get returns InputRequiredResult with inputRequests* | conformance | (b) | the request is `prompts/get`, which ours does not serve yet (D2) | `-2009` |
-| D5 | `sep-2164-resource-not-found`: warnings, code -32601 not -32602, and no `data.uri` | conformance | (b) for the code; (c) for `data.uri` | server/resources, *Error Handling*: "If the requested resource does not exist, servers **MUST** return a JSON-RPC error with code `-32602` (Invalid Params)." No sentence makes `data.uri` MUST or SHOULD: it appears only in the example error object, while the suite calls it "a SHOULD requirement" | `-2009` returns -32602 and may include `data.uri`; the suite's SHOULD is the suite's, not the text's |
+| D5 | `sep-2164-resource-not-found`: warnings, code -32601 (with HTTP 404, as streamable-http's "If the server does not implement the requested RPC method, it **MUST** respond with `404 Not Found` and a JSON-RPC error with code `-32601`" requires today) not -32602, and no `data.uri` | conformance | (b) for the code; (c) for `data.uri` | server/resources, *Error Handling*: "If the requested resource does not exist, servers **MUST** return a JSON-RPC error with code `-32602` (Invalid Params)." No sentence makes `data.uri` MUST or SHOULD: it appears only in the example error object, while the suite calls it "a SHOULD requirement" | `-2009` returns -32602, never an empty `contents` ("Servers **MUST NOT** return an empty `contents` array for a non-existent resource"), and may include `data.uri`; the suite's SHOULD is the suite's, not the text's |
 | D6 | `completion-complete` (1): *Method not found* | conformance | (c) | server/utilities/completion, *Capabilities*: "Servers that support completions **MUST** declare the `completions` capability"; *Error Handling*: "Servers **SHOULD** return standard JSON-RPC errors for common failure cases: … Method not found: `-32601` (Capability not supported)". Ours does not declare `completions` and answers -32601: what the text prescribes. The suite requires a primitive the text makes conditional | none in ours (the roadmap keeps `completion` out until a tool needs it); report to the suite that a server without the capability is scored as failing |
-| D7 | `tools-call-with-progress` (1): *Unknown tool* | conformance | (c) | basic/utilities/progress, *Behavior Requirements*: "Servers receiving a request with a progress token **MAY**: Choose not to send any progress notifications". The fixture server has no progress tool, by design (no SSE progress); the suite requires progress notifications the text makes optional | none in ours (SSE progress stays out until a tool needs it, roadmap); report to the suite |
+| D7 | `tools-call-with-progress` (1): *Unknown tool*: the scenario assumes a fixture tool with progress, which our fixture server deliberately lacks | conformance | (c) | basic/utilities/progress, *Behavior Requirements*: "Servers receiving a request with a progress token **MAY**: Choose not to send any progress notifications". The fixture server has no progress tool, by design (no SSE progress); the suite requires progress notifications the text makes optional | none in ours (SSE progress stays out until a tool needs it, roadmap); report to the suite |
 | D8 | `server-stateless`: 5 checks skipped (`subscriptions/listen`) | conformance | none: skipped, not failed | basic/patterns/subscriptions, *Acknowledgment*: "Notification types the server does not support are omitted." No capability key makes it mandatory | none |
 | D9 | the Tasks extension (10 scenarios, unscored for `2026-07-28`): 30 failing checks | conformance | not scored: an extension `2026-07-28` does not require | the suite itself lists them as *extension*, not scored | the roadmap's `-0101` line keeps the Tasks extension conditional; no action from this spike |
+| D10 | arguments that fail the pinned input schema: ours answers 400 with a JSON-RPC error -32602 (the client surfaces `ProtocolError: Invalid arguments for tool notes.read`), not a result with `isError: true` | probe 0.1 (refused arguments) | (d) | server/tools, *Error Handling*: tool execution errors include "Input validation errors (e.g., date in wrong format, value out of range)", reported "with `isError: true`", which "contain actionable feedback that language models can use to self-correct"; "Clients **SHOULD** provide tool execution errors to language models to enable self-correction." The same section's protocol errors cover "Malformed requests (requests that fail to satisfy [CallToolRequest schema]…)", so the text does not settle a tool's own `inputSchema`. Ours refuses before the handler as a control: architecture §8 *Runtime input validation against the pinned schema* | a ruling: keep the refusal (a model then sees a protocol error, which clients only MAY pass on) or carry the same refusal as an `isError: true` result, still before the handler. Not security-relevant: it refuses more, never less |
 | N1 | the v2 client defaults to `versionNegotiation.mode: 'legacy'` | client | not a disagreement with our server | (the client's own documented default; our server serves both eras) | deployment notes for ClearSeal nodes say to configure `'auto'` or `{ pin: "2026-07-28" }` |
 | B1 | RFC 8707 resource indicators, RFC 9207 `iss` in authorization responses | client | blocked | (needs an authorization server) | a later probe with a local OAuth test authorization server, if the architect wants it; it is not this spike's (WO §4) |
 
-There is no (a) and no (d): no defect in ours turned up, and no ClearSeal control refused something
-the client or the suite needed.
+There is no (a): no defect in ours turned up. The one (d) is D10, found by the adversarial pass.
 
 ## §2.1's served-revision row, re-recorded (for the architect to apply: `docs/` is out of this spike)
 
@@ -107,7 +107,27 @@ the client or the suite needed.
 
 ## Adversarial pass (WO §5)
 
-«ADV»
+A fresh subagent read the findings table, fetched the 2026-07-28 completion, progress, resources,
+caching and streamable-HTTP pages itself, and challenged each class. **It challenged none.** What it
+added, and what was done:
+
+1. **Refused arguments (new: D10, class (d)).** It asked whether 2026-07-28 wants schema violations
+   as a protocol error or as `isError: true`. Fetched: the tools page lists input validation among tool
+   execution errors, while its protocol errors cover a malformed `CallToolRequest`; the text does not
+   settle a tool's own schema. Recorded as D10 for a ruling.
+2. **The suite scores against older text.** Its `specReferences` for completion and the prompts and
+   resources scenarios point at `2025-06-18`, and for caching and MRTR at `draft`: support for D6 and
+   D7 being (c). D7 reworded: the failure is a fixture tool the suite assumes.
+3. **D5.** `data.uri` is in no MUST or SHOULD in 2026-07-28 (confirmed); `-2009` must also never answer
+   an empty `contents` (added).
+4. **§0.5's scope stated.** Origin validation and the header-mismatch rules were exercised by the suite
+   and passed; MRTR on the teaching node itself was not exercised by the client.
+5. **`cacheScope`.** `server/discover` is `public` and `tools/list` `private`; *Security Considerations*
+   allows `public` only for what is not caller-specific, and discover's result carries nothing
+   caller-specific in the probe. Agrees.
+6. **Unsure, not fetched by it:** the subscriptions page (D8's quote, from the earlier fetch) and the
+   authorization page (the 401's JSON-RPC body: ours sends `-32600 Unauthorized` with the challenge
+   header).
 
 ## Gates
 
