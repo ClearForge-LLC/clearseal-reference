@@ -1,4 +1,4 @@
-# CSR-WO-1005c — A validation's deadline starts when its worker is ready, not while it is still starting
+# CSR-WO-1005c — A validation's deadline starts when its worker is ready, and a receive timeout fires when it says
 
 **Repo:** `ClearForge-LLC/clearseal-reference` · **Base:** `main` at kickoff (verify live HEAD; it must
 contain `-2008c`'s merge).
@@ -54,7 +54,19 @@ applies, because it needs every control's row green.
      red-proof red by assertion.
 4. **The audit.** A worker replaced for failing to become ready writes its own audit event, distinct
    from `validation-timeout`.
-5. **`FEEDBACK.md`** per §6.
+5. **Receive timeouts fire at their setting** (added from `-2008c` finding 2).
+   - Node checks `requestTimeout` only on its `connectionsCheckingInterval` sweep, every 30 s by
+     default. So the transport's `requestTimeoutMs` (30 s) ends a stalled request 30–60 s after it
+     starts, and the approval listener's 10 s ends one at about 30 s. Measured: 408 at
+     30,004–30,011 ms for settings of 200 ms, 1 s and 10 s.
+   - Set `connectionsCheckingInterval` on both servers so each timeout fires within a stated
+     tolerance of its setting. Use the smaller of the setting and a bound you measure the CPU cost of,
+     and record why.
+   - Tighten `request-timeout.test.ts` and `listener-timeout.test.ts` to assert that the 408 arrives
+     within that tolerance. Their rows' stubs must still turn them red.
+   - This changes behaviour: a stalled request is now ended sooner, closer to what the setting says.
+     Record it in FEEDBACK as a behaviour change, with the before and after timings.
+6. **`FEEDBACK.md`** per §6.
 
 ## 2. Invariants
 
@@ -62,8 +74,8 @@ applies, because it needs every control's row green.
 - **N6.** The leak gate runs before every push.
 - **Fail closed.** No path lets a call reach its handler unvalidated. A pool that cannot produce a
   ready worker answers as today's timeout does, never with a 200 that skipped validation.
-- **Protected surfaces, which must diff to empty:** the steering documents, every other `src/**`
-  module, `scripts/**`, `.github/**`, and existing stubs except `validation-deadline` (regenerate it
+- **Protected surfaces, which must diff to empty:** the steering documents, every `src/**` module other than `schema-pool.ts` and the two `createServer` option objects §1.5 names
+  (`server.ts`, `listener.ts`), `scripts/**`, `.github/**`, and existing stubs except `validation-deadline` (regenerate it
   only if the line it deletes moved, and show it still deletes the deadline).
 
 ## 3. Tests / acceptance
