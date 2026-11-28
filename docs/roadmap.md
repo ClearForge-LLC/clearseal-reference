@@ -257,7 +257,7 @@ red-proof, and the teaching edition demonstrates every rung except exec.
   that a leak of the arguments alone turns it red on CI; `-2008d` finding 1. Not on P2's critical path.
 - `CSR-WO-2008e` — (intent) a Windows control-deletion shard, for the controls only a Windows runner can
   turn red (`adversary-windows.test.ts`); after `-2008d`.
-- `CSR-WO-2010` — (built, merged `MERGESHA` 2026-11-28) spike, then STOP: interop against the official `2026-07-28` implementations — the
+- `CSR-WO-2010` — (built, merged `e2bf41a` 2026-11-28) spike, then STOP: interop against the official `2026-07-28` implementations — the
   SDK v2 client and the conformance alpha agree with ours on every probe that ran; no security-relevant
   disagreement; one wire-form defect ruled (D10 → `-2011`).
 - `CSR-WO-2011` — a call whose arguments fail the pinned schema is refused before the handler and answered
