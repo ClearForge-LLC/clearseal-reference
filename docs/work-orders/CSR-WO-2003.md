@@ -1,7 +1,7 @@
 # CSR-WO-2003 — The capability ceiling and tiered windows: planned work without forty pings, and a line no window lifts
 
-> **Status: written, NOT fireable.** The three owner calls in §0.3 are the gate's (Scotty's) and are
-> unanswered. When they are ruled, the architect records each ruling and its date in §0.3, updates §1
+> **Status: written, NOT fireable.** The three owner calls in §0.3 are the gate's (Scotty's). **Call 1 is
+> ruled (2026-11-28): shape C.** Calls 2 and 3 are unanswered. When they are ruled, the architect records each ruling and its date in §0.3, updates §1
 > to match, and only then sends §8.
 
 **Repo:** `ClearForge-LLC/clearseal-reference` · **Base:** `main` at kickoff (verify live HEAD; it must
@@ -72,9 +72,9 @@ batched with anything.
   - `arbitrary_exec` stays refused by construction. A window never reaches it, and this WO never adds
     one.
 
-### 0.3 Owner calls — UNANSWERED (the gate's), each with the architect's recommendation
+### 0.3 Owner calls — the gate's, each with the architect's recommendation (call 1 RULED; calls 2 and 3 UNANSWERED)
 
-**Call 1 — the shape.**
+**Call 1 — the shape. RULED 2026-11-28 by the gate: C (tiered).** The options are kept below as the record.
 - **A. The window replaces approval.** Inside the window, eligible calls run with no per-call
   approval. Most autonomy. But an injected model running as that principal gets free use of the
   tools for the whole window, and the shape breaks the standard wherever it touches Rule-of-Two.
@@ -90,14 +90,14 @@ batched with anything.
 - **Architect's recommendation: C.** It is the only shape that solves the problem without breaching
   §0.1.1.
 
-**Call 2 — the duration cap.**
+**Call 2 — the duration cap. UNANSWERED.**
 - **Proposed:** a window's duration is required when it opens. The operator setting is a maximum,
   default 1 hour, and the core refuses any configured maximum over 8 hours. No window survives a
   restart.
 - **Architect's recommendation: as proposed.** Eight hours covers a working shift. A longer need is
   a sign the tool should be `owned_state` or contained, not windowed.
 
-**Call 3 — tools that must never be windowed** (in a port: mint, merge, anything irreversible).
+**Call 3 — UNANSWERED. Tools that must never be windowed** (in a port: mint, merge, anything irreversible).
 - The reference ships no mint or merge tool (§0.2). But a port inherits this ceiling, so the rule has
   to exist in the core.
 - Under C, a trusted-facing `elevated` `state_change` tool would be windowable unless something says
@@ -121,7 +121,7 @@ batched with anything.
   - (d) sits between B and C. It also leaves (c) unnecessary unless a port shows an irreversible
     `owned_state` tool, which would be a mis-pinned tool rather than a missing field.
 
-## 1. Scope — numbered, specific (written for C + call 2 as proposed + (d); revised on ruling)
+## 1. Scope — numbered, specific (written for C, ruled, + call 2 as proposed + (d); revised when calls 2 and 3 are ruled)
 
 1. **The eligibility function, pure, from pinned fields only.**
    - `windowEligible(tag)` is true iff `elevated`, **not** Rule-of-Two obligated (per `obligationOf`:
