@@ -18,5 +18,29 @@
   {
     "check": "H8",
     "reason": "an absence: jku, x5u, jwk and x5c are never read, so there is no code to delete; a stub would have to add a fetch. verifier.test.ts proves the attacker's key set is never fetched"
+  },
+  {
+    "control": "Batch refusal (transport/jsonrpc.ts, classify)",
+    "reason": "a layer: with its line deleted, the plain-object and jsonrpc checks refuse a batch with the same status, code and audit reason; only refusals.test.ts SH-9's message regex tells them apart"
+  },
+  {
+    "control": "Legacy initialize returns no Mcp-Session-Id (transport/dispatch.ts)",
+    "reason": "an absence: no code sets the header, so a stub would have to add one; eras.test.ts LG-1 and refusals.test.ts SH-43 assert it"
+  },
+  {
+    "control": "The manifest's unknown-field and version checks (pinning/manifest.ts, parseManifest)",
+    "reason": "a layer behind manifest.schema.json: with either deleted the schema check refuses the same manifest; manifest.test.ts goes red only on its message validator"
+  },
+  {
+    "control": "startNode's port range (node/start.ts)",
+    "reason": "a layer behind Node's own listen, which refuses a port over 65535"
+  },
+  {
+    "control": "The transport's resource URL is required (G1, transport/server.ts)",
+    "reason": "a layer: with the check deleted the transport still refuses to start; auth/transport.test.ts goes red only on its message regex"
+  },
+  {
+    "control": "The cage refuses a symlink leaf before the open (A2, containment/cage.ts)",
+    "reason": "a layer behind O_NOFOLLOW: with the check deleted the kernel refuses the same open, and no test goes red"
   }
 ]

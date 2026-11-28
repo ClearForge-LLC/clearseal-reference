@@ -7,19 +7,22 @@
 //   (b) a "built" row of docs/architecture.md §8 has no deletion row (`section8`) and is not exempt
 //       (and when a row's `section8` names no §8 title, or an exemption names a row that is not
 //       built or does have a deletion row);
+//   (a') a file a row lists has no test any row names in `mustFail`: listed, it runs, but proves nothing;
 //   (c) a CHECKS.md id is named by no row's `checks`, or by more than one (and when a `checks` entry
 //       names an id not in CHECKS.md). An id no stub can delete, such as an absence, is exempt only by
 //       an exempt.json entry {check, reason}, which goes stale when a row names the id.
+// A table line it cannot read, and an empty input, are failures too: a parse that skips silently
+// would let a control drop out with the detector still green.
 
 import { existsSync, globSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 const ROOT = path.join(import.meta.dirname, "..");
 
-/** @typedef {{ id: string, section8?: string, tests?: string[], checks?: string[] }} Row */
+/** @typedef {{ id: string, section8?: string, tests?: string[], mustFail?: string[], checks?: string[] }} Row */
 /** @typedef {{ path: string, reason: string }} Unlisted */
-/** @typedef {{ section8?: string, check?: string, reason: string }} Exempt */
-/** @typedef {{ title: string, status: string, built: boolean }} Section8Row */
+/** @typedef {{ section8?: string, check?: string, control?: string, reason: string }} Exempt */
+/** @typedef {{ title: string, status: string, built: boolean, ambiguous?: boolean }} Section8Row */
 
 /** Backticks out, whitespace collapsed: the form in which §8 titles and `section8` are compared. @param {string} s */
 export const normalise = (s) => s.replaceAll("`", "").replace(/\s+/g, " ").trim();
@@ -38,12 +41,13 @@ export function parseSection8(architecture) {
   const rows = [];
   for (const line of lines.slice(start + 1)) {
     if (/^##\s/.test(line)) break;
-    if (!line.startsWith("|")) continue;
-    const cells = line.replace(/^\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+    if (!line.trimStart().startsWith("|")) continue;
+    const cells = line.trim().replace(/^\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
     const first = cells[0] ?? "";
     if (first === "Control" || /^-+$/.test(first.replaceAll(":", ""))) continue;
     const status = (cells.at(-1) ?? "").trim();
-    rows.push({ title: normalise(first), status, built: /^(\*\*)?built\b/i.test(status) });
+    const built = /^(\*\*)?built\b/i.test(status);
+    rows.push({ title: normalise(first), status, built, ambiguous: !built && /\bbuilt\b/i.test(status) });
   }
   return rows;
 }
@@ -64,15 +68,39 @@ export function parseCheckIds(checks) {
   return ids;
 }
 
+/** Table lines whose first cell looks like a check id but is not one in the form parseCheckIds
+ *  reads (`| **G6** |`, `| G7 (layer) |`): each would be a check the detector never saw.
+ *  @param {string} checks */
+export function unreadCheckLines(checks) {
+  return checks.split("\n").filter((line) => {
+    if (!line.trimStart().startsWith("|") || /^\|\s*([A-Z]\d+[a-z]?)\s*\|/.test(line)) return false;
+    const first = line.trim().slice(1).split("|")[0] ?? "";
+    return /\b[A-Z]\d+[a-z]?\b/.test(first);
+  });
+}
+
+/** A test title as the source writes it: a template literal's text before its first `${` is a
+ *  prefix every title it produces begins with.
+ *  @param {string} source
+ *  @returns {{ text: string, prefix: boolean }[]} */
+export function titlesIn(source) {
+  return [...source.matchAll(/\bit\((["'`])((?:\\.|(?!\1).)*)\1/g)].map((m) => {
+    const raw = m[2] ?? "";
+    const cut = m[1] === "`" ? raw.indexOf("${") : -1;
+    return cut === -1 ? { text: raw, prefix: false } : { text: raw.slice(0, cut), prefix: true };
+  });
+}
+
 /**
  * @param {{ rows: readonly Row[], testFiles: readonly string[], unlisted: readonly Unlisted[],
  *   exempt: readonly Exempt[], architecture: string, checksMd: string,
- *   exists?: (p: string) => boolean }} input
+ *   exists?: (p: string) => boolean, titlesOf?: (p: string) => { text: string, prefix: boolean }[] }} input
  * @returns {{ failures: string[], section8: Section8Row[], checkIds: string[] }}
  */
-export function detect({ rows, testFiles, unlisted, exempt, architecture, checksMd, exists = (p) => existsSync(path.join(ROOT, p)) }) {
+export function detect({ rows, testFiles, unlisted, exempt, architecture, checksMd, exists = (p) => existsSync(path.join(ROOT, p)), titlesOf }) {
   /** @type {string[]} */
   const failures = [];
+  if (testFiles.length === 0) failures.push("(a) no test files were found: the glob matched nothing, so nothing was checked.");
 
   // (a) test files
   const listed = new Set(rows.flatMap((r) => r.tests ?? []));
@@ -96,8 +124,22 @@ export function detect({ rows, testFiles, unlisted, exempt, architecture, checks
     }
   }
 
+  // (a') every listed file proves something: one of its tests is named by some row
+  if (titlesOf !== undefined) {
+    const named = rows.flatMap((r) => r.mustFail ?? []);
+    for (const f of listed) {
+      const titles = titlesOf(f);
+      const proven = titles.some((t) => named.some((n) => (t.prefix ? n.startsWith(t.text) : n === t.text)));
+      if (!proven) failures.push(`(a) ${f}: a row lists it, but no row names any of its tests in \`mustFail\`. Name a test of it that the row's stub turns red, or take it out of the row and give it a reason in test/deletion/unlisted.json.`);
+    }
+  }
+
   // (b) §8
   const section8 = parseSection8(architecture);
+  if (!section8.some((s) => s.built)) failures.push("(b) docs/architecture.md §8: no row parsed as built, so nothing was checked.");
+  for (const s of section8.filter((x) => x.ambiguous === true)) {
+    failures.push(`(b) docs/architecture.md §8 row "${s.title}": its status mentions built but does not lead with it ("${s.status.slice(0, 40)}"). Write it as built, or as planned or deferred, so the detector can read it.`);
+  }
   const titles = new Map(section8.map((s) => [s.title, s]));
   const rowTitles = new Set(rows.map((r) => (r.section8 === undefined ? "" : normalise(r.section8))));
   const exemptTitles = new Map(exempt.flatMap((e) => (e.section8 === undefined ? [] : [[normalise(e.section8), e]])));
@@ -127,8 +169,18 @@ export function detect({ rows, testFiles, unlisted, exempt, architecture, checks
     }
   }
 
+  // A control no stub can delete honestly (an absence, or a layer that only a message tells apart)
+  // is recorded as {control, reason}; an entry that names nothing is malformed.
+  for (const e of exempt) {
+    const kinds = [e.section8, e.check, e.control].filter((k) => k !== undefined).length;
+    if (kinds !== 1) failures.push(`(b) test/deletion/exempt.json: an entry must name exactly one of section8, check or control (${JSON.stringify(e).slice(0, 80)}).`);
+    if (e.control !== undefined && (typeof e.reason !== "string" || e.reason.trim() === "")) failures.push(`(b) test/deletion/exempt.json entry for "${e.control}" has an empty reason. Say why no stub can delete it.`);
+  }
+
   // (c) CHECKS.md ids
   const checkIds = parseCheckIds(checksMd);
+  if (checkIds.length === 0) failures.push("(c) packages/core/src/auth/CHECKS.md: no check ids parsed, so nothing was checked.");
+  for (const l of unreadCheckLines(checksMd)) failures.push(`(c) packages/core/src/auth/CHECKS.md: a table line looks like a check but its id is not in the form | H1 |: ${l.slice(0, 80)}`);
   const known = new Set(checkIds);
   for (const id of known) {
     if (checkIds.filter((x) => x === id).length > 1) {
@@ -182,5 +234,6 @@ export function detectRepo() {
     exempt: /** @type {Exempt[]} */ (json("test/deletion/exempt.json")),
     architecture: read("docs/architecture.md"),
     checksMd: read("packages/core/src/auth/CHECKS.md"),
+    titlesOf: (p) => titlesIn(read(p)),
   });
 }

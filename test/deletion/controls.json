@@ -47,7 +47,8 @@
       "mustFail": [
         "an edited description drifts the tool: refused, the rest admitted",
         "a changed capability tag drifts the tool (every pinned field is inside the hash)",
-        "strict (the default): a drifted tool stops the node before it binds, with the refusal logged once"
+        "strict (the default): a drifted tool stops the node before it binds, with the refusal logged once",
+        "the same check refuses a definition whose description was edited after pinning"
       ]
     },
     {

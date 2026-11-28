@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { detect, detectRepo, parseCheckIds, parseSection8 } from "./deletion-coverage.mjs";
+import { detect, detectRepo, parseCheckIds, parseSection8, titlesIn } from "./deletion-coverage.mjs";
 
 const ARCH = [
   "## 8. Traceability",
@@ -24,11 +24,11 @@ const ARCH = [
 ].join("\n");
 const CHECKS = ["| # | Check | Source |", "|---|---|---|", "| H1 | one | RFC |", "| H3a | two | RFC |", "| K2 | three | RFC |"].join("\n");
 
-/** @returns {Parameters<typeof detect>[0] & { rows: { id: string, section8?: string, tests: string[], checks: string[] }[], testFiles: string[], unlisted: { path: string, reason: string }[], exempt: { section8?: string, check?: string, reason: string }[] }} */
+/** @returns {Parameters<typeof detect>[0] & { rows: { id: string, section8?: string, tests: string[], mustFail: string[], checks: string[] }[], testFiles: string[], unlisted: { path: string, reason: string }[], exempt: { section8?: string, check?: string, control?: string, reason: string }[], titlesOf: (f: string) => { text: string, prefix: boolean }[] }} */
 const good = () => ({
   rows: [
-    { id: "r1", section8: "Alpha control", tests: ["packages/x/test/a.test.ts"], checks: ["H1", "H3a"] },
-    { id: "r2", section8: "Beta control", tests: ["packages/x/test/b.test.ts"], checks: ["K2"] },
+    { id: "r1", section8: "Alpha control", tests: ["packages/x/test/a.test.ts"], mustFail: ["a refuses"], checks: ["H1", "H3a"] },
+    { id: "r2", section8: "Beta control", tests: ["packages/x/test/b.test.ts"], mustFail: ["refused: case one"], checks: ["K2"] },
   ],
   testFiles: ["packages/x/test/a.test.ts", "packages/x/test/b.test.ts", "packages/x/test/m.test.ts"],
   unlisted: [{ path: "packages/x/test/m.test.ts", reason: "a measurement" }],
@@ -36,6 +36,8 @@ const good = () => ({
   architecture: ARCH,
   checksMd: CHECKS,
   exists: () => true,
+  /** @param {string} f */
+  titlesOf: (f) => (f.endsWith("a.test.ts") ? [{ text: "a refuses", prefix: false }] : [{ text: "refused: ", prefix: true }]),
 });
 
 void describe("deletion coverage detector: parsing", () => {
@@ -87,7 +89,7 @@ void describe("deletion coverage detector: planted inputs", () => {
 
   void it("(b) a row naming no §8 title, and a stale exemption, are red", () => {
     const input = good();
-    input.rows.push({ id: "r3", section8: "No such title", tests: [], checks: [] });
+    input.rows.push({ id: "r3", section8: "No such title", tests: [], mustFail: [], checks: [] });
     input.exempt.push({ section8: "Gamma control", reason: "x" }); // not built
     input.exempt.push({ section8: "Alpha control", reason: "x" }); // has a row
     input.exempt.push({ section8: "Nowhere", reason: "x" });
@@ -153,5 +155,59 @@ void describe("deletion coverage detector: the real repository", () => {
       `parsed ${String(checkIds.length)} CHECKS.md ids: ${checkIds.join(" ")}`,
     ].join("\n");
     assert.ok(failures.length === 0, `\n${header}\n${String(failures.length)} gap(s):\n${failures.map((m) => `  * ${m}`).join("\n")}\n`);
+  });
+});
+
+void describe("deletion coverage detector: what it must not skip (CSR-WO-2008c adversarial pass)", () => {
+  void it("(a) a listed file none of whose tests any row names is red", () => {
+    const input = good();
+    if (input.rows[0] !== undefined) input.rows[0].mustFail = ["something else"];
+    const f = detect(input).failures;
+    assert.equal(f.length, 1);
+    assert.match(f[0] ?? "", /a\.test\.ts: a row lists it, but no row names any of its tests/);
+  });
+
+  void it("(a) a template title is matched by its literal prefix", () => {
+    assert.deepEqual(titlesIn("void it(`refused: ${label}`, () => {}); void it('plain', () => {});"), [{ text: "refused: ", prefix: true }, { text: "plain", prefix: false }]);
+  });
+
+  void it("(a) an empty glob is red, not a pass over nothing", () => {
+    const input = good();
+    input.testFiles = [];
+    input.unlisted = [];
+    assert.ok(detect(input).failures.some((m) => /no test files were found/.test(m)));
+  });
+
+  void it("(b) a built row written with a leading space is still read", () => {
+    const input = good();
+    input.architecture = input.architecture.replace("| Exempt control |", "  | Exempt control |");
+    input.exempt = [];
+    assert.ok(detect(input).failures.some((m) => /"Exempt control" is marked built and has no deletion row/.test(m)));
+  });
+
+  void it("(b) a status that mentions built without leading with it is red", () => {
+    for (const status of ["partly built", "✅ built"]) {
+      const input = good();
+      input.architecture = input.architecture.replace("| x | planned — P2 |", `| x | ${status} — P2 |`);
+      assert.ok(detect(input).failures.some((m) => /mentions built but does not lead with it/.test(m)), status);
+    }
+  });
+
+  void it("(c) a check id in a form the parser does not read is red", () => {
+    for (const line of ["| **G6** | six | RFC |", "| G7 (layer) | seven | RFC |"]) {
+      const input = good();
+      input.checksMd = `${input.checksMd}\n${line}`;
+      assert.ok(detect(input).failures.some((m) => /looks like a check but its id is not in the form/.test(m)), line);
+    }
+  });
+
+  void it("(b) an exemption must name one thing, and a control exemption needs its reason", () => {
+    const input = good();
+    input.exempt.push({ control: "An absence", reason: "no code to delete" });
+    assert.deepEqual(detect(input).failures, []);
+    input.exempt.push({ control: "Another", reason: "" }, { reason: "names nothing" });
+    const f = detect(input).failures;
+    assert.ok(f.some((m) => /"Another" has an empty reason/.test(m)));
+    assert.ok(f.some((m) => /must name exactly one of section8, check or control/.test(m)));
   });
 });
