@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -282,7 +282,7 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
+     ctx.audit("validation-error", { tool: name });
+     throw audited(new Refusal(500, INTERNAL_ERROR, "Internal error"));
+   }
+-  if (!valid) throw new Refusal(400, INVALID_PARAMS, `Invalid arguments for tool ${name}`);
++  void valid;
+   const binding = { principal: ctx.principal.id, method: "tools/call", tool: name, args: argumentsDigest(args) };
+ 
+   // CSR-WO-1002 §1.6: a fresh cage per call, from the tool's pinned domain (empty if none).

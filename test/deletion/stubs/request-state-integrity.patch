@@ -1,0 +1,12 @@
+--- a/packages/core/src/transport/request-state.ts
++++ b/packages/core/src/transport/request-state.ts
+@@ -80,9 +80,6 @@ export function openState(key: Uint8Array | undefined, token: unknown, binding:
+   const parts = token.split(".");
+   if (parts.length !== 2 || !/^[A-Za-z0-9_-]+$/.test(parts[0] ?? "") || !/^[A-Za-z0-9_-]+$/.test(parts[1] ?? "")) throw refused("malformed");
+   const json = Buffer.from(parts[0] as string, "base64url").toString("utf8");
+-  const tag = Buffer.from(parts[1] as string, "base64url");
+-  const expected = mac(key, json);
+-  if (tag.length !== expected.length || !timingSafeEqual(tag, expected)) throw refused("integrity check failed");
+   // Canonical encoding only: a second spelling of the same payload is not the one that was sealed.
+   if (Buffer.from(json).toString("base64url") !== parts[0]) throw refused("malformed");
+   let payload: unknown;

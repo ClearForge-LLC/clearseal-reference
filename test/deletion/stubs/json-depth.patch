@@ -1,0 +1,18 @@
+--- a/packages/core/src/transport/json.ts
++++ b/packages/core/src/transport/json.ts
+@@ -139,7 +139,6 @@ export function parseJsonStrict(text: string, maxDepth: number): JsonValue {
+     const c = text[i];
+     switch (c) {
+       case "{": {
+-        if (depth >= maxDepth) throw new JsonParseError(`nesting deeper than ${String(maxDepth)}`, "depth");
+         i++;
+         const obj: { [key: string]: JsonValue } = {};
+         const seen = new Set<string>();
+@@ -171,7 +170,6 @@ export function parseJsonStrict(text: string, maxDepth: number): JsonValue {
+         }
+       }
+       case "[": {
+-        if (depth >= maxDepth) throw new JsonParseError(`nesting deeper than ${String(maxDepth)}`, "depth");
+         i++;
+         const arr: JsonValue[] = [];
+         skipWs();

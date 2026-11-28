@@ -1,0 +1,40 @@
+--- a/packages/core/src/transport/json.ts
++++ b/packages/core/src/transport/json.ts
+@@ -81,19 +81,7 @@ export function parseJsonStrict(text: string, maxDepth: number): JsonValue {
+             out += "\t";
+             break;
+           case "u": {
+-            const unit = readHex4();
+-            if (unit >= 0xd800 && unit <= 0xdbff) {
+-              // A high surrogate must be followed by an escaped low surrogate.
+-              if (text[i] !== "\\" || text[i + 1] !== "u") throw new JsonParseError(`lone surrogate at offset ${String(i)}`, "lone-surrogate");
+-              i += 2;
+-              const low = readHex4();
+-              if (low < 0xdc00 || low > 0xdfff) throw new JsonParseError(`lone surrogate at offset ${String(i)}`, "lone-surrogate");
+-              out += String.fromCharCode(unit, low);
+-            } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+-              throw new JsonParseError(`lone surrogate at offset ${String(i)}`, "lone-surrogate");
+-            } else {
+-              out += String.fromCharCode(unit);
+-            }
++            out += String.fromCharCode(readHex4());
+             break;
+           }
+           default:
+@@ -102,16 +90,6 @@ export function parseJsonStrict(text: string, maxDepth: number): JsonValue {
+         start = i;
+         continue;
+       }
+-      // Raw surrogate code units cannot reach here from strictly decoded UTF-8, but a caller may
+-      // hand in any string: check pairs anyway.
+-      if (c >= 0xd800 && c <= 0xdfff) {
+-        const next = text.charCodeAt(i + 1);
+-        if (c <= 0xdbff && next >= 0xdc00 && next <= 0xdfff) {
+-          i += 2;
+-          continue;
+-        }
+-        throw new JsonParseError(`lone surrogate at offset ${String(i)}`, "lone-surrogate");
+-      }
+       i++;
+     }
+   };

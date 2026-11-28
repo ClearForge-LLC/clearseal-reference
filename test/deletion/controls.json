@@ -3723,6 +3723,241 @@
       "mustFail": [
         "a decision whose body never finishes is answered 408 after the listener's 10 s, and the connection closes"
       ]
+    },
+    {
+      "id": "content-type-415",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: a body whose Content-Type is not exactly one application/json (charset utf-8 at most) is refused 415 before it is read (the stub deletes the check, so the request is served)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/content-type-415.patch",
+      "tests": [
+        "packages/core/test/transport/adversarial.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "F9 F10 F11 duplicate Host → 400; absolute-form target → 400; duplicate Authorization → 400; duplicate Content-Type → 415; Content-Encoding → 415; TE other than chunked → 400",
+        "ST Content-Type not JSON",
+        "415 Content-Type not JSON"
+      ]
+    },
+    {
+      "id": "content-coding-415",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: a body with a content coding other than identity is refused 415 before it is read (the stub deletes the check, so the request is served)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/content-coding-415.patch",
+      "tests": [
+        "packages/core/test/transport/adversarial.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "F9 F10 F11 duplicate Host → 400; absolute-form target → 400; duplicate Authorization → 400; duplicate Content-Type → 415; Content-Encoding → 415; TE other than chunked → 400",
+        "ST Content-Encoding",
+        "415 a content coding"
+      ]
+    },
+    {
+      "id": "method-post-only",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: any method but POST on the endpoint is refused 405 with Allow: POST (the stub deletes the check, so the request runs on into the later layers)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/method-post-only.patch",
+      "tests": [
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/eras.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts",
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "ST GET on the endpoint",
+        "WO §3.4 LG-1 D-2 legacy initialize: no session header; notifications/initialized 202; legacy tools/list; GET still 405",
+        "405 GET /mcp",
+        "SH-42 GET → 405 Allow: POST",
+        "SH-42 DELETE → 405 Allow: POST"
+      ]
+    },
+    {
+      "id": "health-get-only",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: any method but GET on /health and the metadata document is refused 405 with Allow: GET (the stub deletes the check, so the document is served)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/health-get-only.patch",
+      "tests": [
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "405 POST /health"
+      ]
+    },
+    {
+      "id": "x-mcp-header-annotation-refused",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: a tool whose x-mcp-header annotation breaks the Schema Extension constraints (empty, not a token, not unique, not one primitive type, not statically under properties) is refused at registration (the stub accepts every annotation)",
+      "touches": [
+        "packages/core/src/transport/headers.ts"
+      ],
+      "stub": "stubs/x-mcp-header-annotation-refused.patch",
+      "tests": [
+        "packages/core/test/transport/x-mcp-header.test.ts"
+      ],
+      "mustFail": [
+        "refused: empty",
+        "refused: not a token (space)",
+        "refused: control character (CR LF)",
+        "refused: not case-insensitively unique",
+        "refused: type number",
+        "refused: type object",
+        "refused: no type",
+        "refused: two primitive types",
+        "refused: under items",
+        "refused: under anyOf",
+        "refused: under if/then",
+        "refused: under $defs (reachable only by $ref)",
+        "refused: on the root"
+      ]
+    },
+    {
+      "id": "arguments-schema-refused",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "CSR-WO-2008c §1.2: arguments the pinned input schema rejects are refused 400 -32602 before the handler (the stub ignores the validator's verdict; the validation and its deadline still run)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/arguments-schema-refused.patch",
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/teaching/test/notes.test.ts"
+      ],
+      "mustFail": [
+        "TL-10 D-7 extra request property against a tool schema → 400 -32602",
+        "ST arguments fail the input schema",
+        "WO §5.1: names that climb, are absolute, carry a NUL or a backslash, or are very long are refused by the pinned schema"
+      ]
+    },
+    {
+      "id": "json-duplicate-key",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: the strict JSON parser refuses a duplicate key at any depth, in request bodies and in the verifier's token header, payload and key set (the stub deletes the check, so the last value wins)",
+      "touches": [
+        "packages/core/src/transport/json.ts"
+      ],
+      "stub": "stubs/json-duplicate-key.patch",
+      "tests": [
+        "packages/core/test/transport/json.test.ts",
+        "packages/core/test/transport/refusals.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts",
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "refuses a duplicate key at any depth",
+        "duplicate key → 400 -32700 (refused at parse)",
+        "ST duplicate key",
+        "400 a duplicate key",
+        "H5 header with a duplicate key (alg twice) → invalid_token / header",
+        "C1 payload with a duplicate key (sub twice) → invalid_token / payload",
+        "J5 a key set that is not a key set, or has a duplicate key, is refused"
+      ]
+    },
+    {
+      "id": "json-depth",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: the strict JSON parser refuses nesting deeper than its cap, objects and arrays (the stub deletes both checks)",
+      "touches": [
+        "packages/core/src/transport/json.ts"
+      ],
+      "stub": "stubs/json-depth.patch",
+      "tests": [
+        "packages/core/test/transport/json.test.ts",
+        "packages/core/test/transport/refusals.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "depth: exactly the cap accepted, one more refused",
+        "over-depth body → 400 -32600",
+        "ST nested deeper than maxJsonDepth",
+        "400 nesting over the depth cap"
+      ]
+    },
+    {
+      "id": "json-lone-surrogate",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: the strict JSON parser refuses a lone surrogate, escaped high or low or raw (the stub decodes every \\u escape as-is and drops the raw check)",
+      "touches": [
+        "packages/core/src/transport/json.ts"
+      ],
+      "stub": "stubs/json-lone-surrogate.patch",
+      "tests": [
+        "packages/core/test/transport/json.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "refuses lone surrogate escapes, high and low",
+        "400 a lone surrogate"
+      ]
+    },
+    {
+      "id": "request-state-integrity",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "CSR-WO-2008c §1.2: MRTR requestState is opened only when its HMAC tag verifies under this server's key (the stub deletes the tag check)",
+      "touches": [
+        "packages/core/src/transport/request-state.ts"
+      ],
+      "stub": "stubs/request-state-integrity.patch",
+      "tests": [
+        "packages/core/test/transport/mrtr.test.ts",
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "sealed under another key is refused",
+        "a truncated tag, extra segments, and non-base64url are refused",
+        "MR-4 tampered requestState → 400 -32602"
+      ]
+    },
+    {
+      "id": "request-state-binding",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "CSR-WO-2008c §1.2: MRTR requestState is accepted only for the principal, method, tool and arguments it was sealed for (the stub deletes the binding check)",
+      "touches": [
+        "packages/core/src/transport/request-state.ts"
+      ],
+      "stub": "stubs/request-state-binding.patch",
+      "tests": [
+        "packages/core/test/transport/mrtr.test.ts",
+        "packages/core/test/transport/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "MR-5 WO §5.6 a state captured from one tool's call is refused on another tool",
+        "another principal is refused",
+        "F7 a requestState issued for one set of arguments is refused on another"
+      ]
+    },
+    {
+      "id": "request-state-expiry",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "CSR-WO-2008c §1.2: MRTR requestState is refused once past its expiry (the stub deletes the expiry check)",
+      "touches": [
+        "packages/core/src/transport/request-state.ts"
+      ],
+      "stub": "stubs/request-state-expiry.patch",
+      "tests": [
+        "packages/core/test/transport/mrtr.test.ts"
+      ],
+      "mustFail": [
+        "after the expiry is refused"
+      ]
     }
   ]
 }

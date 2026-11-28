@@ -1,0 +1,12 @@
+--- a/packages/core/src/transport/request-state.ts
++++ b/packages/core/src/transport/request-state.ts
+@@ -92,8 +92,7 @@ export function openState(key: Uint8Array | undefined, token: unknown, binding:
+     throw refused("malformed");
+   }
+   if (!isPlainObject(payload)) throw refused("malformed");
+-  const { principal, method, tool, args, exp } = payload;
+-  if (principal !== binding.principal || method !== binding.method || tool !== binding.tool || args !== binding.args) throw refused("issued for a different request");
++  const { exp } = payload;
+   if (typeof exp !== "number" || now >= exp) throw refused("expired");
+   return (payload["state"] ?? null) as JsonValue;
+ }
