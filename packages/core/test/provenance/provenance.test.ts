@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { AllowlistError, type Channel, loadAllowlist, type ProvenanceKeyData } from "../../src/provenance/allowlist.ts";
-import { ALERT_SCHEMA, type Alert, canonicalBytes, type PayloadSchema, SerializationRefusal } from "../../src/provenance/envelope.ts";
+import { ALERT_SCHEMA, type Alert, canonicalBytes, type EnvelopeFields, envelopeObject, type PayloadSchema, SerializationRefusal } from "../../src/provenance/envelope.ts";
 import { type MessageInput, SignerError, signMessage } from "../../src/provenance/signer.ts";
 import { MAX_WIRE_BYTES, ProvenanceVerifier, type ProvenanceVerdict } from "../../src/provenance/verify.ts";
 import { CHANNEL, entry, FIXTURE_PUBLIC_KEY, FIXTURE_PUBLIC_RAW_B64, fixtureSigner, KID, keySigner, NOW, OTHER_KID, OTHER_SENDER, otherKeyPair, SENDER } from "./fixture.ts";
@@ -36,6 +36,14 @@ function refused(verdict: ProvenanceVerdict<unknown>, gate: string, check: strin
 const accepted = (verdict: ProvenanceVerdict<unknown>): void => {
   assert.equal(verdict.accepted, true, verdict.accepted ? "" : `refused by ${verdict.gate}/${verdict.check}`);
 };
+
+/** A wire whose envelope fields are signed exactly as given (v included), bypassing signMessage's v: 1,
+ *  so a check's red-proof is accepted once that check alone is deleted. */
+async function signedFields(over: Partial<Record<keyof EnvelopeFields<Alert>, unknown>>): Promise<Uint8Array> {
+  const fields = { v: 1, sender_id: SENDER, origin_class: "system", key_id: KID, issued_at: NOW, nonce: "AAAABBBBCCCCDDDD", payload: { severity: "info", text: "all clear" }, ...over } as unknown as EnvelopeFields<Alert>;
+  const signature = Buffer.from(await fixtureSigner.sign(canonicalBytes(fields, ALERT_SCHEMA))).toString("base64");
+  return bytes(JSON.stringify({ envelope: envelopeObject(fields, ALERT_SCHEMA), signature }));
+}
 
 /** The wire with one textual replacement, which must occur exactly once. */
 function edit(w: Uint8Array, from: string, to: string): Uint8Array {
@@ -131,10 +139,13 @@ void describe("CSR-WO-2004 structure: refused before any gate (PV-3)", () => {
     refused(rig().v.verify(edit(await signed(), "all clear", "all \\ud800clear"), CHANNEL, NOW), "structure", "lone-surrogate");
   });
 
-  void it("negative-zero: -0 is refused by name, as an integer field and inside the payload", async () => {
+  void it("negative-zero: -0 is refused by name, where the same message with 0 is accepted", async () => {
+    // issued_at 0, verified at 100 s with a key valid from 0: fresh, so only the -0 spelling refuses it.
     const w = await signed({ issued_at: 0 });
-    refused(rig().v.verify(edit(w, '"issued_at":0', '"issued_at":-0'), CHANNEL, NOW), "structure", "negative-zero");
-    refused(rig().v.verify(edit(w, '"issued_at":0', '"issued_at":-0.0'), CHANNEL, NOW), "structure", "negative-zero");
+    const early = (): ProvenanceVerifier => rig([entry({ notBefore: 0 })]).v;
+    accepted(early().verify(w, CHANNEL, 100));
+    refused(early().verify(edit(w, '"issued_at":0', '"issued_at":-0'), CHANNEL, 100), "structure", "negative-zero");
+    refused(early().verify(edit(w, '"issued_at":0', '"issued_at":-0.0'), CHANNEL, 100), "structure", "negative-zero");
   });
 
   void it("non-shortest-number: 1.0, 1e0 and 10E-1 for v, and a fraction or exponent for issued_at", async () => {
@@ -160,9 +171,8 @@ void describe("CSR-WO-2004 structure: refused before any gate (PV-3)", () => {
     refused(rig().v.verify(reshape(w, (x) => delete x.envelope["nonce"]), CHANNEL, NOW), "structure", "missing-field");
   });
 
-  void it('version: v of 2, 0 and the string "1" is refused, never parsed best-effort', async () => {
-    const w = await signed();
-    for (const v of ["2", "0", '"1"']) refused(rig().v.verify(edit(w, '"v":1,', `"v":${v},`), CHANNEL, NOW), "structure", "version");
+  void it('version: v of 2, 0 and the string "1", each validly signed, is refused, never parsed best-effort', async () => {
+    for (const v of [2, 0, "1"]) refused(rig().v.verify(await signedFields({ v }), CHANNEL, NOW), "structure", "version");
   });
 
   void it("sender-id: a sender that does not match the pattern", async () => {
