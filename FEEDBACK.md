@@ -31,8 +31,9 @@ address. Parked as one unmerged pull request.
 
 - **The cold path scales with it.** `validation-deadline`'s row (which runs cold validations to
   completion under its stub) takes 64 s on Furnace (25 s before) and 89–118 s on CI (52 s before),
-  under the runner's 240 s. It pushed its shard to 311 s at 16 shards, so
-  **`CONTROL_DELETION_SHARDS` is 18 (operator ruling; `.github/**` was fenced)**: 106–230 s.
+  under the runner's 240 s. It pushed its shard to 311 s at 16 shards. At 18 its shard (4/18) read
+  230, 267 and 305 s across three runs, so **`CONTROL_DELETION_SHARDS` is 22 (operator rulings;
+  `.github/**` was fenced)**: see *Gates* for the run at 22.
 
 ## How the heap test now measures (§1.1)
 
@@ -87,7 +88,8 @@ A fresh subagent at `4ffbaab`: the leak floor (finding 1's numbers: 1,024 B red,
   and 8, `test:subset` 4.
 - Dependants re-proven with the new input: `validation-deadline` RED 2/2 (64 s), `validation-ready-slot`
   RED; F2 green (322–376 ms); era-status's and corrections' deadline tests green.
-- CI on `4ffbaab` (run 46115849289): every job green; shards 106–230 s at 18.
+- CI at 18 shards: every job green on `4ffbaab` and `e6e5c21`, but validation-deadline's shard read
+  230–305 s. At 22: «CI22».
 - Leak gate: `--self-test`, `--tree` and `--history` exit 0 before each push.
 - Reduction pass (diff): nothing to remove (the temporary probe is gone; the triple collection is
   measured, not ornament).
