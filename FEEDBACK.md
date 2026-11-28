@@ -2,37 +2,42 @@
 
 Branch `wo/CSR-WO-2008c`, cut from `main` at `3332570` (contains `-2008b`'s merge `81a7d5d` and the
 docs PR that adds this work order). Built on Node v24.21.0 on Furnace, as `forge`. Every commit's
-author and committer is `clearforgekey[bot]`'s noreply address. Parked as one unmerged pull request.
+author and committer is `clearforgekey[bot]`'s noreply address. Parked as one unmerged pull request
+(#88). Its description was written at `5688906` and is out of date (69 rows, seven exemptions); this
+file is current.
 
 ## Read this first: what could not be stubbed honestly
 
-Seven controls have no row whose stub deletes them, because no honest stub exists. Each is either an
-absence (a stub would have to add code) or a layer (with its own line deleted, a check below or
-beside it refuses the same input with the same status, so a test can go red only on a message):
+Five things have no row whose stub deletes them, because no honest stub exists. Each is an absence (a
+stub would have to add code) or a layer that cannot be peeled (another check, or the platform, refuses
+the same input the same way, and that check is itself another control or out of a stub's reach):
 
 | Control | Why no row | Where it is proven instead |
 |---|---|---|
-| **H8**: `jku`, `x5u`, `jwk` and `x5c` are never read | An absence: no code reads them, so a stub would have to add a fetch | `verifier.test.ts` *the attacker's key set … is never fetched*; `exempt.json` carries `{check: "H8", reason}` |
-| **Batch refusal** (`jsonrpc.ts:82`) | A layer: with its line deleted, `isPlainObject` refuses the array, and below it the `jsonrpc` check does; the status, code and audit reason are the same. Only SH-9's message regex noticed | `refusals.test.ts` SH-9 (the message) |
+| **H8**: `jku`, `x5u`, `jwk` and `x5c` are never read | An absence: no code reads them, so a stub would have to add a fetch | `verifier.test.ts` *the attacker's key set … is never fetched* |
+| **Batch refusal** (`jsonrpc.ts:82`) | A layer by construction: with its line deleted the plain-object check refuses the array, and below it the `jsonrpc` check; no stub short of adding batch handling lets one through. Same status, code and audit reason; only SH-9's message regex noticed | `refusals.test.ts` SH-9 |
 | **Legacy `initialize` returns no session header** (`dispatch.ts:231`) | An absence: no code sets the header | `eras.test.ts` LG-1, `refusals.test.ts` SH-43 |
-| **The manifest's unknown-field and version checks** (`manifest.ts:120–122`) | A layer behind `manifest.schema.json`: with either deleted, the schema check refuses the same manifest; the tests go red only on their message validator | `manifest.test.ts` (listed by `manifest-schema` and the other manifest rows) |
-| **`startNode`'s port range** (`start.ts:184`) | A layer behind Node's own `listen`, which refuses a port over 65535 | `config.test.ts` *a port over 65535* |
-| **G1's resource URL** (`server.ts:310`) | A layer: with the check deleted the transport still refuses to start; only `auth/transport.test.ts`'s message regex noticed | `auth/transport.test.ts` *with the core's verifier and no resource URL …* |
-| **A2: the cage refuses a symlink leaf before the open** (`cage.ts:310`) | A layer behind `O_NOFOLLOW`: with the check deleted the kernel refuses the same open, and no test goes red | `containment/adversarial.test.ts` A2; the `O_NOFOLLOW` row is `cage-o-nofollow` |
+| **`startNode`'s port range** (`start.ts:184`) | A layer: with it deleted, the transport's own port check refuses the same configuration (`ConfigError: port must be 0–65535`, measured with the stub applied and the core rebuilt), and behind that Node's `listen`, which no stub can reach | `config.test.ts` *a port over 65535*; the transport's check |
+| **H5's and C1's JSON-object guard** (`verifier.ts`, `json()`) | A layer by construction: an array or a scalar has no `alg`, `kid`, `iss` or `aud`, so H6 refuses the header and C2 the payload with the same `invalid_token` | the H6 and C2 rows; the strict-UTF-8 and duplicate-key clauses have their own rows |
 
-Each is recorded in `test/deletion/exempt.json` as `{control, reason}` (H8 as `{check, reason}`), so
-the list lives in the data the detector reads, not only here.
+Each is in `test/deletion/exempt.json` (`{control, reason}`, H8 as `{check, reason}`), which the
+detector reads.
 
-Two rows are **layered but kept**, because the check's audit reason is its own specified output
-(`CHECKS.md`'s *Reason* column; G4 requires it), and that is what their tests see:
+**Four I first called layers have honest rows.** Their decision is made in two places, so the stub
+deletes both, the smallest edit that removes the control:
+- **G1's resource URL** (`auth-g1-resource-url`): it was never a layer. With the check deleted the
+  transport *starts*; the test's `try` caught nothing, so `String(undefined)` failed the regex.
+- **The manifest's unknown-field and version checks** (`manifest-unknown-field`, `manifest-versions`):
+  each deletes its check and skips the `manifest.schema.json` call; the manifest then loads.
+- **A2, the cage's symlink-leaf refusal** (`cage-symlink-leaf`): the pre-open `lstat` and `O_NOFOLLOW`
+  both refuse it; with both deleted the write lands outside the root.
 
-- **H2** (`auth-h2-missing`): with the line gone, H3's scheme check answers the same 401 with the same
-  challenge; the audit reason is `scheme`, not `missing`.
-- **H9** (`auth-h9-kid`): with the check gone, the kid goes to the key set and is refused
-  `unknown-kid`, so the client still sees `invalid_token`. **What is lost is H9's point: the refusal
-  now costs a fetch.** No test asserts that H9 refuses *without a fetch* (finding 3).
-- *decision-needed: yes*: ratify these two as red for their control, or drop them and exempt H2 and
-  H9 as layers.
+**H2 and H9 now go red for their controls.**
+- **H9** (`auth-h9-kid`): a new test asserts a missing or malformed kid is refused *before any key is
+  fetched*; under the stub a key set is fetched for it. The row names that test, not the table cases
+  whose reason assertion fired first.
+- **H2** (`auth-h2-missing`): its decision is also made by H3's scheme branch, so the stub deletes
+  both; a missing header is then answered 400 `invalid_request`, which the client sees.
 
 Every other new row's stub lets the refused input through, checked by hand for the auth rows (the
 forbidden token is accepted: `actual: true` on every table-driven verifier case) and from the failing
@@ -86,18 +91,18 @@ Schema: *finding · where · type · recommendation · decision-needed*.
      30,011 ms). The rows prove the timeout is there, not that it is the configured value.
    - Recommendation: if the documented figure must hold, set `connectionsCheckingInterval` alongside
      `requestTimeout`; that is a behaviour change, outside this WO. · *decision-needed: yes*
-3. **H9's test does not see its point.** · `verifier.test.ts` H9 rows · test strength · H9 refuses a
-   bad `kid` *before any fetch*. Under its stub the kid is fetched and refused `unknown-kid`, and the
-   tests notice only the reason. Recommendation: assert the fetch count in the H9 cases. ·
-   *decision-needed: no* (a test addition for a later WO)
+3. **The H9 table cases asserted the reason before the fetch count.** · `verifier.test.ts` · test
+   strength · Under H9's stub the reason assertion fired first, so the cases went red on the reason
+   while the fetch they guard against went unseen. A dedicated test now asserts the fetch count alone,
+   and the row names it. · *decision-needed: no*
 4. **A check id names one row; its other clauses have rows of their own.** · `CHECKS.md` · coverage
    depth · The row named in `checks` deletes the check's central decision. G1's and G5's other
-   clauses, J2's TTL bound and J3's shared fetch now have rows (finding 1), without an id. What has no
-   row: H5's and C1's JSON-object clause (an array header is refused by the `alg` check anyway).
-   Clauses with no test (adversarial pass, by reading): `request-state-binding`'s method (dispatch
-   always binds `tools/call`), `manifest-generated-at`'s `Date.parse`, and POST to the metadata
-   document under `health-get-only`. Recommendation: split the ids in `CHECKS.md` (G1a, G5a …) if each
-   clause should be named. · *decision-needed: yes*
+   clauses, J2's TTL bound and J3's shared fetch now have rows (finding 1), without an id. H5's and
+   C1's JSON-object guard is a layer by construction (*Read this first*). The clauses the adversarial
+   pass found untested now have tests that their rows name: *another method or tool is refused*
+   (`openState`, since dispatch always binds `tools/call`), *a generated_at … month 13* (the `Date.parse`
+   clause; the pattern admits month 13), and *405 POST the metadata document*. Recommendation: split
+   the ids in `CHECKS.md` (G1a, G5a …) if each clause should be named. · *decision-needed: yes*
 5. **J6's stub stretches rather than deletes.** · `auth-j6-deadline` · stub form · Deleting the 3 s
    deadline runs the two J6 tests into their own `{ timeout: 10_000 }`, which the runner correctly does
    not count as an assertion. ×2.5 (7.5 s) breaks both bounds (6 s and 4.5 s) inside that timeout:
@@ -253,6 +258,26 @@ RED  legacy-input-required | stub applied; 2/2 named test(s) red by assertion | 
 control-deletion: every stub made its named tests fail by assertion — 69 row(s), 463.3 s
 ```
 
+Then, at `6c9c764`, the rows this last round added or changed, in one invocation:
+
+```
+control-deletion: baseline green: 8 test file(s), 231 test(s) passed on the unpatched tree
+RED  health-get-only | stub applied; 2/2 named test(s) red by assertion | 2238 ms
+RED  json-lone-surrogate | stub applied; 3/3 named test(s) red by assertion | 2229 ms
+RED  request-state-binding | stub applied; 4/4 named test(s) red by assertion | 3986 ms
+RED  auth-h2-missing | stub applied; 2/2 named test(s) red by assertion | 8238 ms
+RED  auth-h9-kid | stub applied; 1/1 named test(s) red by assertion | 8254 ms
+RED  auth-g4-http-refused | stub applied; 21/21 named test(s) red by assertion | 2229 ms
+RED  manifest-generated-at | stub applied; 2/2 named test(s) red by assertion | 2056 ms
+RED  auth-g1-resource-url | stub applied; 1/1 named test(s) red by assertion | 2139 ms
+RED  manifest-unknown-field | stub applied; 1/1 named test(s) red by assertion | 2028 ms
+RED  manifest-versions | stub applied; 1/1 named test(s) red by assertion | 2046 ms
+RED  cage-symlink-leaf | stub applied; 1/1 named test(s) red by assertion | 2427 ms
+control-deletion: every stub made its named tests fail by assertion — 11 row(s), 46.3 s
+```
+
+That makes 73 new rows: 238 → 311.
+
 ## Adversarial pass (WO §5)
 
 A fresh Opus subagent, in its own worktree at `9cb1930`, had the diff, the WO and the deletion README,
@@ -261,8 +286,8 @@ a green baseline (17 files, 404 tests), 364.5 s. Its findings, and what was done
 
 1. **must-fix: batch refusal and the legacy `initialize` had no record.** Both were in my uncommitted
    FEEDBACK; it read the committed tree. It reproduced the batch layer by hand (120 pass, 1 fail,
-   SH-9's regex). **Done:** both, and the other layered controls, are `{control, reason}` entries in
-   `exempt.json`, which the detector reads. I did not take its proposal of a batch row red on the
+   SH-9's regex). **Done:** both are `{control, reason}` entries in `exempt.json`, which the detector
+   reads; of the controls I had also called layers, four have honest rows now (*Read this first*). I did not take its proposal of a batch row red on the
    message only: a row must go red for its control, and a message is not the batch's control.
 2. **must-fix: three files were listed with none of their tests named.** **Done:** rows for what they
    test (finding 1), `drift-refused` names the teaching test (finding 6), and the detector now refuses
@@ -300,60 +325,66 @@ layers `CHECKS.md` already lists); `request-state-integrity`, `-expiry`, the `ma
 
 ## Gates
 
-- `npm run check` on Node v24.21.0, on Furnace: lint, typecheck and build green; the detector 20 of
-  20; core and teaching 941 of 942, the one failure being the canary (`warm=815ms` against its 900 ms:
-  `-2008b` finding 3, `-2008d`'s); `check` stops there, so the later stages were run by hand: spike 0102
-  69, spike 0101 8, `test:subset` 4. Core and teaching grew by three tests: the two receive-timeout
-  tests and the raw-surrogate test.
-- CI on `3b109a5` (run 46092903964): **every job green**, both `test` jobs included (942 tests, the
-  detector 20 of 20, on Linux and Windows).
+- `npm run check` on Node v24.21.0, on Furnace, at `6c9c764`:
+  - lint, typecheck and build green;
+  - the detector 20 of 20;
+  - core and teaching 945 of 946, the one failure being the canary (`warm=824ms` against its 900 ms:
+    `-2008b` finding 3, `-2008d`'s);
+  - `check` stops there, so the later stages were run by hand: spike 0102 69, spike 0101 8,
+    `test:subset` 4;
+  - core and teaching grew by seven tests: the two receive-timeout tests, and the raw-surrogate, H9
+    no-fetch, method-binding, calendar-date and POST-metadata cases.
+- CI on `6c9c764` (run 46094613554): **every job green**, both `test` jobs included.
 - `control-deletion --self-test`: passed, locally and on CI.
-- Every new row: RED by assertion, in one invocation (*The rows*).
-- Every shard on CI, at 307 rows and 16 shards (job wall time includes checkout, install and build):
+- Every new row: RED by assertion (*The rows*).
+- Every shard on CI, at 311 rows and 16 shards (job wall time includes checkout, install and build):
 
   | shard | rows | CI runner | CI job |
   |---|---|---|---|
-  | 1/16 | 20 | 157.8 s | 187 s (3 min 07 s) |
-  | 2/16 | 20 | 105.3 s | 130 s (2 min 10 s) |
-  | 3/16 | 20 | 153.9 s | 182 s (3 min 02 s) |
-  | 4/16 | 19 | 142.7 s | 168 s (2 min 48 s) |
-  | 5/16 | 19 | 140.5 s | 166 s (2 min 46 s) |
-  | 6/16 | 19 | 104.8 s | 125 s (2 min 05 s) |
-  | 7/16 | 19 | 118.8 s | 144 s (2 min 24 s) |
-  | 8/16 | 19 | 116.0 s | 143 s (2 min 23 s) |
-  | 9/16 | 19 | 109.0 s | 134 s (2 min 14 s) |
-  | 10/16 | 19 | 130.7 s | 156 s (2 min 36 s) |
+  | 1/16 | 20 | 128.3 s | 156 s (2 min 36 s) |
+  | 2/16 | 20 | 117.3 s | 144 s (2 min 24 s) |
+  | 3/16 | 20 | 107.6 s | 130 s (2 min 10 s) |
+  | 4/16 | 20 | 117.5 s | 143 s (2 min 23 s) |
+  | 5/16 | 20 | 110.6 s | 136 s (2 min 16 s) |
+  | 6/16 | 20 | 155.6 s | 186 s (3 min 06 s) |
+  | 7/16 | 20 | 149.6 s | 175 s (2 min 55 s) |
+  | 8/16 | 19 | 147.1 s | 174 s (2 min 54 s) |
+  | 9/16 | 19 | 110.3 s | 136 s (2 min 16 s) |
+  | 10/16 | 19 | 94.1 s | 113 s (1 min 53 s) |
   | 11/16 | 19 | 126.5 s | 151 s (2 min 31 s) |
-  | 12/16 | 19 | 109.8 s | 130 s (2 min 10 s) |
-  | 13/16 | 19 | 88.8 s | 106 s (1 min 46 s) |
-  | 14/16 (`validation-deadline`) | 19 | 165.9 s | 194 s (3 min 14 s) |
-  | 15/16 (`request-timeout`) | 19 | 166.6 s | 186 s (3 min 06 s) |
-  | 16/16 (`approval-listener-request-timeout`, `auth-j6-deadline`) | 19 | 218.9 s | 246 s (4 min 06 s) |
+  | 12/16 | 19 | 168.7 s | 197 s (3 min 17 s) |
+  | 13/16 | 19 | 88.0 s | 108 s (1 min 48 s) |
+  | 14/16 (`validation-deadline`) | 19 | 223.1 s | 254 s (4 min 14 s) |
+  | 15/16 (`request-timeout`) | 19 | 186.0 s | 210 s (3 min 30 s) |
+  | 16/16 (`approval-listener-request-timeout`, `auth-j6-deadline`) | 19 | 193.2 s | 215 s (3 min 35 s) |
 
-  At 14 shards and 282 rows (run 46088597495, `9cb1930`) every job was green and the slowest shard took
-  249 s; the 25 rows added after the adversarial pass are why the count went to 16.
+  Earlier runs: 14 shards at 282 rows (run 46088597495) had its slowest job at 249 s, and 16 shards at
+  307 rows (46092903964) at 246 s.
 - Leak gate: `--self-test`, `--tree` and `--history` exited 0 on each pushed head, exit code checked;
   `dbb96d5` is not an ancestor.
 - Reduction pass (diff): −10 net · 1 duplicate removed (the stalled-request reader both timeout tests
   carried, now `test/fixtures/stall.ts`) · 1 dead path removed (the `status` alias in both) · 0
   protected kept · 0 findings below.
-- Protected surfaces, against `3332570`: `packages/*/src/**` diffs to empty (no seam was needed); the
-  steering documents, the governance files, `.npmrc` and `.node-version` diff to empty;
-  `scripts/control-deletion.mjs` diffs to empty; no existing stub or red-proof changed; `.github/**` is
-  the shard number and its comment; `package.json` gains the detector at the head of `test`.
+- Protected surfaces, against `3332570`:
+  - `packages/*/src/**` diffs to empty (no seam was needed);
+  - the steering documents, the governance files, `.npmrc` and `.node-version` diff to empty;
+  - `scripts/control-deletion.mjs` diffs to empty;
+  - no existing stub or red-proof changed;
+  - `.github/**` is the shard number and its comment;
+  - `package.json` gains the detector at the head of `test`.
 
 ## Deliberately not built
 
-- Rows for the seven controls in *Read this first* (no honest stub exists).
+- Rows for the five controls in *Read this first* (no honest stub exists).
 - A `connectionsCheckingInterval` seam (operator ruling; finding 2).
-- Fetch-count assertions in the H9 tests (finding 3), per-clause ids in `CHECKS.md` and tests for the
-  untested clauses (finding 4), and a test that tells a configured receive timeout from another under
-  30 s (finding 2).
+- Per-clause ids in `CHECKS.md` (finding 4), and a test that tells a configured receive timeout from
+  another under 30 s (finding 2).
 - Anything in `-1005c` or `-2008d`.
 
 ## Push
 
-Two S25-minted tokens for `clearforgekey:clearseal-reference`, each spent only through
+Three S25-minted tokens for `clearforgekey:clearseal-reference`, each spent only through
 `~/bin/gh-write`: the first pushed `9cb1930` and was revoked straight after (`revoked (HTTP 204)`); the
-second pushed `3b109a5` and this commit and opened the pull request, and was revoked after that. Every
+second pushed `3b109a5` and `5688906`, opened the pull request, and was revoked; the third pushed
+`6c9c764` and this commit, and was revoked after. Every
 commit's author and committer is `clearforgekey[bot]`'s noreply address.

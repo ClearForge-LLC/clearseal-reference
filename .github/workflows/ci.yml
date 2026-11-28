@@ -47,7 +47,7 @@ jobs:
       # The one number. Raise it when a shard job passes five minutes: the run's page gives each shard
       # job's duration, and a green shard's log ends with "control-deletion: shard i/n: ... row(s),
       # <seconds> s", the runner's own share of it (the rest is checkout, install and build). Measured
-      # at 307 rows and 16 shards in CSR-WO-2008c's FEEDBACK.md.
+      # at 311 rows and 16 shards in CSR-WO-2008c's FEEDBACK.md.
       CONTROL_DELETION_SHARDS: 16
     outputs:
       n: ${{ steps.plan.outputs.n }}
