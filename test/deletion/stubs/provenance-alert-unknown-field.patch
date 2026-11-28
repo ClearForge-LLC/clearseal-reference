@@ -1,0 +1,11 @@
+--- a/packages/core/src/provenance/envelope.ts
++++ b/packages/core/src/provenance/envelope.ts
+@@ -64,7 +64,7 @@ export const ALERT_SCHEMA: PayloadSchema<Alert> = Object.freeze({
+   parse: (v: unknown): { ok: true; payload: Alert } | { ok: false; check: string } => {
+     if (!isPlainObject(v)) return { ok: false, check: "alert-shape" };
+     const bad = keyProblem(v, ["severity", "text"]);
+-    if (bad !== null) return { ok: false, check: "unknown" in bad ? "alert-unknown-field" : "alert-missing-field" };
++    if (bad !== null && !("unknown" in bad)) return { ok: false, check: "unknown" in bad ? "alert-unknown-field" : "alert-missing-field" };
+     const { severity, text } = v;
+     if (typeof severity !== "string" || !(EFFECT_ORDER as readonly string[]).includes(severity)) return { ok: false, check: "alert-severity" };
+     if (typeof text !== "string") return { ok: false, check: "alert-text" };

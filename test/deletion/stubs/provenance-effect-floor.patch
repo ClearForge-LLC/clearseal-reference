@@ -1,0 +1,10 @@
+--- a/packages/core/src/provenance/verify.ts
++++ b/packages/core/src/provenance/verify.ts
+@@ -189,7 +189,6 @@ export class ProvenanceVerifier<P = Alert> {
+     const effect = this.#schema.effect(p.payload);
+     const rank = (EFFECT_ORDER as readonly string[]).indexOf(effect);
+     if (rank === -1) return refuse("effect", "unknown-effect");
+-    if (rank > EFFECT_ORDER.indexOf(ch.floor)) return refuse("effect", "above-floor");
+ 
+     this.#nonces.remember(held, issued_at + PAST_WINDOW_S);
+     this.#nonces.advance(now);

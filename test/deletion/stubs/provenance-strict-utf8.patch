@@ -1,0 +1,11 @@
+--- a/packages/core/src/provenance/verify.ts
++++ b/packages/core/src/provenance/verify.ts
+@@ -132,7 +132,7 @@ export class ProvenanceVerifier<P = Alert> {
+     if (wire.length > MAX_WIRE_BYTES) return refuse("structure", "too-large");
+     let text: string;
+     try {
+-      text = STRICT_UTF8.decode(wire);
++      text = new TextDecoder().decode(wire);
+     } catch {
+       return refuse("structure", "malformed");
+     }

@@ -5143,6 +5143,637 @@
       "mustFail": [
         "a ready worker that exits without an error is replaced, and the call is answered, not timed out"
       ]
+    },
+    {
+      "id": "provenance-size-cap",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: a wire over MAX_WIRE_BYTES is refused (too-large) before it is decoded",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-size-cap.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "too-large: a wire over MAX_WIRE_BYTES is refused before it is decoded"
+      ]
+    },
+    {
+      "id": "provenance-strict-utf8",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: the wire is decoded as strict UTF-8 with no BOM stripping (malformed)",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-strict-utf8.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "malformed: invalid UTF-8, a BOM, and text that is not JSON"
+      ]
+    },
+    {
+      "id": "provenance-strict-parse",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: the wire is parsed by the core's strict parser, so a duplicate key is refused (Option A's first encoding closure, refused inside json.ts)",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-strict-parse.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "duplicate-key: a repeated key at the top, in the envelope, and nested in the payload"
+      ]
+    },
+    {
+      "id": "provenance-negative-zero",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: -0 is refused by name (Option A's third encoding closure)",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-negative-zero.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "negative-zero: -0 is refused by name, where the same message with 0 is accepted"
+      ]
+    },
+    {
+      "id": "provenance-non-shortest-number",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: a number with a fraction or exponent is refused (Option A's second encoding closure: integers in shortest form)",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-non-shortest-number.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "non-shortest-number: 1.0, 1e0 and 10E-1 for v, and a fraction or exponent for issued_at"
+      ]
+    },
+    {
+      "id": "provenance-unknown-field-outer",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: no key but envelope and signature at the top level",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-unknown-field-outer.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "unknown-field: an extra key at the top and in the envelope"
+      ]
+    },
+    {
+      "id": "provenance-unknown-field-envelope",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: no key in the envelope but the contract's",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-unknown-field-envelope.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "unknown-field: an extra key at the top and in the envelope"
+      ]
+    },
+    {
+      "id": "provenance-version",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: v is exactly the integer 1, never parsed best-effort",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-version.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "version: v of 2, 0 and the string \"1\", each validly signed, is refused, never parsed best-effort"
+      ]
+    },
+    {
+      "id": "provenance-origin-class",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: origin_class is one the contract names (system)",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-origin-class.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "origin-class: anything but system"
+      ]
+    },
+    {
+      "id": "provenance-issued-at",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: issued_at is an integer from 0 to 2^53-1",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-issued-at.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "issued-at: a negative and a string (past 2^53-1 is integer-range)"
+      ]
+    },
+    {
+      "id": "provenance-integer-range",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: an integer past 2^53-1 is refused (it reads as a different integer than it spells)",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-integer-range.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "integer-range: an integer past 2^53-1 is refused, since it reads as a different integer than it spells"
+      ]
+    },
+    {
+      "id": "provenance-nonce-pattern",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: the nonce matches [A-Za-z0-9_-]{16,128}",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-nonce-pattern.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "nonce: too short, too long, and outside the alphabet"
+      ]
+    },
+    {
+      "id": "provenance-alert-unknown-field",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: the alert payload carries no key but severity and text",
+      "touches": [
+        "packages/core/src/provenance/envelope.ts"
+      ],
+      "stub": "stubs/provenance-alert-unknown-field.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "alert-shape, alert-unknown-field, alert-missing-field, alert-severity, alert-text"
+      ]
+    },
+    {
+      "id": "provenance-signature-canonical",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: the signature is canonical base64 (re-encoding reproduces it)",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-signature-canonical.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "signature-encoding: non-canonical base64, the wrong length, and not a string"
+      ]
+    },
+    {
+      "id": "provenance-key-window",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-4: the kid's entry is used only inside its validity window",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-key-window.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "key-window: outside the entry's window at both edges; inside at exactly notBefore and notAfter"
+      ]
+    },
+    {
+      "id": "provenance-bad-signature",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-4: Ed25519 over canonical_bytes recomputed from the parsed fields",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-bad-signature.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "bad-signature: one flipped byte of signed content, and a different key under the listed kid"
+      ]
+    },
+    {
+      "id": "provenance-stale",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-4 freshness: issued no more than 300 s behind the verifier's clock",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-stale.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "stale: issued 301 s before now; exactly 300 s is accepted"
+      ]
+    },
+    {
+      "id": "provenance-future",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-4 freshness: issued no more than 60 s ahead",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-future.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "future: issued 61 s ahead; exactly 60 s is accepted"
+      ]
+    },
+    {
+      "id": "provenance-replay",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-4 the nonce rule: an accepted nonce is refused for its freshness window",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-replay.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "replay: an accepted nonce is refused again; a refused message's nonce is not remembered"
+      ]
+    },
+    {
+      "id": "provenance-nonce-cache-full",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-7: at capacity a new message is refused (nonce-cache-full), never admitted by eviction",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-nonce-cache-full.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "nonce-cache-full: at capacity a new message is refused, never evicted for; room returns as nonces expire"
+      ]
+    },
+    {
+      "id": "provenance-clock-high-water",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-7: the verifier's clock never runs behind its latest accepted reading",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-clock-high-water.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "stale: the clock never runs behind its latest reading, so a step back does not reopen a message"
+      ]
+    },
+    {
+      "id": "provenance-clock-on-accept",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-7: the clock reading advances only on accept, so a wrong now on a refused message moves nothing",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-clock-on-accept.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "the clock moves only on accept: a valid message checked at a wrong future now does not lock out the present"
+      ]
+    },
+    {
+      "id": "provenance-nonce-per-sender",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-7: a nonce is held per sender, so one author cannot block another by sending its nonce first",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-nonce-per-sender.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "replay is per sender: one author sending another's nonce first never blocks the other's message"
+      ]
+    },
+    {
+      "id": "provenance-remember-on-accept",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-7: a nonce is remembered only when its message is accepted",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-remember-on-accept.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "replay: an accepted nonce is refused again; a refused message's nonce is not remembered"
+      ]
+    },
+    {
+      "id": "provenance-author-listed",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-5 gate 2: the sender is on the channel's author list",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-author-listed.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "not-listed: a valid signature by a sender not on this channel's author list"
+      ]
+    },
+    {
+      "id": "provenance-author-owns-key",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-5 gate 2: the selected key is the sender's",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-author-owns-key.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "key-not-authors: a listed sender signing with another author's key"
+      ]
+    },
+    {
+      "id": "provenance-effect-known",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-5 gate 3: an effect the floor ordering does not know is refused, never ranked lowest",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-effect-known.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "unknown-effect: a payload schema whose effect the floor ordering does not know is refused, never ranked lowest"
+      ]
+    },
+    {
+      "id": "provenance-effect-floor",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-5 gate 3: the effect is at or below the channel's floor",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-effect-floor.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "above-floor: a valid message from a listed author requesting more than the floor"
+      ]
+    },
+    {
+      "id": "provenance-audit-refused",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-8: every refusal writes one line naming its gate and check",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-audit-refused.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "every refusal writes one line naming its gate and check, with no message content but sender and kid"
+      ]
+    },
+    {
+      "id": "provenance-audit-accepted",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-8: every accept writes one line: sender, kid, effect",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-audit-accepted.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "baseline: a valid message is accepted, and writes one line: sender, kid, effect"
+      ]
+    },
+    {
+      "id": "provenance-allowlist-key-object",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: a non-string key must be a real KeyObject (a key-shaped plain object is refused)",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-allowlist-key-object.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "refuses a key-shaped plain object and a private key's PEM: only public PEM text or a real KeyObject loads"
+      ]
+    },
+    {
+      "id": "provenance-allowlist-public-pem",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: key text must be SPKI public-key PEM (a private key's PEM is refused)",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-allowlist-public-pem.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "refuses a key-shaped plain object and a private key's PEM: only public PEM text or a real KeyObject loads"
+      ]
+    },
+    {
+      "id": "provenance-channel-authors-list",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: a channel's authors is a list",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-channel-authors-list.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "a channel with an unknown floor is refused at verify, never ranked"
+      ]
+    },
+    {
+      "id": "provenance-allowlist-duplicate-kid",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: loading refuses a duplicate kid",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-allowlist-duplicate-kid.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "refuses a duplicate kid: rotation adds a kid, never a second entry for one"
+      ]
+    },
+    {
+      "id": "provenance-allowlist-inverted-window",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: loading refuses an inverted window",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-allowlist-inverted-window.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "refuses an inverted window"
+      ]
+    },
+    {
+      "id": "provenance-allowlist-ed25519",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: loading refuses a key that is not Ed25519",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-allowlist-ed25519.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "refuses a key that is not Ed25519: RSA, P-256 and X25519"
+      ]
+    },
+    {
+      "id": "provenance-allowlist-kid-pattern",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: loading refuses a kid outside the contract's pattern",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-allowlist-kid-pattern.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "refuses a kid or sender outside the pattern, and a window that is not epoch seconds"
+      ]
+    },
+    {
+      "id": "provenance-allowlist-sender-pattern",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: loading refuses a sender outside the contract's pattern",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-allowlist-sender-pattern.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "refuses a kid or sender outside the pattern, and a window that is not epoch seconds"
+      ]
+    },
+    {
+      "id": "provenance-allowlist-window-integers",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: loading refuses a window that is not epoch-second integers",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-allowlist-window-integers.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "refuses a kid or sender outside the pattern, and a window that is not epoch seconds"
+      ]
+    },
+    {
+      "id": "provenance-channel-floor",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: a channel's floor is a known effect",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-channel-floor.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "a channel with an unknown floor is refused at verify, never ranked"
+      ]
+    },
+    {
+      "id": "provenance-signer-64-bytes",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-2: a signer returning anything but 64 bytes is refused (SignerError)",
+      "touches": [
+        "packages/core/src/provenance/signer.ts"
+      ],
+      "stub": "stubs/provenance-signer-64-bytes.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "PV-2: a signer that returns anything but 64 bytes is refused (SignerError)"
+      ]
+    },
+    {
+      "id": "provenance-serialization-surrogate",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-2: a lone surrogate is refused at serialization (both sites: the envelope walk and canonical_bytes)",
+      "touches": [
+        "packages/core/src/provenance/signer.ts",
+        "packages/core/src/provenance/envelope.ts"
+      ],
+      "stub": "stubs/provenance-serialization-surrogate.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "PV-2: a lone surrogate is refused at serialization, so the bytes signed are always the string given"
+      ]
     }
   ]
 }

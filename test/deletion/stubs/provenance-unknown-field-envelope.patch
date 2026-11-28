@@ -1,0 +1,11 @@
+--- a/packages/core/src/provenance/verify.ts
++++ b/packages/core/src/provenance/verify.ts
+@@ -151,7 +151,7 @@ export class ProvenanceVerifier<P = Alert> {
+     const env = outer["envelope"];
+     if (!isPlainObject(env)) return refuse("structure", "malformed");
+     const envBad = keyProblem(env, ["v", "sender_id", "origin_class", "key_id", "issued_at", "nonce", this.#schema.key]);
+-    if (envBad !== null) return refuse("structure", "unknown" in envBad ? "unknown-field" : "missing-field");
++    if (envBad !== null && !("unknown" in envBad)) return refuse("structure", "unknown" in envBad ? "unknown-field" : "missing-field");
+     if (env["v"] !== 1) return refuse("structure", "version");
+     const { sender_id, origin_class, key_id, issued_at, nonce } = env;
+     if (typeof sender_id !== "string" || !ID_RE.test(sender_id)) return refuse("structure", "sender-id");

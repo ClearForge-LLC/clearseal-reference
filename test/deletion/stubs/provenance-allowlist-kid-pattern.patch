@@ -1,0 +1,10 @@
+--- a/packages/core/src/provenance/allowlist.ts
++++ b/packages/core/src/provenance/allowlist.ts
+@@ -59,7 +59,6 @@ function keyOf(data: string | KeyObject, kid: string): KeyObject {
+ export function loadAllowlist(entries: readonly ProvenanceKeyData[]): ProvenanceAllowlist {
+   const out = new Map<string, ProvenanceKey>();
+   for (const e of entries) {
+-    if (typeof e.kid !== "string" || !ID_RE.test(e.kid)) throw new AllowlistError("an entry's kid does not match the contract's pattern");
+     if (typeof e.sender_id !== "string" || !ID_RE.test(e.sender_id)) throw new AllowlistError(`kid "${e.kid}": sender_id does not match the contract's pattern`);
+     if (!isTime(e.notBefore) || !isTime(e.notAfter)) throw new AllowlistError(`kid "${e.kid}": the window is not two epoch-second integers`);
+     if (e.notBefore > e.notAfter) throw new AllowlistError(`kid "${e.kid}": the window is inverted`);

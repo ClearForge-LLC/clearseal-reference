@@ -1,0 +1,10 @@
+--- a/packages/core/src/provenance/verify.ts
++++ b/packages/core/src/provenance/verify.ts
+@@ -85,7 +85,6 @@ function numberForm(text: string): "negative-zero" | "non-shortest-number" | "in
+     } else if (c === 0x2d || (c >= 0x30 && c <= 0x39)) {
+       NUMBER.lastIndex = i;
+       const token = NUMBER.exec(text)?.[0] ?? "";
+-      if (Object.is(Number(token), -0)) return "negative-zero";
+       if (!INTEGER.test(token)) return "non-shortest-number";
+       // Past 2^53-1 a token reads as a different integer than it spells, and two parsers may disagree.
+       if (!Number.isSafeInteger(Number(token))) return "integer-range";

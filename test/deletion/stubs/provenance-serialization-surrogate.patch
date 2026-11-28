@@ -1,0 +1,20 @@
+--- a/packages/core/src/provenance/signer.ts
++++ b/packages/core/src/provenance/signer.ts
+@@ -34,7 +34,6 @@ const utf8 = new TextEncoder();
+ /** Throws SerializationRefusal on a lone surrogate anywhere in a JSON-shaped value. */
+ function assertWellFormed(value: unknown, where: string): void {
+   if (typeof value === "string") {
+-    if (!value.isWellFormed()) throw new SerializationRefusal(`lone surrogate in ${where}`);
+   } else if (Array.isArray(value)) {
+     value.forEach((v: unknown, i) => {
+       assertWellFormed(v, `${where}[${String(i)}]`);
+--- a/packages/core/src/provenance/envelope.ts
++++ b/packages/core/src/provenance/envelope.ts
+@@ -97,7 +97,6 @@ export function canonicalBytes<P>(fields: EnvelopeFields<P>, schema: PayloadSche
+   const values = [String(fields.v), fields.sender_id, fields.origin_class, fields.key_id, String(fields.issued_at), fields.nonce, ...schema.canonicalFields(fields.payload)];
+   const parts: Uint8Array[] = [utf8.encode(schema.context)];
+   for (const [i, value] of values.entries()) {
+-    if (!value.isWellFormed()) throw new SerializationRefusal(`lone surrogate in canonical field ${String(i)}`);
+     const bytes = utf8.encode(value);
+     const len = new Uint8Array(4);
+     new DataView(len.buffer).setUint32(0, bytes.length, false);

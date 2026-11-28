@@ -1,0 +1,10 @@
+--- a/packages/core/src/provenance/verify.ts
++++ b/packages/core/src/provenance/verify.ts
+@@ -175,7 +175,6 @@ export class ProvenanceVerifier<P = Alert> {
+     if (!(entry.publicKey instanceof KeyObject) || entry.publicKey.asymmetricKeyType !== "ed25519") return refuse("signature", "key-type");
+     if (!edVerify(null, canonicalBytes(fields, this.#schema), entry.publicKey, sig)) return refuse("signature", "bad-signature");
+     const t = this.#nonces.clock(now);
+-    if (issued_at < t - PAST_WINDOW_S) return refuse("signature", "stale");
+     if (issued_at > now + FUTURE_SKEW_S) return refuse("signature", "future");
+     const held = `${sender_id}\n${nonce}`;
+     if (this.#nonces.seen(held, t)) return refuse("signature", "replay");
