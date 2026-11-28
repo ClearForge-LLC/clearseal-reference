@@ -1,186 +1,184 @@
-# FEEDBACK: CSR-WO-2010 (spike: does an independent implementation of `2026-07-28` agree with ours?)
+# FEEDBACK: CSR-WO-2011 (arguments that fail the pinned schema: a tool execution error, before the handler)
 
-Branch `spike/CSR-WO-2010`, cut from `main` at `eab5890` (contains `-2008d`'s merge). Spike, then STOP:
-nothing outside `spikes/2010-interop/` and this file changes, and no finding is fixed here. Run on Node
-v24.21.0 on Furnace, 2026-11-28; every commit's author and committer is `clearforgekey[bot]`'s noreply
-address. Parked as one unmerged pull request.
+Branch `wo/CSR-WO-2011`, cut from `main` at `e5ef83b`, which contains `-2010`'s merge `e2bf41a` and this
+work order. Built on Node v24.21.0 on Furnace, 2026-11-28. Every commit's author and committer is
+`clearforgekey[bot]`'s noreply address. Parked as one unmerged pull request.
 
 ## Read this first
 
-- **No security-relevant disagreement (§0.5).** Every refusal the specification or ClearSeal requires
-  happened against the v2 client: no token, a wrong-audience token and another issuer's token each
-  401; the 401 carries `WWW-Authenticate: Bearer resource_metadata="…"` (RFC 9728); arguments that fail
-  the pinned schema are refused 400 before the handler. Nothing ours accepts was refused by the
-  specification text quoted below.
-- **The v2 client agrees with our server on every probe that ran** (§0.1, §0.2, §0.3), once it
-  is told to speak `2026-07-28`. **Its own default is the legacy era**: `versionNegotiation.mode`
-  defaults to `'legacy'`, so a client built with no option sends `initialize` at `2025-11-25` and
-  never probes `server/discover`. With `'auto'` it concludes `2026-07-28` from our `server/discover`;
-  with `{ pin: "2026-07-28" }` every modern probe completes. Not a disagreement with our server (finding
-  N1), but every deployment guide must say it.
-- **The conformance alpha's scored failures are all primitives this server does not serve.** For
-  `--requirements 2026-07-28`'s 37 server scenarios: **96 checks pass, 15 fail, 6 skip, 2 warn** (1
-  info); by scenario, **24 without a failure and 13 with one**. Thirteen failing checks are resources,
-  prompts and what rides on them (class (b), planned as `-2009`); two are classified (c) with the
-  specification sentence: the suite fails a server for not serving `completion`, which the text makes
-  optional, and for not sending progress, which the text makes a MAY.
-- **Three rulings wanted.** D10: schema-invalid tool arguments get a protocol error (400, -32602)
-  where the text prefers `isError: true`; contested between (d) and (a). D9 (the Tasks extension) and
-  D11 (scopes, `403`): both are planned outside `-2009`, so their (b) stretches WO §0.4's definition.
-- **§0.3 reached the authorization request, and stopped there by construction.** Given an OAuth
-  provider and no token, the client fetched our 401's `resource_metadata` URL, checked that its
-  `resource` names the server it connected to, and built an authorization request carrying
-  `resource=https://mcp.example.invalid/mcp` (RFC 8707) with PKCE S256. The token request and RFC 9207
-  (the client validating `iss` in an authorization *response*) were **not built**: they need an
-  authorization server that issues codes. WO §4 forbids a real or hosted one; a local one is a build
-  this spike did not take on (B1).
-- **CI went red twice on lint before it was green** (F1): the repository's lint covers the spike, but
-  CI runs it after a root `npm ci` (which never installs this non-workspace spike) and before the build
-  (so the core's types do not resolve). Fixed in the spike only.
+- **A behaviour change, wire form only.** A call whose arguments fail the tool's pinned input schema
+  is now answered HTTP 200 with a result carrying `isError: true`, in both eras. It is still refused
+  before any cage, request state, approval or handler.
+  - `2026-07-28` adds `resultType: "complete"` and `_meta`.
+  - `2025-11-25` carries neither.
+  - The text names the tool and, for each failure (at most three), a schema-declared JSON pointer and
+    the failing keyword. No argument value appears.
+- **Three architect rulings during the build** (all 2026-11-28), recorded below:
+  - a fence widening into the validator;
+  - context-only regeneration of two stubs;
+  - a control-follows-code rewrite of `arguments-schema-refused.patch`.
+- **Accounting is unchanged**, each by assertion. The audit line is the same `rpc-refused`, now
+  written by `dispatch.ts` because a result no longer triggers `server.ts`'s. The rate limit takes its
+  token before dispatch. The tripwire counts the call where the tool is found, before validation.
 
-## How it ran
+## Before and after, one refused call in each era
 
-- `spikes/2010-interop/package.json` pins `@modelcontextprotocol/client` **2.4.0** and
-  `@modelcontextprotocol/conformance` **0.2.0-alpha.12**, exactly (both checked on the registry: 2.4.0
-  is the client's latest; alpha.12 exists, after 0.1.16 stable). It is not a workspace, so the root
-  lockfile and every `packages/*/package.json` are untouched.
-- `probe.ts`: a real teaching node through the core's `startNodeFromEnv` with the local `TestIssuer`
-  and a JSON-lines audit (the teaching test harness, imported, unchanged); the client's `fetch` is
-  wrapped so every exchange is recorded verbatim in `results/probe.json` (bearer tokens redacted).
-  **Nothing leaves the machine:** the wrapper routes the node's advertised origin
-  (`https://mcp.example.invalid`) to the node on loopback, refuses every other non-loopback host
-  without a network call, and, for the one OAuth probe only, answers the test issuer's
-  authorization-server metadata itself (a six-field document, marked `x-probe` in the record), since
-  the test issuer serves only a key set. The MRTR round trip runs against the core's conformance
-  fixture server (started by `fixture.ts`), since the teaching edition has no `input_required` tool.
-- `conformance.ts`: the suite's `server --requirements 2026-07-28` against
-  `packages/core/test/conformance/fixture-server.ts` (the real transport with the fixture tools the
-  suite's scenarios call, admit-all verifier because the suite sends no `Authorization`; the same
-  target as the run §2.1 records). On the teaching node the scenarios would only measure "tool not
-  found". Summary in `results/conformance-summary.json`; run three times, identical counts.
+`2026-07-28`, the v2 client against a teaching node (`spikes/2010-interop` probe, `notes.read` with
+`name: "../x"`):
 
-## Answers to §0
+- before (`-2010`'s record): `400 {"jsonrpc":"2.0","id":4,"error":{"code":-32602,"message":"Invalid arguments for tool notes.read"}}`,
+  which the client surfaces as `ProtocolError: Invalid arguments for tool notes.read`;
+- after: `200 {"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"Invalid arguments for tool notes.read: /name fails pattern"}],"isError":true,"resultType":"complete","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"clearseal-node","version":"0.0.0"}}}}`,
+  which the client returns as a `CallToolResult` with `isError: true`.
 
-| § | Question | Outcome (recorded in `results/`) |
-|---|---|---|
-| 0.1 | `server/discover` | 200: `supportedVersions ["2026-07-28","2025-11-25"]`, `capabilities {tools}`, `ttlMs 60000`, `cacheScope`; `mode: "auto"` negotiates `2026-07-28` from it |
-| 0.1 | `tools/list`, TTL and `cacheScope` | 200 with `ttlMs 60000`, `cacheScope "private"`; the client's second `listTools()` made **no** request (served from its cache) |
-| 0.1 | `tools/call`, `read_only` | 200, `notes.read` returns the note |
-| 0.1 | MRTR `input_required` round trip | fixture server: `server/discover`, `tools/call` → `input_required`, the client fulfils the elicitation and retries, → `Hello, spike!` (3 exchanges) |
-| 0.1 | a tool error | 200 with `isError: true` (*There is no note named missing.md.*); arguments failing the schema: 400 -32602, surfaced as `ProtocolError` (D10) |
-| 0.1 | `Mcp-Method`, `Mcp-Name` | the client sends `mcp-method: tools/call` and `mcp-name: notes.read` with `mcp-protocol-version: 2026-07-28`, matching the body and `_meta` |
-| 0.2 | the `2025-11-25` fallback | completes in the client's default mode: `initialize`, `notifications/initialized` 202, `GET` 405 (no stream), `tools/list`, `tools/call` |
-| 0.3 | 401 + protected-resource metadata | 401 with `WWW-Authenticate: Bearer resource_metadata="https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp"` and a JSON-RPC body `-32600 Unauthorized` (the authorization page says nothing of the body). With a token-only `AuthProvider` the client surfaces the 401; with an OAuth provider it fetches that URL (200: `resource`, `authorization_servers ["https://issuer.example.invalid"]`), as basic/authorization/authorization-server-discovery, *Protected Resource Metadata Discovery Requirements*, requires: "MCP clients **MUST** support both discovery mechanisms and use the resource metadata URL from the parsed `WWW-Authenticate` headers when present". It then refuses metadata whose `resource` is not the URL it connected to (seen when connected on loopback) |
-| 0.3 | wrong audience | 401 with `error="invalid_token"` in the challenge, `UnauthorizedError`. basic/authorization, *Token Handling*: "MCP servers **MUST** validate that access tokens were issued specifically for them as the intended audience"; "Invalid or expired tokens **MUST** receive an HTTP 401 response." |
-| 0.3 | `iss` | another issuer's token: 401 with `error="invalid_token"` (the page defers token validation to OAuth 2.1 §5.2 and states no `iss` MUST of its own; *Token Handling*'s "MCP servers **MUST NOT** accept or transit any other tokens" is met). RFC 9207 on the client, "MCP clients **MUST** apply the validation in RFC9207 Section 2.4 before transmitting the authorization code to any token endpoint", is **not built**: it needs an authorization response (B1) |
-| 0.3 | resource indicators (RFC 8707) | (the issuer's authorization-server metadata was authored by the probe, so this shows what *our* metadata leads the client to build, nothing about an issuer) the authorization request carries `resource=https://mcp.example.invalid/mcp`, our metadata's `resource`, as *Resource Parameter Implementation* requires ("**MUST** be included in both authorization requests and token requests"). The token request is **not built** (B1) |
-| 0.4 | conformance, by scenario and check | above and in the findings |
-| 0.5 | security-relevant | none found. The probes exercised authentication; the suite exercised Origin validation (`dns-rebinding-protection`, 2 of 2) and the header rules (`http-header-validation` 14 of 14, `http-custom-header-server-validation` 10 of 10, both unscored as *pending*). MRTR on the teaching node itself was not exercised by the client (no MRTR tool) |
+`2025-11-25` (`arguments-refused.test.ts`, tool `pick`, `name` failing its pattern):
 
-## Findings table
+- before (the era-status table on `main`: `both([400, -32602], 200)`): `200 {"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid arguments for tool pick"}}`;
+- after: `200 {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Invalid arguments for tool pick: /name fails pattern"}],"isError":true}}`.
 
-Classes: (a) a defect in ours; (b) an unimplemented primitive already planned (`-2009`); (c) the
-suite or SDK disagreeing with the specification text; (d) a ClearSeal control deliberately stricter
-than the specification. Specification text from `https://modelcontextprotocol.io/specification/2026-07-28/`.
+## -2010's findings, promoted
 
-| # | What | Where | Class | Specification sentence | Recommendation |
-|---|---|---|---|---|---|
-| D1 | `resources-list`, `resources-read-text`, `resources-read-binary`, `resources-templates-read`: *Method not found* (4 checks) | conformance | (b) | server/resources, *Capabilities*: "Servers that support resources **MUST** declare the `resources` capability" (ours does not yet) | `-2009` |
-| D2 | `prompts-list`, `prompts-get-simple`, `-with-args`, `-embedded-resource`, `-with-image` (5) | conformance | (b) | server/prompts, *Capabilities*: "Servers that support prompts **MUST** declare the `prompts` capability in their [`DiscoverResult`]" | `-2009` |
-| D3 | `caching`: `prompts/list`, `resources/list`, `resources/templates/list` have no caching hints (3; `resources/read` skipped) | conformance | (b) | server/utilities/caching, *Cacheable Results*: "Servers MUST include caching hints on results with `resultType: "complete"` returned by the following operations:" (the list names these). `tools/list` and `server/discover` carry them and pass | `-2009`, with its list TTLs |
-| D4 | `input-required-result-non-tool-request` (1): *prompts/get returns InputRequiredResult with inputRequests* | conformance | (b) | the request is `prompts/get`, which ours does not serve yet (D2) | `-2009` |
-| D5 | `sep-2164-resource-not-found`: warnings, code -32601 (with HTTP 404, as streamable-http's "If the server does not implement the requested RPC method, it **MUST** respond with `404 Not Found` and a JSON-RPC error with code `-32601`" requires today) not -32602, and no `data.uri` | conformance | (b) for the code; (c) for `data.uri` | server/resources, *Error Handling*: "If the requested resource does not exist, servers **MUST** return a JSON-RPC error with code `-32602` (Invalid Params)." No sentence makes `data.uri` MUST or SHOULD: it appears only in the example error object, while the suite calls it "a SHOULD requirement" | `-2009` returns -32602, never an empty `contents` ("Servers **MUST NOT** return an empty `contents` array for a non-existent resource"), and may include `data.uri`; the suite's SHOULD is the suite's, not the text's |
-| D6 | `completion-complete` (1): *Method not found* | conformance | (c) | server/utilities/completion, *Capabilities*: "Servers that support completions **MUST** declare the `completions` capability"; *Error Handling*: "Servers **SHOULD** return standard JSON-RPC errors for common failure cases: … Method not found: `-32601` (Capability not supported)". Ours does not declare `completions` and answers -32601: what the text prescribes. The suite requires a primitive the text makes conditional | none in ours (the roadmap keeps `completion` out until a tool needs it); report to the suite that a server without the capability is scored as failing |
-| D7 | `tools-call-with-progress` (1): *Unknown tool*: the scenario assumes a fixture tool with progress, which our fixture server deliberately lacks | conformance | (c) | basic/utilities/progress, *Behavior Requirements*: "Servers receiving a request with a progress token **MAY**: Choose not to send any progress notifications". The fixture server has no progress tool, by design (no SSE progress); the suite requires progress notifications the text makes optional | none in ours (SSE progress stays out until a tool needs it, roadmap); report to the suite |
-| D8 | `server-stateless`: 5 checks skipped (`subscriptions/listen`) | conformance | none: skipped, not failed | basic/patterns/subscriptions, *Acknowledgment*: "Notification types the server does not support are omitted." No capability key makes it mandatory | none |
-| D9 | the Tasks extension (10 scenarios, unscored for `2026-07-28`): 30 failing checks. Every one is *Unknown tool* (the scenarios' fixture tools, such as `failing_job`, are absent), `-32601` for an undeclared `tasks/*` method, *capabilities.extensions MUST be advertised*, or *not testable* after one of those; none is a behaviour mismatch in anything ours serves | conformance | **(b) widened, flagged:** WO §0.4's (b) is "already planned (`-2009`)"; Tasks is planned only conditionally, in `-0101` ("the Tasks extension if implementable from its text"). The architect rules whether (b) stretches to it or it is a fifth class, *outside the revision* | no 2026-07-28 page defines extensions (`/specification/2026-07-28/basic/extensions` is 404; Tasks lives under the unversioned `/extensions/tasks/`), so the revision carries no sentence requiring it. Ours advertises no extension, and streamable-http's "If the server does not implement the requested RPC method, it **MUST** respond with `404 Not Found` and a JSON-RPC error with code `-32601`" is what it does | the architect confirms `-0101` as the Tasks extension's home; no action from this spike |
-| D10 | arguments that fail the pinned input schema: ours answers 400 with a JSON-RPC error -32602 (the client surfaces `ProtocolError: Invalid arguments for tool notes.read`), not a result with `isError: true`. Confirmed a schema refusal: `notes.read`'s `name` has a `pattern`, and the body is `dispatch.ts`'s *Invalid arguments for tool* | probe 0.1 (refused arguments) | **contested: (d) for the refusal, possibly (a) for its wire form**, for a ruling | server/tools, *Error Handling*: protocol errors are "Unknown tool", "Malformed requests (requests that fail to satisfy [CallToolRequest schema]…)" and server errors; tool execution errors include "Input validation errors (e.g., date in wrong format, value out of range)", reported "with `isError: true`", which "contain actionable feedback that language models can use to self-correct"; "Clients **SHOULD** provide tool execution errors to language models to enable self-correction." A tool's own `inputSchema` is not the `CallToolRequest` schema, so **the text prefers `isError: true`**, though no MUST forbids a protocol error. Architecture §8 rules the control, "An extra property → rejected before the handler", but not its wire form | a ruling: keep the protocol error (a model then sees what clients only MAY pass on) or carry the same refusal, still before the handler, as an `isError: true` result. Not security-relevant: either form refuses before the handler |
-| D11 | no `scope` in the 401 challenge or the metadata (`scopes_supported: []`), and no `403 insufficient_scope`: the verdict type can carry `insufficient_scope` (`verifier.ts:18`), and `server.ts` would answer it 401, but no code path produces it | adversarial pass (code reading; no probe covers scope) | **(b) widened, flagged:** planned, not in `-2009`. Architecture *Token acceptance*: "Scopes and `403 insufficient_scope` wait for caller entitlement (P2/P6); until then the metadata says `scopes_supported: []`" | basic/authorization, *Scope Selection Strategy*: "MCP servers SHOULD include a scope parameter in the WWW-Authenticate header"; *Runtime Insufficient Scope Errors*: "the server SHOULD respond with HTTP 403 Forbidden". Both SHOULD | when scopes land (P2/P6), map `insufficient_scope` to 403 and name the scope in the challenge; until then the 401 mapping is unreachable. Not security-relevant: nothing is accepted that should be refused |
-| N1 | the v2 client defaults to `versionNegotiation.mode: 'legacy'` | client | not a disagreement with our server | (the client's own documented default; our server serves both eras) | deployment notes for ClearSeal nodes say to configure `'auto'` or `{ pin: "2026-07-28" }` |
-| B1 | RFC 8707 on the token request; RFC 9207 `iss` in authorization responses | client | not built (not a disagreement) | (needs an authorization server that issues codes; WO §4 forbids a real or hosted one) | a later probe with a local OAuth test authorization server, if the architect wants it |
-| F1 | the repository's lint covers `spikes/2010-interop/*.ts`, but CI lints after a root `npm ci` (no spike `node_modules`) and before the build (no `packages/*/dist`); heads `6c3802a` and `cc3816f` went red on it | CI | not a disagreement: this spike's own defect | none | fixed in the spike: the client is imported through a variable specifier with the slice it uses declared locally, and the node's port read without the core's built types. Checked by linting with both directories moved aside. A later spike that adds an SDK will hit the same thing |
-
-No clean (a) turned up; D10's wire form may be one, and is contested between the two adversarial
-passes (recorded, not averaged). Two rows (D9, D11) stretch WO §0.4's (b), which names only `-2009`:
-both are flagged for a ruling.
-
-## §2.1's served-revision row, re-recorded (for the architect to apply: `docs/` is out of this spike)
-
-> Official conformance suite `@modelcontextprotocol/conformance` 0.2.0-alpha.12, `--requirements
-> 2026-07-28`, run 2026-11-28 against the core's fixture server: 37 required server scenarios, 24 with
-> no failure, 13 with a failure; checks 96 pass, 15 fail, 6 skip, 2 warn. Every failure is resources,
-> prompts and their caching hints (`-2009`), or `completion` and progress, which the text makes
-> optional (CSR-WO-2010 D6, D7). The suite's own total, which counts the unscored Tasks extension and
-> *pending* scenarios too, is 140 passed / 45 failed (the figure the current row records); the 30
-> unscored failures are the Tasks extension (D9). The official v2 client, `@modelcontextprotocol/client` 2.4.0, completes
-> discover, list, call, MRTR, tool errors, mirrored headers, the legacy fallback and protected-resource
-> discovery against a teaching node, once configured for `2026-07-28` (its default is the legacy era).
-
-## -2008d's findings, promoted
-
-| -2008d finding | Durable home |
+| -2010 finding | Durable home (architecture §10, 2026-11-28 `-2010` row) |
 |---|---|
-| 1: the statelessness test cannot see an argument-only leak on CI | `-2008f` (ruled: intent) |
-| 2: the canary times the validator on the main thread | needs-none (note) |
-| 3: a validator that caches by shape would make the fixture cheap | needs-none (the canary fails as itself) |
-| 4: the heap test exercises one tool with a short argument | needs-none (note; `-2008f` may widen it) |
+| D10: schema-invalid arguments as a protocol error | this work order |
+| D5: resource-not-found code and `data.uri` | carried into `-2009` |
+| D1–D4, D6–D9, D11, N1, B1, F1 | needs-none (ruled) |
+
+## What was built
+
+1. **The wire form (§1.1).** `dispatch.ts` `refusedArguments` handles a verdict that is not `true`. It
+   writes `rpc-refused {code: -32602, method: "tools/call"}`, plus the principal through `ctx.audit`,
+   and returns `{content: [{type: "text", text}], isError: true}`, adding `resultType` and `_meta` on
+   `2026-07-28`. It returns before the cage is built, so no request state, approval or handler is
+   reached.
+2. **The text (§1.2).**
+   - Measured on z-schema 12.8.0 (pattern, enum, maximum, const and `unevaluatedProperties`
+     failures): `message` and `params` carry argument values, namely the failing string, the enum or
+     const value, the number, and the extra property's name. `path` can carry a caller-chosen key.
+   - So only `keyword` (or z-schema's fixed `code` when `keyword` is absent, as for `const`) and the
+     instance `path` are used. Each `path` segment survives only if the schema declares it under
+     `properties` on the failure's own `schemaPath`, or if it is an array index; any other segment
+     becomes `*`.
+   - Caps: 3 failures; 64 characters per segment; 200 per pointer (a longer one ends in `/…`); 40 per
+     keyword; 512 for the whole text.
+   - With the synchronous compiler (tests only), the text is `…: they do not match its input schema`.
+3. **Accounting (§1.3).** These tests assert the audit line, the rate limit and the tripwire for a
+   refused call:
+   - `arguments-refused.test.ts` §1.1: exactly
+     `[{event: "rpc-refused", fields: {code: -32602, method: "tools/call", principal: "alice"}}]` in
+     each era. `p1-exit` asserts the same line on a real teaching node.
+   - `arguments-refused.test.ts` §1.3: with a burst of 2, two refused calls spend it and the third is
+     answered 429.
+   - `tripwire.test.ts` TW-1: five refused `read_only` calls write one `tripwire-read-burst` row.
+4. **Everything else unchanged (§1.4).** Each refusal below keeps its protocol-error form. The
+   era-status table asserts each one's status and code unchanged, and only the schema row changed.
+
+   | Refusal | Specification category (tools page, *Error Handling*) |
+   |---|---|
+   | unknown tool; the pin gate's refusal | "Unknown tool" |
+   | `params.name` missing; `params.arguments` not an object; `inputResponses` malformed | "Malformed requests (requests that fail to satisfy CallToolRequest schema)" |
+   | the `x-mcp-header` mismatch | a request-structure rule over headers and body (streamable HTTP's `HeaderMismatch`), not the tool's input |
+   | the validation timeout; `validation-error`; `-1005c`'s not-ready refusal | "Server errors": the server could not validate, so there is nothing the model can correct |
+5. **Deletion rows (§1.5).** See *Stubs* below. One new row, `arguments-tool-error-form`, has a stub
+   that restores the 400 -32602 form, and it turns the new wire-form tests red.
+6. **Interop re-run (§1.6).** `probe.ts` re-run: the refused-arguments step is now `{"ok": true}`, a `CallToolResult` with
+   `isError: true` and the text above, where it was `ProtocolError`. Every other step's outcome is
+   unchanged. `conformance.ts` re-run: 140 passed, 45 failed in total; the required set is
+   96/15/6/2/1, as before; the not-passing set is identical (none newly failing, none newly
+   passing). Only `spikes/2010-interop/results/` changed in the spike.
+
+## Architect-ruled fence widening (WO §2 named `dispatch.ts` and one helper)
+
+Ruled 2026-11-28: WO §1.2 needs the failing pointer and keyword, and only the validator has them.
+
+| File | Why it changed |
+|---|---|
+| `packages/core/src/transport/dispatch.ts` | the refusal's wire form and text (in the fence) |
+| `packages/core/src/transport/schema.ts` | `compileSchemaReporting` and `SchemaFailure`: the failures read from z-schema and capped. This is the WO's "helper it needs for the text". `compileSchema` is defined on top of it and stays boolean |
+| `packages/core/src/transport/schema-worker.ts` | posts `{valid: false, failures}` for a failing value |
+| `packages/core/src/transport/schema-pool.ts` | resolves a job with that verdict |
+| `packages/core/src/transport/registry.ts` | `ValidationVerdict = boolean \| {failures}` for `validate` and `SchemaCompiler` |
+
+The ruling's conditions, and how each holds:
+- **(a) The outcome is unchanged for every input.** `compileSchema` returns `check(value) === true`,
+  and the worker posts `valid: verdict === true`. Both come from z-schema's `.valid`, as before.
+  `schema.test.ts` (rows `schema-closed`, `manifest-schema`, `edition-config-schema`) passes
+  unchanged.
+- **(b) The deadline, the timeout, the ready-worker rule and the pool size are untouched.** No line of the deadline, timer,
+  readiness or pool-size code changed (`schema-pool.ts`'s diff is the reply type and the resolve
+  value). Every `validation-*` row stays RED with its stub byte-identical:
+
+  ```
+  RED  validation-deadline | Runtime input validation against the pinned schema; output size cap | stub applied; 2/2 named test(s) red by assertion | 61114 ms
+  RED  validation-ready-slot | Runtime input validation against the pinned schema; output size cap | stub applied; 1/1 named test(s) red by assertion | 3163 ms
+  RED  validation-ready-rearm | Runtime input validation against the pinned schema; output size cap | stub applied; 1/1 named test(s) red by assertion | 3922 ms
+  RED  validation-worker-exit | Runtime input validation against the pinned schema; output size cap | stub applied; 1/1 named test(s) red by assertion | 8646 ms
+  ```
+- **(c) Only pointers and keywords cross the worker boundary.** In `arguments-refused.test.ts`, the
+  test *the worker's own reply* posts pattern, enum, extra-property and 20-deep failures straight to
+  the worker. Each reply's keys are exactly `{id, ok, valid, failures}`, and each failure's are
+  `{pointer, keyword}`. The posted JSON carries neither the injection string nor the schema's pattern
+  source or enum value.
+- **(d) The caps apply in the worker, before posting.** `failuresOf` runs in the worker, and the same
+  test sees the 20-deep pointer cut at the cap.
+
+## Stubs
+
+Every stub was proven with `git apply --check` and `node scripts/control-deletion.mjs --row <id>
+--show`. For each failing test, the `--show` reason is an assertion, not a crash.
+
+**Context-only regenerations** (architect ruling 1). The removed and added lines are byte-identical
+to the old stub (checked by `diff` of the `-`/`+` lines); only the context moved.
+
+```
+RED  mirrored-param-headers | Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header) | stub applied; 2/2 named test(s) red by assertion | 2164 ms
+RED  tripwire-counts-refused-calls | Tripwire (read burst, loud, no refusal) | stub applied; 1/1 named test(s) red by assertion | 2159 ms
+```
+
+**Control-follows-code rewrite** (architect ruling, listed apart from the context-only ones):
+`arguments-schema-refused.patch`.
+
+| | removed line | added line |
+|---|---|---|
+| old stub | `if (!valid) throw new Refusal(400, INVALID_PARAMS, \`Invalid arguments for tool ${name}\`);` | `void valid;` |
+| new stub | `if (valid !== true) return refusedArguments(era, name, valid, ctx);` | `void valid;` (byte-identical) |
+
+The stub still deletes exactly the one control: the action on the validator's verdict. The validation
+and its deadline still run, and failing arguments reach the handler.
+
+```
+RED  arguments-schema-refused | Runtime input validation against the pinned schema; output size cap | stub applied; 3/3 named test(s) red by assertion | 2487 ms
+```
+
+Its `mustFail` now names `arguments-refused.test.ts` §1.1, which goes red on the missing `isError`
+because the handler answered `picked`. TL-10 (renamed for the new form) goes red because the echo
+handler answered `hi` without `isError`. The teaching test WO §5.1 goes red because `../outside.md`
+reached the `notes.read` handler. The era-status row `ST arguments fail the input schema` moved to the
+new row: it checks only status and code, so it cannot tell a ran handler (200) from the refusal (200).
+
+**New row** `arguments-tool-error-form`. Its stub restores the 400 -32602 form, the refusal itself
+unchanged. It is in `rows.lock`.
+
+```
+RED  arguments-tool-error-form | Runtime input validation against the pinned schema; output size cap | stub applied; 3/3 named test(s) red by assertion | 3572 ms
+```
+
+`schema-closed` (the `unevaluatedProperties` row) keeps its stub byte-identical:
+
+```
+RED  schema-closed | Runtime input validation against the pinned schema; output size cap | stub applied; 2/2 named test(s) red by assertion | 2071 ms
+```
 
 ## Adversarial pass (WO §5)
 
-A fresh subagent read the findings table, fetched the 2026-07-28 completion, progress, resources,
-caching and streamable-HTTP pages itself, and challenged each class. **It challenged none.** What it
-added, and what was done:
-
-1. **Refused arguments (new: D10, class (d)).** It asked whether 2026-07-28 wants schema violations
-   as a protocol error or as `isError: true`. Fetched: the tools page lists input validation among tool
-   execution errors, while its protocol errors cover a malformed `CallToolRequest`; the text does not
-   settle a tool's own schema. Recorded as D10 for a ruling.
-2. **The suite scores against older text.** Its `specReferences` for completion and the prompts and
-   resources scenarios point at `2025-06-18`, and for caching and MRTR at `draft`: support for D6 and
-   D7 being (c). D7 reworded: the failure is a fixture tool the suite assumes.
-3. **D5.** `data.uri` is in no MUST or SHOULD in 2026-07-28 (confirmed); `-2009` must also never answer
-   an empty `contents` (added).
-4. **§0.5's scope stated.** Origin validation and the header-mismatch rules were exercised by the suite
-   and passed; MRTR on the teaching node itself was not exercised by the client.
-5. **`cacheScope`.** `server/discover` is `public` and `tools/list` `private`; *Security Considerations*
-   allows `public` only for what is not caller-specific, and discover's result carries nothing
-   caller-specific in the probe. Agrees.
-6. **Unsure, not fetched by it, then settled:** the subscriptions page (D8's quote, from the earlier fetch) and the
-   authorization page (the 401's JSON-RPC body: ours sends `-32600 Unauthorized` with the challenge
-   header). Settled after: the authorization page says nothing of the 401's body; its sentences are in
-   the §0.3 rows.
-
-**Second pass** (a fresh subagent, after D9, D10, D11's evidence and the §0.3 probe were added; it
-fetched the tools, authorization and authorization-server-discovery pages):
-
-- **The §0.3 quotes: agreed, verbatim.** The probe-authored issuer metadata and the loopback routing
-  do not breach WO §4/§7 (no real or hosted server, no credential), but limit the claim: the row now
-  says the metadata was the probe's.
-- **D10: challenged the framing.** The text prefers `isError: true`, and architecture §8 rules the
-  refusal, not its wire form. D10 is now *contested*, with both readings recorded for the ruling.
-- **D9: challenged the label.** (b) names `-2009`; Tasks is in `-0101`, conditionally. Now flagged as a
-  widening.
-- **New: D11**, scope. Verified in the code: no path produces `insufficient_scope`, and the
-  architecture already defers scopes to P2/P6.
-- **`error="invalid_token"`** on the wrong-audience and other-issuer 401s: verified in `probe.json`.
-- **Security:** nothing found where ours accepts what the text says to refuse.
+«ADV»
 
 ## Gates
 
-- `npm run check` is not affected (nothing outside the spike changed). `npm run lint` passes locally,
-  and the spike lints clean with every `packages/*/dist` and its own `node_modules` moved aside, as CI
-  runs it (F1).
-- Leak gate: `--self-test`, `--tree` and `--history` exit 0 before each push.
-- Protected surfaces, against `eab5890`: only `spikes/2010-interop/` and this file differ;
-  `packages/*/package.json` and the root lockfile diff to empty.
-- Reduction pass (diff), the four questions over `git diff eab5890..HEAD`: +11 net · 1 duplicate
-  mechanism removed (the fixture server's start-up lived inline in `conformance.ts` and as a manual
-  prerequisite of `probe.ts`; both now use `fixture.ts`: one copy, and the probe runs unattended, at 11
-  lines more) · 0 dead paths · 0 protected kept · 0 findings below.
-  `conformance.ts` also removes its raw output directory now.
+«GATES»
 
 ## Deliberately not built
 
-- A fix for any finding; resources and prompts (`-2009`); a local OAuth authorization server for B1
-  (the probe answers the issuer's metadata only, never an authorization or token endpoint).
-- The spike as a CI check (a later ruling).
+- Any other refusal's wire form; the validator's options (it still breaks on its first error, so a
+  call usually reports one failure); `-2009`.
+- Pointer segments for caller-chosen keys (`additionalProperties`, `patternProperties`): they read `*`.
