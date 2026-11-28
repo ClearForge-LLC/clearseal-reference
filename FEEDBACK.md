@@ -1,102 +1,124 @@
-# FEEDBACK: CSR-WO-2008d (the heap test catches a per-request leak; the deadline fixture has margin)
+# FEEDBACK: CSR-WO-2010 (spike: does an independent implementation of `2026-07-28` agree with ours?)
 
-Branch `wo/CSR-WO-2008d`, cut from `main` at `97c66c5` (contains `-1005c`'s merge). Built on Node
-v24.21.0 on Furnace, as `forge`; every commit's author and committer is `clearforgekey[bot]`'s noreply
+Branch `spike/CSR-WO-2010`, cut from `main` at `eab5890` (contains `-2008d`'s merge). Spike, then STOP:
+nothing outside `spikes/2010-interop/` and this file changes, and no finding is fixed here. Run on Node
+v24.21.0 on Furnace, 2026-11-28; every commit's author and committer is `clearforgekey[bot]`'s noreply
 address. Parked as one unmerged pull request.
 
 ## Read this first
 
-- **WO §7 hit, recorded as ruled: no bound separates an argument-only leak from honest growth on CI.**
+- **No security-relevant disagreement (§0.5).** Every refusal the specification or ClearSeal requires
+  happened against the v2 client: no token, a wrong-audience token and another issuer's token each
+  401; the 401 carries `WWW-Authenticate: Bearer resource_metadata="…"` (RFC 9728); arguments that fail
+  the pinned schema are refused 400 before the handler. Nothing ours accepts was refused by the
+  specification text quoted below.
+- **The v2 client agrees with our server on every probe that ran** (§0.1, §0.2, §0.3 in part), once it
+  is told to speak `2026-07-28`. **Its own default is the legacy era**: `versionNegotiation.mode`
+  defaults to `'legacy'`, so a client built with no option sends `initialize` at `2025-11-25` and
+  never probes `server/discover`. With `'auto'` it concludes `2026-07-28` from our `server/discover`;
+  with `{ pin: "2026-07-28" }` every modern probe completes. Not a disagreement with our server (finding
+  N1), but every deployment guide must say it.
+- **The conformance alpha's scored failures are all primitives this server does not serve.** For
+  `--requirements 2026-07-28`'s 37 server scenarios: **96 checks pass, 15 fail, 6 skip, 2 warn** (1
+  info); by scenario, **24 without a failure and 13 with one**. Thirteen failing checks are resources,
+  prompts and what rides on them (class (b), planned as `-2009`); two are classified (c) with the
+  specification sentence: the suite fails a server for not serving `completion`, which the text makes
+  optional, and for not sending progress, which the text makes a MAY.
+- **Two probes are blocked, never estimated:** RFC 8707 resource indicators and RFC 9207 `iss`
+  validation are client-side OAuth-flow behaviour; observing them needs an authorization server, and
+  the local test issuer serves only a key set (WO §4 and §7 forbid a real or hosted one).
 
-  | reading of the statelessness test (4,000 requests after 1,000 warm) | Furnace | CI Linux | CI Windows |
-  |---|---|---|---|
-  | honest, the test itself | −150 to −8 KiB (25 runs) | 340 KiB (once), −8 KiB | −8, −119 KiB |
-  | honest, 10-run probe in one process | — | −5,466 to +848 KiB | −5,269 to +807 KiB |
-  | each request's arguments retained | 311–330 KiB (5 runs) | — | — |
-  | arguments and dispatch context retained | 33,224–33,247 KiB | — | — |
+## How it ran
 
-  The argument-only leak (about 80 B a request) sits inside CI's honest spread, so **the bound is 4 MiB
-  (operator ruling)**: about 1 KiB a request, against the 16 KiB the old test could see. It catches a
-  retained dispatch context with about 5× headroom over CI's worst honest reading. The adversarial pass
-  measured the floor: a 1,024 B pad per request reads 4,877–4,883 KiB (red), 512 B 2,657–2,825 KiB (green).
-- **The full suite is green on Furnace, 5 of 5,** at load average 10.4–13.2. The canary read warm
-  1,962–2,046 ms (at least 6.5 × 300 ms), F2 answered 400 at 322–330 ms, and the heap test −21 to −8 KiB.
-- **The deadline tests still drive a real deadline.** `costlyArguments()` now sends 50,000 items (about
-  575 KiB, under `maxBodyBytes`); the schema, its manifest entry and `maxSchemaNodes` are unchanged.
+- `spikes/2010-interop/package.json` pins `@modelcontextprotocol/client` **2.4.0** and
+  `@modelcontextprotocol/conformance` **0.2.0-alpha.12**, exactly (both checked on the registry: 2.4.0
+  is the client's latest; alpha.12 exists, after 0.1.16 stable). It is not a workspace, so the root
+  lockfile and every `packages/*/package.json` are untouched.
+- `probe.ts`: a real teaching node through the core's `startNodeFromEnv` with the local `TestIssuer`
+  and a JSON-lines audit (the teaching test harness, imported, unchanged); the client's `fetch` is
+  wrapped so every exchange is recorded verbatim in `results/probe.json` (bearer tokens redacted). The
+  MRTR round trip runs against the core's conformance fixture server, since the teaching edition has
+  no `input_required` tool.
+- `conformance.ts`: the suite's `server --requirements 2026-07-28` against
+  `packages/core/test/conformance/fixture-server.ts` (the real transport with the fixture tools the
+  suite's scenarios call, admit-all verifier because the suite sends no `Authorization`; the same
+  target as the run §2.1 records). On the teaching node the scenarios would only measure "tool not
+  found". Summary in `results/conformance-summary.json`; run twice, identical counts.
 
-  | `costly_schema` warm validation | Furnace (under load) | CI Linux | CI Windows |
-  |---|---|---|---|
-  | 20,000 items (before) | 770–1,104 ms | 1,147–2,002 ms | 1,147–2,107 ms |
-  | 50,000 items (now) | 1,885–2,904 ms | 3,230–3,314 ms | 4,296–5,109 ms |
+## Answers to §0
 
-- **The cold path scales with it.** `validation-deadline`'s row (which runs cold validations to
-  completion under its stub) takes 64 s on Furnace (25 s before) and 89–118 s on CI (52 s before),
-  under the runner's 240 s. It pushed its shard to 311 s at 16 shards. At 18 its shard (4/18) read
-  230, 267 and 305 s across three runs, so **`CONTROL_DELETION_SHARDS` is 22 (operator rulings;
-  `.github/**` was fenced)**: see *Gates* for the run at 22.
+| § | Question | Outcome (recorded in `results/`) |
+|---|---|---|
+| 0.1 | `server/discover` | 200: `supportedVersions ["2026-07-28","2025-11-25"]`, `capabilities {tools}`, `ttlMs 60000`, `cacheScope`; `mode: "auto"` negotiates `2026-07-28` from it |
+| 0.1 | `tools/list`, TTL and `cacheScope` | 200 with `ttlMs 60000`, `cacheScope "private"`; the client's second `listTools()` made **no** request (served from its cache) |
+| 0.1 | `tools/call`, `read_only` | 200, `notes.read` returns the note |
+| 0.1 | MRTR `input_required` round trip | fixture server: `server/discover`, `tools/call` → `input_required`, the client fulfils the elicitation and retries, → `Hello, spike!` (3 exchanges) |
+| 0.1 | a tool error | 200 with `isError: true` (*There is no note named missing.md.*); arguments failing the schema: 400 -32602, surfaced as `ProtocolError` |
+| 0.1 | `Mcp-Method`, `Mcp-Name` | the client sends `mcp-method: tools/call` and `mcp-name: notes.read` with `mcp-protocol-version: 2026-07-28`, matching the body and `_meta` |
+| 0.2 | the `2025-11-25` fallback | completes in the client's default mode: `initialize`, `notifications/initialized` 202, `GET` 405 (no stream), `tools/list`, `tools/call` |
+| 0.3 | 401 + protected-resource metadata | 401 with `WWW-Authenticate: Bearer resource_metadata="https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp"`; with a token-only `AuthProvider` the client surfaces the 401 and does not fetch the metadata |
+| 0.3 | wrong audience | 401, `UnauthorizedError` |
+| 0.3 | `iss` | another issuer's token: 401. RFC 9207 (the client validating `iss` in an authorization response) **blocked**: needs an OAuth flow |
+| 0.3 | resource indicators (RFC 8707) | **blocked**: the client sends `resource` only in an OAuth authorization/token request, which needs an authorization server |
+| 0.4 | conformance, by scenario and check | above and in the findings |
+| 0.5 | security-relevant | none |
 
-## How the heap test now measures (§1.1)
+## Findings table
 
-- 1,000 warm-up requests, then 4,000 measured in two halves; the test helper's own audit lines are
-  cleared at each half, since they are the test's retention, not the transport's; three collection
-  passes before, between and after.
-- Measured, not guessed: one pass over all 4,000 spread −135 to +108 KiB on Furnace; with the
-  collection between the halves, −150 to −23 KiB, always below the leak. Total growth, not the second
-  half alone: the two halves are anticorrelated (one rises when the other falls).
-- The red-proofs, planted by hand at `dispatch.ts`'s `const args = …` and reverted: arguments plus
-  context red by assertion on Furnace; arguments alone 311–330 KiB, green under the ruled bound.
-- To get CI's distribution, one push carried a temporary probe that ran the measurement 10 times per
-  runner (allowlisted, then removed before the pull request was parked).
+Classes: (a) a defect in ours; (b) an unimplemented primitive already planned (`-2009`); (c) the
+suite or SDK disagreeing with the specification text; (d) a ClearSeal control deliberately stricter
+than the specification. Specification text from `https://modelcontextprotocol.io/specification/2026-07-28/`.
 
-## -1005c's findings, promoted
+| # | What | Where | Class | Specification sentence | Recommendation |
+|---|---|---|---|---|---|
+| D1 | `resources-list`, `resources-read-text`, `resources-read-binary`, `resources-templates-read`: *Method not found* (4 checks) | conformance | (b) | server/resources, *Capabilities*: "Servers that support resources **MUST** declare the `resources` capability" (ours does not yet) | `-2009` |
+| D2 | `prompts-list`, `prompts-get-simple`, `-with-args`, `-embedded-resource`, `-with-image` (5) | conformance | (b) | server/prompts, *Capabilities*: "Servers that support prompts **MUST** declare the `prompts` capability in their [`DiscoverResult`]" | `-2009` |
+| D3 | `caching`: `prompts/list`, `resources/list`, `resources/templates/list` have no caching hints (3; `resources/read` skipped) | conformance | (b) | server/utilities/caching, *Cacheable Results*: "Servers MUST include caching hints on results with `resultType: "complete"` returned by the following operations:" (the list names these). `tools/list` and `server/discover` carry them and pass | `-2009`, with its list TTLs |
+| D4 | `input-required-result-non-tool-request` (1): *prompts/get returns InputRequiredResult with inputRequests* | conformance | (b) | the request is `prompts/get`, which ours does not serve yet (D2) | `-2009` |
+| D5 | `sep-2164-resource-not-found`: warnings, code -32601 not -32602, and no `data.uri` | conformance | (b) for the code; (c) for `data.uri` | server/resources, *Error Handling*: "If the requested resource does not exist, servers **MUST** return a JSON-RPC error with code `-32602` (Invalid Params)." No sentence makes `data.uri` MUST or SHOULD: it appears only in the example error object, while the suite calls it "a SHOULD requirement" | `-2009` returns -32602 and may include `data.uri`; the suite's SHOULD is the suite's, not the text's |
+| D6 | `completion-complete` (1): *Method not found* | conformance | (c) | server/utilities/completion, *Capabilities*: "Servers that support completions **MUST** declare the `completions` capability"; *Error Handling*: "Servers **SHOULD** return standard JSON-RPC errors for common failure cases: … Method not found: `-32601` (Capability not supported)". Ours does not declare `completions` and answers -32601: what the text prescribes. The suite requires a primitive the text makes conditional | none in ours (the roadmap keeps `completion` out until a tool needs it); report to the suite that a server without the capability is scored as failing |
+| D7 | `tools-call-with-progress` (1): *Unknown tool* | conformance | (c) | basic/utilities/progress, *Behavior Requirements*: "Servers receiving a request with a progress token **MAY**: Choose not to send any progress notifications". The fixture server has no progress tool, by design (no SSE progress); the suite requires progress notifications the text makes optional | none in ours (SSE progress stays out until a tool needs it, roadmap); report to the suite |
+| D8 | `server-stateless`: 5 checks skipped (`subscriptions/listen`) | conformance | none: skipped, not failed | basic/patterns/subscriptions, *Acknowledgment*: "Notification types the server does not support are omitted." No capability key makes it mandatory | none |
+| D9 | the Tasks extension (10 scenarios, unscored for `2026-07-28`): 30 failing checks | conformance | not scored: an extension `2026-07-28` does not require | the suite itself lists them as *extension*, not scored | the roadmap's `-0101` line keeps the Tasks extension conditional; no action from this spike |
+| N1 | the v2 client defaults to `versionNegotiation.mode: 'legacy'` | client | not a disagreement with our server | (the client's own documented default; our server serves both eras) | deployment notes for ClearSeal nodes say to configure `'auto'` or `{ pin: "2026-07-28" }` |
+| B1 | RFC 8707 resource indicators, RFC 9207 `iss` in authorization responses | client | blocked | (needs an authorization server) | a later probe with a local OAuth test authorization server, if the architect wants it; it is not this spike's (WO §4) |
 
-| -1005c finding | Durable home |
+There is no (a) and no (d): no defect in ours turned up, and no ClearSeal control refused something
+the client or the suite needed.
+
+## §2.1's served-revision row, re-recorded (for the architect to apply: `docs/` is out of this spike)
+
+> Official conformance suite `@modelcontextprotocol/conformance` 0.2.0-alpha.12, `--requirements
+> 2026-07-28`, run 2026-11-28 against the core's fixture server: 37 required server scenarios, 24 with
+> no failure, 13 with a failure; checks 96 pass, 15 fail, 6 skip, 2 warn. Every failure is resources,
+> prompts and their caching hints (`-2009`), or `completion` and progress, which the text makes
+> optional (CSR-WO-2010 D6, D7). The official v2 client, `@modelcontextprotocol/client` 2.4.0, completes
+> discover, list, call, MRTR, tool errors, mirrored headers and the legacy fallback against a teaching
+> node, once configured for `2026-07-28` (its default is the legacy era).
+
+## -2008d's findings, promoted
+
+| -2008d finding | Durable home |
 |---|---|
-| 1: a fresh server's first call waits for priming | needs-none (F2 makes one answered call first) |
-| 2: two pool test seams | needs-none |
-| 3: six stubs regenerated | needs-none (merged) |
-| 4: the 100 ms sweep floor | needs-none |
-| 5: era-status keeps its `deadline` server | needs-none |
-
-## Findings
-
-Schema: *finding · where · type · recommendation · decision-needed*.
-
-1. **The statelessness test cannot see an argument-only leak on CI** (*Read this first*). · test
-   strength · A measurement with less CI noise (a heap snapshot's object count, or many more requests)
-   would; it is a new design, not a bound. · *decision-needed: yes*
-2. **The canary times the validator on the main thread; the deadline tests time it in a worker**
-   (adversarial pass). A worker-only slowdown or speedup would not show in the canary. · note ·
-   *decision-needed: no*
-3. **A validator that caches by an item's shape would make the fixture cheap**, since `required` never
-   reads `k`'s value (adversarial pass). The canary would then fail as itself, naming the cause
-   (*the deadline tests can no longer drive the deadline*), not leave F2 to fail with a 200. · note ·
-   *decision-needed: no*
-4. **The heap test exercises one tool with a short argument** (adversarial pass); a leak only on large
-   arguments or on an error path is not exercised. · note · *decision-needed: no*
+| 1: the statelessness test cannot see an argument-only leak on CI | `-2008f` (ruled: intent) |
+| 2: the canary times the validator on the main thread | needs-none (note) |
+| 3: a validator that caches by shape would make the fixture cheap | needs-none (the canary fails as itself) |
+| 4: the heap test exercises one tool with a short argument | needs-none (note; `-2008f` may widen it) |
 
 ## Adversarial pass (WO §5)
 
-A fresh subagent at `4ffbaab`: the leak floor (finding 1's numbers: 1,024 B red, 512 B green; a
-`"x".repeat(K)` pad is a rope and barely registers, so it used real heap arrays), and the fixture
-(findings 2–4). It also reported that `costlyArguments()` builds 20,000 items; at `4ffbaab` it builds
-50,000 (checked), so that point is set aside.
+«ADV»
 
 ## Gates
 
-- `npm run check` on Furnace: green 5 of 5 (detector 21 of 21; core and teaching 951 of 951); spikes 69
-  and 8, `test:subset` 4.
-- Dependants re-proven with the new input: `validation-deadline` RED 2/2 (64 s), `validation-ready-slot`
-  RED; F2 green (322–376 ms); era-status's and corrections' deadline tests green.
-- CI at 18 shards: every job green on `4ffbaab` and `e6e5c21`, but validation-deadline's shard read
-  230–305 s. At 22: every job green on `3bf0f8b` (runs 46117542085 and 46117545826, push and pull request); shard jobs 90–205 s and 91–250 s.
+- `npm run check` is not affected (nothing outside the spike changed); the spike lints clean under the
+  root ESLint.
 - Leak gate: `--self-test`, `--tree` and `--history` exit 0 before each push.
-- Reduction pass (diff): nothing to remove (the temporary probe is gone; the triple collection is
-  measured, not ornament).
-- Protected surfaces, against `97c66c5`: `packages/*/src/**`, the steering documents, `scripts/**` and
-  every stub diff to empty; `.github/**` is the shard number and its comment (ruled).
+- Protected surfaces, against `eab5890`: only `spikes/2010-interop/` and this file differ;
+  `packages/*/package.json` and the root lockfile diff to empty.
+- Reduction pass (diff): nothing to remove.
 
 ## Deliberately not built
 
-- A heap measurement other than heap size (finding 1).
-- Any change to the validator, the deadline, the pool or `maxSchemaNodes`.
+- A fix for any finding; resources and prompts (`-2009`); a local OAuth authorization server for B1.
+- The spike as a CI check (a later ruling).
