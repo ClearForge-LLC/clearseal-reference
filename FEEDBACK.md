@@ -59,10 +59,14 @@ Schema: *finding · where · type · recommendation · decision-needed*.
 2. **Two test seams in the pool.** · `ValidationPoolOptions` · `readyTimeoutMs` and `workerUrl`,
    defaulting to today's values, let the tests plant a worker that never answers, answers once, or
    exits. · *decision-needed: no*
-3. **Three existing stubs regenerated.** · `validation-deadline` (its timer lines moved; it deletes the
+3. **Six existing stubs regenerated.** · `validation-deadline` (its timer lines moved; it deletes the
    same three lines and is RED 2/2), `request-timeout` and `approval-listener-request-timeout` (their
-   option line gained the sweep; each still deletes only `requestTimeout`, as §1.5 requires). ·
-   *decision-needed: no*
+   option line gained the sweep; each still deletes only `requestTimeout`, as §1.5 requires). And,
+   caught by the first CI run (shards 2, 6 and 10 red, *no longer applies*), three whose context the
+   ruled one-line audit edits moved: `startnode-reads-the-snapshot`, `audit-errname`,
+   `audit-sink-digest`. Each deletes exactly the same lines as before (shown by diffing their `-`/`+`
+   lines) and is RED. I had re-run only the pool and timeout rows locally; every one of the 316 stubs
+   is now checked to apply with `git apply --check`. · *decision-needed: no*
 4. **A setting under 100 ms sweeps every 100 ms.** · `server.ts` · Every limit must be a positive
    integer, so 0 cannot reach it; the floor keeps a tiny setting from a 1 ms tick. · *decision-needed:
    no*
@@ -115,7 +119,9 @@ schema). What it found, and what was done:
 - `npm run check` on Node v24.21.0, on Furnace: lint, typecheck and build green; the detector 21 of 21;
   core and teaching 950 of 951, the one failure being the canary (`warm=803ms`, `-2008d`'s); later
   stages by hand: spike 0102 69, spike 0101 8, `test:subset` 4. `control-deletion --self-test` passes.
-- CI: see the pull request's runs; every shard is expected under five minutes (316 rows, 16 shards).
+- CI: the first run on `3ee3ef4` failed shards 2, 6 and 10 on the three stubs in finding 3, with every
+  other job green and every shard under five minutes (114–245 s). The pull request's later runs are
+  the evidence.
 - Leak gate: `--self-test`, `--tree` and `--history` exit 0 before each push.
 - Reduction pass (diff): −1 export (`READY_TIMEOUT_MS` is module-private) · 0 duplicates · 0 dead
   paths · 0 protected kept · 0 findings.
