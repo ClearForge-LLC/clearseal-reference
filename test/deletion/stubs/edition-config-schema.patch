@@ -1,0 +1,12 @@
+--- a/packages/core/src/node/start.ts
++++ b/packages/core/src/node/start.ts
+@@ -172,7 +172,8 @@ export function readEditionConfig(schema: Readonly<Record<string, unknown>>, env
+   const vars: Record<string, string> = {};
+   for (const [k, v] of Object.entries(env)) if (k.startsWith(prefix) && v !== undefined && v !== "") vars[k] = v;
+   const validate = compileSchema(schema);
+-  if (!validate(vars)) throw new NodeStartError(`the configuration does not match its schema: ${Object.keys(vars).sort().join(", ") || "(none set)"}`);
++  void validate;
++  void vars;
+   /** The variable's value, else its schema's string default. */
+   const value = (role: Setting): string | undefined => {
+     const name = roles.get(role);

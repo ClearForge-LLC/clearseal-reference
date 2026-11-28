@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "path": "packages/core/test/containment/adversary-windows.test.ts",
+    "reason": "Windows-only: on the Linux deletion runners its one test asserts the platform and returns, so a stub could never turn it red here"
+  },
+  {
+    "path": "packages/core/test/containment/windows-links.test.ts",
+    "reason": "a measurement of links, junctions, drive letters and case on the platform it runs on; it asserts no control"
+  },
+  {
+    "path": "packages/core/test/index.test.ts",
+    "reason": "checks the package's exported name constant; there is no control in it"
+  },
+  {
+    "path": "packages/core/test/pinning/properties.test.ts",
+    "reason": "the property tests against the Python oracle; architecture §8 exempts them as tests, not a control (test/deletion/exempt.json)"
+  },
+  {
+    "path": "packages/core/test/sdk-client/sdk-client.test.ts",
+    "reason": "interop: what the official SDK client receives from the legacy era; it measures the client, and no row's stub turns it red"
+  },
+  {
+    "path": "packages/core/test/transport/costly-schema.test.ts",
+    "reason": "a measurement of the costly_schema fixture's margin (CSR-WO-0002b), which keeps the validation-deadline row honest; it is no control's proof"
+  }
+]

@@ -40,7 +40,9 @@
       "stub": "stubs/drift-refused.patch",
       "tests": [
         "packages/core/test/pinning/gate.test.ts",
-        "packages/core/test/pinning/startup.test.ts"
+        "packages/core/test/pinning/startup.test.ts",
+        "packages/teaching/test/manifest.test.ts",
+        "packages/core/test/pinning/cli.test.ts"
       ],
       "mustFail": [
         "an edited description drifts the tool: refused, the rest admitted",
@@ -363,7 +365,8 @@
         "packages/core/src/pinning/canonical.ts"
       ],
       "tests": [
-        "packages/core/test/pinning/vectors.test.ts"
+        "packages/core/test/pinning/vectors.test.ts",
+        "packages/core/test/pinning/boundaries.test.ts"
       ],
       "mustFail": [
         "A1-1 (A1, json): canonical",
@@ -442,7 +445,8 @@
         "packages/core/src/containment/cage.ts"
       ],
       "tests": [
-        "packages/core/test/containment/reach.test.ts"
+        "packages/core/test/containment/reach.test.ts",
+        "packages/core/test/containment/adversarial.test.ts"
       ],
       "mustFail": [
         "WO §5.2: a path that climbs out with .. is refused",
@@ -507,7 +511,8 @@
         "packages/core/src/containment/harness.ts"
       ],
       "tests": [
-        "packages/core/test/containment/reach.test.ts"
+        "packages/core/test/containment/reach.test.ts",
+        "packages/core/test/containment/adversarial.test.ts"
       ],
       "mustFail": [
         "three pass with their reaches listed; the misbehaving one fails, naming the tool and the sink"
@@ -4474,6 +4479,100 @@
       ],
       "checks": [
         "G4"
+      ]
+    },
+    {
+      "id": "manifest-schema",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: a manifest that does not match manifest.schema.json is refused at load (the stub skips the schema check)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-schema.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "an extra build slot, a non-null hash-shaped mistake, or a bad generated_at is refused"
+      ]
+    },
+    {
+      "id": "manifest-generated-at",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: a manifest whose generated_at is not an RFC 3339 date-time is refused at load (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-generated-at.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "an extra build slot, a non-null hash-shaped mistake, or a bad generated_at is refused"
+      ]
+    },
+    {
+      "id": "manifest-tools-sorted",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: a manifest whose tools are out of UTF-16 order, or name one tool twice, is refused at load (A9; the stub deletes the check)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-tools-sorted.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "tools out of order, or a name twice, is refused (A9)"
+      ]
+    },
+    {
+      "id": "manifest-hash-recomputes",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: a manifest whose manifest_hash does not recompute over its tools is refused at load (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-hash-recomputes.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "a hand-edited tool_hash: manifest_hash no longer recomputes, and the load is refused"
+      ]
+    },
+    {
+      "id": "edition-config-schema",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: startNode refuses to start when the edition's variables do not match its configuration schema (N4; the stub skips the check)",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/edition-config-schema.patch",
+      "tests": [
+        "packages/teaching/test/config.test.ts"
+      ],
+      "mustFail": [
+        "refuses start: no resource URL",
+        "refuses start: a port that is not a number",
+        "refuses start: an unknown TEACHING_ variable",
+        "refuses start: a notes root from the environment: the root is pinned, not configured",
+        "refuses start: a manifest from the environment: the node reads the committed file"
+      ]
+    },
+    {
+      "id": "pin-approve-needs-yes",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: npm run pin -- approve writes the manifest only with --yes (the stub writes it without)",
+      "touches": [
+        "packages/core/src/pinning/cli.ts"
+      ],
+      "stub": "stubs/pin-approve-needs-yes.patch",
+      "tests": [
+        "packages/core/test/pinning/cli.test.ts"
+      ],
+      "mustFail": [
+        "the whole path: approve refused without --yes; approve --yes; diff clean; edit → drift; verify"
       ]
     }
   ]

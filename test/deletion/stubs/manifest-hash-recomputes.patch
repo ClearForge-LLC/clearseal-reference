@@ -1,0 +1,10 @@
+--- a/packages/core/src/pinning/manifest.ts
++++ b/packages/core/src/pinning/manifest.ts
+@@ -128,7 +128,6 @@ export function parseManifest(text: string): Manifest {
+     if (order === 0) throw new ManifestError(`the tool ${manifest.tools[i]?.name ?? ""} appears twice`);
+     if (order > 0) throw new ManifestError("tools are not sorted by name in UTF-16 code units (A9)");
+   }
+-  if (manifestHashOf(manifest.tools) !== manifest.manifest_hash) throw new ManifestError("manifest_hash does not recompute: an entry was edited");
+   return manifest;
+ }
+ 
