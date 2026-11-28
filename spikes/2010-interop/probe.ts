@@ -84,7 +84,9 @@ const root = notesRoot();
 writeFileSync(`${root}/today.md`, "a note for the interop spike\n");
 const manifest = pin(definitionsFor(root), root);
 const node = await startNode(issuer, root, manifest);
-const url = new URL(`http://127.0.0.1:${String(node.t.port)}/mcp`);
+// The core's types come from its build, which CI's lint runs before: read the port as the probe uses it.
+const { port } = node.t as unknown as { port: number };
+const url = new URL(`http://127.0.0.1:${String(port)}/mcp`);
 
 type Mode = "legacy" | "auto" | { pin: string };
 const MODERN: Mode = { pin: "2026-07-28" };
