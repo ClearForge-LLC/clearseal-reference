@@ -4,7 +4,7 @@
      ctx.audit("validation-error", { tool: name });
      throw audited(new Refusal(500, INTERNAL_ERROR, "Internal error"));
    }
--  if (!valid) throw new Refusal(400, INVALID_PARAMS, `Invalid arguments for tool ${name}`);
+-  if (valid !== true) return refusedArguments(era, name, valid, ctx);
 +  void valid;
    const binding = { principal: ctx.principal.id, method: "tools/call", tool: name, args: argumentsDigest(args) };
  

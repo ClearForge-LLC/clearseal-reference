@@ -248,6 +248,7 @@ method-post-only
 health-get-only
 x-mcp-header-annotation-refused
 arguments-schema-refused
+arguments-tool-error-form
 json-duplicate-key
 json-depth
 json-lone-surrogate

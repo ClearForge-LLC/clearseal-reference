@@ -56,8 +56,10 @@ void describe("notes.read through a teaching node", () => {
     for (const name of ["../outside.md", `${root}/../outside.md`, "/etc/passwd", "a\u0000.md", "..\\outside.md", `${"a".repeat(65)}.md`, "today", ".hidden.md", "TODAY.md", 5]) {
       const r = await read(name);
       rows.push(`${JSON.stringify(name).slice(0, 40)} → ${String(r.status)}`);
-      assert.equal(r.status, 400, JSON.stringify(name));
-      assert.match(r.text, /Invalid arguments for tool notes\.read/);
+      // CSR-WO-2011: a tool execution error (200, isError: true), never the handler's answer.
+      assert.equal(r.status, 200, JSON.stringify(name));
+      assert.match(r.text, /"isError":true/, JSON.stringify(name));
+      assert.match(r.text, /Invalid arguments for tool notes\.read: /);
       assert.ok(!r.text.includes("SECRET"));
     }
     console.log(`WINDOWS-MEASURE platform=${process.platform} refused names: ${rows.join("; ")}`);

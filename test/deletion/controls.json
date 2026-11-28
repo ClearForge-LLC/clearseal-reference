@@ -3860,20 +3860,38 @@
     {
       "id": "arguments-schema-refused",
       "section8": "Runtime input validation against the pinned schema; output size cap",
-      "control": "CSR-WO-2008c §1.2: arguments the pinned input schema rejects are refused 400 -32602 before the handler (the stub ignores the validator's verdict; the validation and its deadline still run)",
+      "control": "CSR-WO-2008c §1.2, CSR-WO-2011: arguments the pinned input schema rejects are refused before the handler, as a tool execution error (the stub ignores the validator's verdict, so the handler runs; the validation and its deadline still run)",
       "touches": [
         "packages/core/src/transport/dispatch.ts"
       ],
       "stub": "stubs/arguments-schema-refused.patch",
       "tests": [
+        "packages/core/test/transport/arguments-refused.test.ts",
         "packages/core/test/transport/refusals.test.ts",
-        "packages/core/test/transport/era-status.test.ts",
         "packages/teaching/test/notes.test.ts"
       ],
       "mustFail": [
-        "TL-10 D-7 extra request property against a tool schema → 400 -32602",
-        "ST arguments fail the input schema",
+        "§1.1 both eras: 200, isError true, resultType only on 2026-07-28; no handler, no cage; the one audit line",
+        "TL-10 D-7 extra request property against a tool schema → refused as a tool execution error (CSR-WO-2011)",
         "WO §5.1: names that climb, are absolute, carry a NUL or a backslash, or are very long are refused by the pinned schema"
+      ]
+    },
+    {
+      "id": "arguments-tool-error-form",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "CSR-WO-2011 §1.1: the refusal is a tool execution error (200, isError: true) in both eras, not a protocol error (the stub restores the 400 -32602 form; the refusal itself still happens)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/arguments-tool-error-form.patch",
+      "tests": [
+        "packages/core/test/transport/arguments-refused.test.ts",
+        "packages/core/test/transport/era-status.test.ts"
+      ],
+      "mustFail": [
+        "§1.1 both eras: 200, isError true, resultType only on 2026-07-28; no handler, no cage; the one audit line",
+        "§1.2 no argument value reaches the response: pattern, enum, maximum, an extra property's name, a long value",
+        "ST arguments fail the input schema"
       ]
     },
     {

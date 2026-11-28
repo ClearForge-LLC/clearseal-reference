@@ -201,7 +201,8 @@ void describe("P1 exit gate: against a real teaching node", () => {
         const origin = await mcp(t, "tools/call", { name: "notes.read", arguments: { name: "today.md" } }, { name: "notes.read", token: token(), headers: { origin: "https://evil.example.invalid" } });
         const extra = await mcp(t, "tools/call", { name: "notes.read", arguments: { name: "today.md", path: "/etc/passwd" } }, { name: "notes.read", token: token() });
         assert.equal(origin.status, 403, label);
-        assert.equal(extra.status, 400, label);
+        assert.equal(extra.status, 200, label);
+        assert.match(extra.text, /"isError":true/, `${label}: a tool execution error (CSR-WO-2011)`);
         if (t === live().t) {
           // Each refusal also writes its audit line (CSR-WO-1007 §1.4).
           const lines = live().lines;
