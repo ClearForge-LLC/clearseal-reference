@@ -44,6 +44,12 @@ void describe("parseJsonStrict", () => {
     assert.equal(kind('"\\ud800\\u0041"'), "lone-surrogate");
   });
 
+  void it("refuses a raw lone surrogate code unit, as a caller may hand in any string (CSR-WO-2008c)", () => {
+    assert.equal(kind(`"${String.fromCharCode(0xd800)}"`), "lone-surrogate");
+    assert.equal(kind(`"${String.fromCharCode(0xdc00)}x"`), "lone-surrogate");
+    assert.equal(kind(`"${String.fromCharCode(0xd83d, 0xde00)}"`), "accepted", "a raw pair is a character");
+  });
+
   void it("depth: exactly the cap accepted, one more refused", () => {
     assert.equal(kind("[".repeat(64) + "]".repeat(64)), "accepted");
     assert.equal(kind("[".repeat(65) + "]".repeat(65)), "depth");

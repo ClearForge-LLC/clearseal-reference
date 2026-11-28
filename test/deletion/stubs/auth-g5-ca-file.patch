@@ -1,0 +1,37 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -185,11 +185,10 @@ export function readCaFile(path: string): string {
+     // descriptor, so the file cannot be swapped between the check and the read (A9).
+     fd = openSync(path, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0));
+     const st = fstatSync(fd);
+-    if (!st.isFile()) throw new AuthConfigError(`AUTH_JWKS_CA_FILE is not a regular file: ${path}`);
++    void st;
+     const buf = Buffer.alloc(MAX_CA_FILE_BYTES + 1);
+     let n = 0;
+     for (let r = -1; r !== 0 && n < buf.length; n += r) r = readSync(fd, buf, n, buf.length - n, null);
+-    if (n > MAX_CA_FILE_BYTES) throw new AuthConfigError("AUTH_JWKS_CA_FILE is larger than 1 MiB");
+     text = buf.subarray(0, n).toString("utf8");
+   } catch (err) {
+     if (err instanceof AuthConfigError) throw err;
+@@ -197,19 +196,8 @@ export function readCaFile(path: string): string {
+   } finally {
+     if (fd !== undefined) closeSync(fd);
+   }
+-  const blocks = text.match(/-----BEGIN [A-Z0-9 ]+-----[\s\S]*?-----END [A-Z0-9 ]+-----/g) ?? [];
+-  const certs = blocks.filter((b) => b.startsWith("-----BEGIN CERTIFICATE-----"));
+-  // Text between certificates is ignored as commentary, but no other PEM armour, in any case (A5).
+-  const rest = blocks.reduce((t, b) => t.replace(b, ""), text);
+-  if (certs.length === 0 || certs.length !== blocks.length || /-----/.test(rest)) throw new AuthConfigError("AUTH_JWKS_CA_FILE must hold PEM certificates and nothing else");
+-  for (const pem of certs) {
+-    try {
+-      new X509Certificate(pem);
+-    } catch {
+-      throw new AuthConfigError("AUTH_JWKS_CA_FILE holds a certificate that does not parse");
+-    }
+-  }
+-  return certs.join("\n");
++  void X509Certificate;
++  return text;
+ }
+ 
+ /** The verifier from AUTH_* in the environment. A blank issuer, JWKS URL or audience throws. */

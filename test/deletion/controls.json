@@ -3934,7 +3934,8 @@
       ],
       "mustFail": [
         "refuses lone surrogate escapes, high and low",
-        "400 a lone surrogate"
+        "400 a lone surrogate",
+        "refuses a raw lone surrogate code unit, as a caller may hand in any string (CSR-WO-2008c)"
       ]
     },
     {
@@ -4544,7 +4545,7 @@
     {
       "id": "edition-config-schema",
       "section8": "Verify-before-register; drift and unpinned refused",
-      "control": "CSR-WO-2008c §1.4: startNode refuses to start when the edition's variables do not match its configuration schema (N4; the stub skips the check)",
+      "control": "CSR-WO-2008c §1.4: startNode refuses to start when the edition's variables do not match its configuration schema (N4; the stub skips the check) Two cases stay refused under the stub by later checks (the resource URL, the port range) and are not named",
       "touches": [
         "packages/core/src/node/start.ts"
       ],
@@ -4553,8 +4554,6 @@
         "packages/teaching/test/config.test.ts"
       ],
       "mustFail": [
-        "refuses start: no resource URL",
-        "refuses start: a port that is not a number",
         "refuses start: an unknown TEACHING_ variable",
         "refuses start: a notes root from the environment: the root is pinned, not configured",
         "refuses start: a manifest from the environment: the node reads the committed file"
@@ -4573,6 +4572,145 @@
       ],
       "mustFail": [
         "the whole path: approve refused without --yes; approve --yes; diff clean; edit → drift; verify"
+      ]
+    },
+    {
+      "id": "auth-g1-algs",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G1 (its AUTH_ALGS clause): AUTH_ALGS naming an algorithm this verifier does not implement refuses start, which keeps none and HS* off the allow-list H6 relies on (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g1-algs.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "AUTH_ALGS naming an algorithm this verifier does not implement refuses start (HS256, none, PS256)"
+      ]
+    },
+    {
+      "id": "auth-g1-skew",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G1 (its skew clause): AUTH_CLOCK_SKEW_S outside 0 to 300, or not a number, refuses start (the stub deletes the bound)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g1-skew.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "a skew or TTL that is not a sane number refuses start"
+      ]
+    },
+    {
+      "id": "auth-g1-lifetime",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G1 (its lifetime clause): AUTH_MAX_TOKEN_LIFETIME_S outside 60 to 604800 refuses start (the stub deletes the bound)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g1-lifetime.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "AUTH_MAX_TOKEN_LIFETIME_S is bounded 60 to 604800 and moves the edge"
+      ]
+    },
+    {
+      "id": "auth-j2-ttl-bounds",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, J2 (its TTL bound): AUTH_JWKS_TTL_S outside 30 s to 86,400 s, or not a number, refuses start (the stub deletes the bound)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j2-ttl-bounds.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "a skew or TTL that is not a sane number refuses start"
+      ]
+    },
+    {
+      "id": "auth-j3-shared-fetch",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, J3 (its sharing clause): concurrent lookups on a cold cache share one fetch (the stub starts a fetch per lookup)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j3-shared-fetch.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "J3 a burst of verifications on a cold cache shares one fetch (adversarial A9)"
+      ]
+    },
+    {
+      "id": "auth-g5-ca-file",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G5 (its CA-file clause): AUTH_JWKS_CA_FILE must be a regular file of at most 1 MiB holding PEM certificates and nothing else (the stub reads whatever is there)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g5-ca-file.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "WO §5.6: missing, a directory, empty, a private key, a certificate with a key, a malformed certificate, or /dev/zero: start is refused",
+        "A5: other PEM armour in any case is refused; commentary between certificates is not",
+        "A9: a FIFO is refused at once, without blocking the start"
+      ]
+    },
+    {
+      "id": "auth-g5-audience-differs",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G5 (its audience clause): an AUTH_AUDIENCE that differs from the resource URL writes one auth-audience-differs line at start (the stub deletes the line)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-g5-audience-differs.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "one auth-audience-differs line naming both; none when they match; the node starts either way"
+      ]
+    },
+    {
+      "id": "auth-g5-log-escaping",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G5 (its sink clause): the default audit sink escapes DEL, the C1 controls, U+2028, U+2029 and every format character (the stub escapes nothing beyond JSON)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-g5-log-escaping.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "user-\\u202Enimda and a U+2028 in sub each land on one line, escaped; every listed character and lone surrogates too",
+        "through the transport: the default sink writes the escaped line, while a custom sink receives the principal unchanged",
+        "A2: DEL, the C1 controls and every format character are escaped too, astral ones as surrogate pairs"
+      ]
+    },
+    {
+      "id": "auth-g5-decimal",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G5 (its decimal clause): the numeric AUTH_* settings are plain decimal digits, so 0x3c, 6e1 and 60.5 refuse start (the stub accepts anything Number() reads)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g5-decimal.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "A6: the numeric settings are plain decimal digits"
       ]
     }
   ]

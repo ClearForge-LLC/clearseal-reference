@@ -1,0 +1,10 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -314,7 +314,6 @@ export async function startTransport(options: TransportOptions): Promise<Running
+   }
+   const issuers: readonly string[] = verifier instanceof JwtVerifier ? [verifier.issuer] : config.authorizationServers;
+   // A legitimate configuration (an audience identifier rather than a URL), but said at start.
+-  if (verifier instanceof JwtVerifier && verifier.audience !== config.resourceUrl) audit("auth-audience-differs", { audience: verifier.audience, resource: config.resourceUrl });
+   let inFlight = 0;
+   // Filled once the port is known (port 0 binds an ephemeral one).
+   let allowedHosts: string[] = [];

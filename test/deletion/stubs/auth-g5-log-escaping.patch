@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -128,7 +128,7 @@ const REASONS = new WeakMap<Refusal, string>();
+  *  format character (\p{Cf}: the bidirectional embeddings, overrides, isolates and marks, the
+  *  zero-width characters, the BOM). The WO's set is U+0085, U+2028, U+2029, U+202A–U+202E and
+  *  U+2066–U+2069; the rest came from the adversarial pass (A2). */
+-const UNSAFE_IN_LOG = /[\u007f-\u009f\u2028\u2029\p{Cf}]/gu;
++const UNSAFE_IN_LOG = /(?!)/gu;
+ 
+ /** The default audit sink's line (CSR-WO-1003a §1.4): JSON, with the characters above also escaped
+  *  as \uXXXX, so a principal or sink cannot split the line or disguise what it says. A custom sink

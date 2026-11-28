@@ -1,0 +1,11 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -215,7 +215,7 @@ export function readCaFile(path: string): string {
+ /** The verifier from AUTH_* in the environment. A blank issuer, JWKS URL or audience throws. */
+ export function jwtVerifierFromEnv(env: NodeJS.ProcessEnv = process.env): JwtVerifier {
+   // Plain decimal digits only: "0x3c", " 60 ", "6e1" and "60.5" are not a number of seconds (A6).
+-  const num = (v: string | undefined, d: number): number => (v === undefined || v === "" ? d : /^\d{1,9}$/.test(v) ? Number(v) : Number.NaN);
++  const num = (v: string | undefined, d: number): number => (v === undefined || v === "" ? d : Number(v));
+   const strict = env["AUTH_REQUIRE_AT_JWT"];
+   if (strict !== undefined && strict !== "" && strict !== "true" && strict !== "false") throw new AuthConfigError("AUTH_REQUIRE_AT_JWT must be true or false");
+   const caFile = env["AUTH_JWKS_CA_FILE"];

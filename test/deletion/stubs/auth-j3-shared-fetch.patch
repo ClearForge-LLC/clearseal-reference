@@ -1,0 +1,11 @@
+--- a/packages/core/src/auth/jwks.ts
++++ b/packages/core/src/auth/jwks.ts
+@@ -147,7 +147,7 @@ export class JwksClient {
+    *  as it was. */
+   #refresh(): Promise<void> {
+     if (this.#inflight === undefined && this.#within(this.#failedAt, JWKS_FAILURE_COOLDOWN_MS)) return Promise.resolve();
+-    this.#inflight ??= (async () => {
++    this.#inflight = (async () => {
+       try {
+         this.fetches++;
+         const text = await fetchText(this.#url, this.#ca);
