@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -557,7 +557,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
+     }
+   };
+ 
+-  const server: Server = createServer({ requestTimeout: limits.requestTimeoutMs }, (req, res) => {
++  const server: Server = createServer({}, (req, res) => {
+     handle(req, res).catch(() => {
+       audit("transport-error", { reason: "unhandled" });
+       if (!res.headersSent) send(res, 500, undefined);

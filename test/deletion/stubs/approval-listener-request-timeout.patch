@@ -1,0 +1,11 @@
+--- a/packages/core/src/approval/listener.ts
++++ b/packages/core/src/approval/listener.ts
+@@ -271,7 +271,7 @@ export async function startApprovalListener(service: ApprovalService, main: { ho
+     else send(res, STATUS[r.reason], { error: r.reason });
+   };
+ 
+-  const server: Server = createServer({ requestTimeout: 10_000 }, (req, res) => {
++  const server: Server = createServer({}, (req, res) => {
+     handle(req, res).catch(() => {
+       send(res, 500, { error: "internal" });
+     });

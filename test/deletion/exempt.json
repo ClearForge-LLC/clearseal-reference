@@ -1,0 +1,18 @@
+[
+  {
+    "section8": "Leak gate over tree and history",
+    "reason": "not a packages/*/src control; proven by `node scripts/leak-gate.mjs --self-test` in CI, which must go red on a planted identifier"
+  },
+  {
+    "section8": "Supply chain: bill of materials, provenance on tags, dependency automation, audit report",
+    "reason": "workflow-level, not a package control; proven by .github/scripts/check-sbom.mjs and the provenance workflow"
+  },
+  {
+    "section8": "Control-deletion job",
+    "reason": "this is the job itself; proven by the runner's --self-test over test/deletion/red-proofs and by scripts/control-deletion.test.mjs"
+  },
+  {
+    "section8": "Property-based tests on parsers",
+    "reason": "they are tests, not a control; there is nothing to delete"
+  }
+]

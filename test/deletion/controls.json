@@ -3693,6 +3693,36 @@
         "a validation slower than validationTimeoutMs is abandoned at the deadline with 400 -32602, and /health answers meanwhile",
         "ST validation over validationTimeoutMs"
       ]
+    },
+    {
+      "id": "request-timeout",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.1: a request whose body never finishes is answered 408 at requestTimeoutMs (the stub drops the option, leaving Node's 300 s default)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/request-timeout.patch",
+      "tests": [
+        "packages/core/test/transport/request-timeout.test.ts"
+      ],
+      "mustFail": [
+        "a request whose body never finishes is answered 408 after requestTimeoutMs, and the connection closes"
+      ]
+    },
+    {
+      "id": "approval-listener-request-timeout",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2008c §1.1: the approval listener answers a request whose body never finishes with 408 at its 10 s receive timeout (the stub drops the option, leaving Node's 300 s default)",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-listener-request-timeout.patch",
+      "tests": [
+        "packages/core/test/approval/listener-timeout.test.ts"
+      ],
+      "mustFail": [
+        "a decision whose body never finishes is answered 408 after the listener's 10 s, and the connection closes"
+      ]
     }
   ]
 }
