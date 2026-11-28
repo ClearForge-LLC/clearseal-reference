@@ -250,7 +250,7 @@ red-proof, and the teaching edition demonstrates every rung except exec.
   detector that fails CI when a control or a test file drops out of the job.
 - `CSR-WO-1005c` — (built, merged `97c66c5` 2026-11-28) the validation pool never times a job against a worker that is not ready (`-2008b`'s
   test-side workaround reverted), and the receive timeouts fire at their setting (`-2008c`).
-- `CSR-WO-2008d` — (built, merged `MERGESHA` 2026-11-28) the heap test sees about 1 KiB retained per request
+- `CSR-WO-2008d` — (built, merged `eab5890` 2026-11-28) the heap test sees about 1 KiB retained per request
   (it saw 16 KiB) and catches a retained dispatch context; an argument-only leak stays inside CI's honest
   noise, recorded as ruled. The deadline fixture keeps its margin on a loaded builder; 22 shards.
 - `CSR-WO-2008f` — (intent) the statelessness red-proof by retained-object count (a heap snapshot), so
