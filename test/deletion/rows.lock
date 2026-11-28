@@ -316,3 +316,5 @@ cage-symlink-leaf
 validation-ready-slot
 request-timeout-sweep
 approval-listener-sweep
+validation-ready-rearm
+validation-worker-exit

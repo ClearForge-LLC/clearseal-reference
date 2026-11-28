@@ -70,7 +70,8 @@ void describe("CSR-WO-1005c the validation deadline starts when a worker is read
       pool.compile(SCHEMA);
       await new Promise((r) => setTimeout(r, 100)); // the first worker acknowledges SCHEMA and is ready
       const late = pool.compile({ type: "object", properties: { n: { type: "integer" } }, unevaluatedProperties: false });
-      assert.equal(await late({ n: 1 }), true);
+      const outcome = await Promise.resolve(late({ n: 1 })).catch((err: unknown) => String(err));
+      assert.equal(outcome, true, `the late schema's call answered ${String(outcome)}`);
       assert.deepEqual(events, ["validation-worker-not-ready"]);
     } finally {
       await pool.close();
