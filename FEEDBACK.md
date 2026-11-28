@@ -176,20 +176,16 @@ A fresh subagent (Opus, for judgement on a security path) was given the src diff
 
 ## Gates
 
-- The provenance suite: 53 of 53.  and 
-> clearseal-reference@0.0.0 lint
-> eslint --max-warnings 0 . && node scripts/check-directives.mjs
-
-check-directives: 183 file(s), 0 directive problem(s) are clean. The coverage detector passes,
-   passes, and every row above is RED by assertion.
-- Leak gate: ,  and  exit 0 before each push. The fixture key is the
-   fake seed, written as a byte pattern. Every  and  is  or .
-- Protected surfaces against : ,  and  diff to empty, and no
-  existing stub changed. In , only  and the one  export line
-  changed.  is used, not changed.
+- The provenance suite: 53 of 53. `tsc` and `npm run lint` are clean. The coverage detector passes,
+  `control-deletion --self-test` passes, and every row above is RED by assertion.
+- Leak gate: `--self-test`, `--tree` and `--history` exit 0 before each push. The fixture key is the
+  `-0102` fake seed, written as a byte pattern. Every `sender_id` and `kid` is `*.example` or `test-*`.
+- Protected surfaces against `bd99b50`: `docs/`, `scripts/` and `.github/` diff to empty, and no
+  existing stub changed. In `packages/*/src`, only `provenance/` and the one `index.ts` export line
+  changed. `json.ts` is used, not changed.
 - CI on the final head: «CI».
-- Reduction pass (diff): the spike's , ,  and the
-  B/C-only helpers were not carried over. The verifier keeps one key-shape helper (), which
+- Reduction pass (diff): the spike's `NonceStore`, `parseJsonBytes`, `wellFormedDeep` and the
+  B/C-only helpers were not carried over. The verifier keeps one key-shape helper (`keyProblem`), which
   both levels and the payload use. Nothing left to remove: −0 net · 0 duplicates removed · 0 dead
   paths · 1 protected kept (gate 1's labelled key-type belt) · 0 findings.
 
