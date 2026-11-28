@@ -5035,6 +5035,21 @@
       "mustFail": [
         "A2: a dangling symlink leaf is refused, and nothing is created outside the root on write"
       ]
+    },
+    {
+      "id": "validation-ready-slot",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "CSR-WO-1005c: a validation is timed only against a ready worker, so a call straight after a timeout is validated and answered (the stub lets #pump give a job to a worker still starting and priming, as before this WO)",
+      "touches": [
+        "packages/core/src/transport/schema-pool.ts"
+      ],
+      "stub": "stubs/validation-ready-slot.patch",
+      "tests": [
+        "packages/core/test/transport/schema-pool.test.ts"
+      ],
+      "mustFail": [
+        "at a 40 ms deadline, a call straight after a timeout is validated and answered, 3 of 3"
+      ]
     }
   ]
 }

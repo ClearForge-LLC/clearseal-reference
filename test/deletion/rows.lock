@@ -313,3 +313,4 @@ auth-g1-resource-url
 manifest-unknown-field
 manifest-versions
 cage-symlink-leaf
+validation-ready-slot
