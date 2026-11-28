@@ -124,35 +124,46 @@ export class ValidationPool {
     worker.on("error", () => {
       this.#replace(slot, new Error("validation worker failed"));
     });
+    // A worker that exits without an error event: replaced now, not at the next job's deadline.
+    worker.on("exit", () => {
+      if (!this.#closed && this.#slots.includes(slot)) this.#replace(slot, new Error("validation worker exited"));
+    });
+    this.#armReady(slot);
+    for (const [key, schema] of this.#schemas) this.#prime(slot, key, schema);
+    return slot;
+  }
+
+  /** The readiness bound, armed whenever a slot is not ready: at spawn, and when a schema registered
+   *  later makes a ready slot prime again (CSR-WO-1005c adversarial pass). */
+  #armReady(slot: Slot): void {
+    if (slot.readyTimer !== undefined) return;
     slot.readyTimer = setTimeout(() => {
-      if (ready(slot) || this.#closed) return;
+      slot.readyTimer = undefined;
+      if (ready(slot) || this.#closed || !this.#slots.includes(slot)) return;
       this.#options.onEvent?.("validation-worker-not-ready", { limitMs: this.#readyMs });
       this.#replace(slot, new Error("validation worker did not become ready"));
     }, this.#readyMs);
     slot.readyTimer.unref();
-    for (const [key, schema] of this.#schemas) this.#prime(slot, key, schema);
-    return slot;
   }
 
   #prime(slot: Slot, key: string, schema: Record<string, unknown>): void {
     const id = this.#nextPrimeId--;
     slot.priming.add(id);
+    this.#armReady(slot);
     slot.worker.postMessage({ id, op: "compile", key, schema });
   }
 
   #primed(slot: Slot, reply: Reply): void {
-    if (!slot.priming.delete(reply.id)) return;
-    // A schema the main thread compiled but this worker could not: the worker is not fit to serve.
-    if (!reply.ok) {
-      this.#replace(slot, new Error("validation worker failed"));
-      return;
-    }
+    // A schema the main thread compiled but this worker could not: the slot stays unready, and the
+    // readiness bound replaces it (and audits it), rather than respawning in a loop.
+    if (!reply.ok || !slot.priming.delete(reply.id)) return;
     this.#readied(slot);
   }
 
   #readied(slot: Slot): void {
     if (!ready(slot)) return;
     clearTimeout(slot.readyTimer);
+    slot.readyTimer = undefined;
     this.#pump();
   }
 

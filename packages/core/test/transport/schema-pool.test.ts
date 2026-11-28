@@ -59,4 +59,38 @@ void describe("CSR-WO-1005c the validation deadline starts when a worker is read
       await pool.close();
     }
   });
+
+  void it("a schema registered later on a ready worker that then hangs: the slot is replaced, audited, and the call answered", async () => {
+    const events: string[] = [];
+    let spawns = 0;
+    const real = new URL("../../src/transport/schema-worker.ts", import.meta.url);
+    const once = new URL("../fixtures/ack-once-worker.ts", import.meta.url);
+    const pool = new ValidationPool({ workers: 1, timeoutMs: 2_000, readyTimeoutMs: 300, workerUrl: () => (spawns++ === 0 ? once : real), onEvent: (e) => events.push(e) });
+    try {
+      pool.compile(SCHEMA);
+      await new Promise((r) => setTimeout(r, 100)); // the first worker acknowledges SCHEMA and is ready
+      const late = pool.compile({ type: "object", properties: { n: { type: "integer" } }, unevaluatedProperties: false });
+      assert.equal(await late({ n: 1 }), true);
+      assert.deepEqual(events, ["validation-worker-not-ready"]);
+    } finally {
+      await pool.close();
+    }
+  });
+
+  void it("a ready worker that exits without an error is replaced, and the call is answered, not timed out", async () => {
+    let spawns = 0;
+    const real = new URL("../../src/transport/schema-worker.ts", import.meta.url);
+    const exits = new URL("../fixtures/exit-worker.ts", import.meta.url);
+    const pool = new ValidationPool({ workers: 1, timeoutMs: 5_000, workerUrl: () => (spawns++ === 0 ? exits : real) });
+    try {
+      const validate = pool.compile(SCHEMA);
+      const t0 = Date.now();
+      await assert.rejects(Promise.resolve(validate({ t: "x" })), /validation worker exited/);
+      assert.ok(Date.now() - t0 < 5_000, "the job was answered when the worker exited, not at its deadline");
+      assert.equal(await validate({ t: "y" }), true, "the replacement validates");
+    } finally {
+      await pool.close();
+    }
+  });
 });
+
