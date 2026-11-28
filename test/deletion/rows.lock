@@ -314,3 +314,5 @@ manifest-unknown-field
 manifest-versions
 cage-symlink-leaf
 validation-ready-slot
+request-timeout-sweep
+approval-listener-sweep

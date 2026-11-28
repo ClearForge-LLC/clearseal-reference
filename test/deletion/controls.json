@@ -5050,6 +5050,36 @@
       "mustFail": [
         "at a 40 ms deadline, a call straight after a timeout is validated and answered, 3 of 3"
       ]
+    },
+    {
+      "id": "request-timeout-sweep",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-1005c §1.5: the transport sweeps for timed-out requests every min(requestTimeoutMs, 1 s), so a stalled request is ended within a second of its setting (the stub leaves Node's 30 s sweep)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/request-timeout-sweep.patch",
+      "tests": [
+        "packages/core/test/transport/request-timeout.test.ts"
+      ],
+      "mustFail": [
+        "a request whose body never finishes is answered 408 after requestTimeoutMs, and the connection closes"
+      ]
+    },
+    {
+      "id": "approval-listener-sweep",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-1005c §1.5: the approval listener sweeps for timed-out requests every second, so its 10 s receive timeout ends a stalled request at 10-11 s (the stub leaves Node's 30 s sweep)",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-listener-sweep.patch",
+      "tests": [
+        "packages/core/test/approval/listener-timeout.test.ts"
+      ],
+      "mustFail": [
+        "a decision whose body never finishes is answered 408 after the listener's 10 s, and the connection closes"
+      ]
     }
   ]
 }
