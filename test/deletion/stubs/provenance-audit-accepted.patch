@@ -1,9 +1,9 @@
 --- a/packages/core/src/provenance/verify.ts
 +++ b/packages/core/src/provenance/verify.ts
-@@ -184,7 +184,6 @@ export class ProvenanceVerifier<P = Alert> {
-     if (rank > EFFECT_ORDER.indexOf(ch.floor)) return refuse("effect", "above-floor");
+@@ -193,7 +193,6 @@ export class ProvenanceVerifier<P = Alert> {
  
-     this.#nonces.remember(nonce, issued_at + PAST_WINDOW_S);
+     this.#nonces.remember(held, issued_at + PAST_WINDOW_S);
+     this.#nonces.advance(now);
 -    this.#audit("provenance-accepted", { sender: sender_id, kid: key_id, effect });
      return { accepted: true, message: fields };
    }

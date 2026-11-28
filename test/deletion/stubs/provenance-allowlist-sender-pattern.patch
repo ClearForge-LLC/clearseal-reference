@@ -1,6 +1,6 @@
 --- a/packages/core/src/provenance/allowlist.ts
 +++ b/packages/core/src/provenance/allowlist.ts
-@@ -55,7 +55,6 @@ export function loadAllowlist(entries: readonly ProvenanceKeyData[]): Provenance
+@@ -60,7 +60,6 @@ export function loadAllowlist(entries: readonly ProvenanceKeyData[]): Provenance
    const out = new Map<string, ProvenanceKey>();
    for (const e of entries) {
      if (typeof e.kid !== "string" || !ID_RE.test(e.kid)) throw new AllowlistError("an entry's kid does not match the contract's pattern");

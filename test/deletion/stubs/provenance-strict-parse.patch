@@ -1,6 +1,6 @@
 --- a/packages/core/src/provenance/verify.ts
 +++ b/packages/core/src/provenance/verify.ts
-@@ -131,7 +131,7 @@ export class ProvenanceVerifier<P = Alert> {
+@@ -138,7 +138,7 @@ export class ProvenanceVerifier<P = Alert> {
      }
      let outer: unknown;
      try {

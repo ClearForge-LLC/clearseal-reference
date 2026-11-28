@@ -1,6 +1,6 @@
 --- a/packages/core/src/provenance/allowlist.ts
 +++ b/packages/core/src/provenance/allowlist.ts
-@@ -56,7 +56,6 @@ export function loadAllowlist(entries: readonly ProvenanceKeyData[]): Provenance
+@@ -61,7 +61,6 @@ export function loadAllowlist(entries: readonly ProvenanceKeyData[]): Provenance
    for (const e of entries) {
      if (typeof e.kid !== "string" || !ID_RE.test(e.kid)) throw new AllowlistError("an entry's kid does not match the contract's pattern");
      if (typeof e.sender_id !== "string" || !ID_RE.test(e.sender_id)) throw new AllowlistError(`kid "${e.kid}": sender_id does not match the contract's pattern`);

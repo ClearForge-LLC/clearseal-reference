@@ -1,6 +1,6 @@
 --- a/packages/core/src/provenance/allowlist.ts
 +++ b/packages/core/src/provenance/allowlist.ts
-@@ -54,7 +54,6 @@ function keyOf(data: string | KeyObject, kid: string): KeyObject {
+@@ -59,7 +59,6 @@ function keyOf(data: string | KeyObject, kid: string): KeyObject {
  export function loadAllowlist(entries: readonly ProvenanceKeyData[]): ProvenanceAllowlist {
    const out = new Map<string, ProvenanceKey>();
    for (const e of entries) {

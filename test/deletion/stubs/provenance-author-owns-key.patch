@@ -1,6 +1,6 @@
 --- a/packages/core/src/provenance/verify.ts
 +++ b/packages/core/src/provenance/verify.ts
-@@ -175,7 +175,6 @@ export class ProvenanceVerifier<P = Alert> {
+@@ -183,7 +183,6 @@ export class ProvenanceVerifier<P = Alert> {
  
      // ---- gate 2: author ----
      if (!ch.authors.includes(sender_id)) return refuse("author", "not-listed");

@@ -1,6 +1,6 @@
 --- a/packages/core/src/provenance/allowlist.ts
 +++ b/packages/core/src/provenance/allowlist.ts
-@@ -58,7 +58,6 @@ export function loadAllowlist(entries: readonly ProvenanceKeyData[]): Provenance
+@@ -63,7 +63,6 @@ export function loadAllowlist(entries: readonly ProvenanceKeyData[]): Provenance
      if (typeof e.sender_id !== "string" || !ID_RE.test(e.sender_id)) throw new AllowlistError(`kid "${e.kid}": sender_id does not match the contract's pattern`);
      if (!isTime(e.notBefore) || !isTime(e.notAfter)) throw new AllowlistError(`kid "${e.kid}": the window is not two epoch-second integers`);
      if (e.notBefore > e.notAfter) throw new AllowlistError(`kid "${e.kid}": the window is inverted`);

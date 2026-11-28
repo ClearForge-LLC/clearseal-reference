@@ -1,251 +1,200 @@
-# FEEDBACK: CSR-WO-2011 (arguments that fail the pinned schema: a tool execution error, before the handler)
+# FEEDBACK: CSR-WO-2004 (message provenance: a signed envelope, an isolated signer, three fail-closed gates)
 
-Branch `wo/CSR-WO-2011`, cut from `main` at `e5ef83b`, which contains `-2010`'s merge `e2bf41a` and this
-work order. Built on Node v24.21.0 on Furnace, 2026-11-28. Every commit's author and committer is
-`clearforgekey[bot]`'s noreply address. Parked as one unmerged pull request.
+Branch `wo/CSR-WO-2004`, cut from `main` at `bd99b50` (contains `-2011`'s merge `f01801c` and this work
+order). Built on Node v24.21.0 on Furnace, 2026-11-28; every commit's author and committer is
+`clearforgekey[bot]`'s noreply address. **Security-critical:** parked as one unmerged pull request for
+line-by-line review and the external red team (the Adversary) before merge.
 
 ## Read this first
 
-- **A behaviour change, wire form only.** A call whose arguments fail the tool's pinned input schema
-  is now answered HTTP 200 with a result carrying `isError: true`, in both eras. It is still refused
-  before any cage, request state, approval or handler.
-  - `2026-07-28` adds `resultType: "complete"` and `_meta`.
-  - `2025-11-25` carries neither.
-  - The text names the tool and, for each failure (at most three), a schema-declared JSON pointer and
-    the failing keyword. No argument value appears.
-- **Three architect rulings during the build** (all 2026-11-28), recorded below:
-  - a fence widening into the validator;
-  - context-only regeneration of two stubs;
-  - a control-follows-code rewrite of `arguments-schema-refused.patch`.
-- **Accounting is unchanged**, each by assertion. The audit line is the same `rpc-refused`, now
-  written by `dispatch.ts` because a result no longer triggers `server.ts`'s. The rate limit takes its
-  token before dispatch. The tripwire counts the call where the tool is found, before validation.
+- **The size cap is 16 KiB and the nonce-cache bound is 10,000; both were measured on Furnace.**
 
-## Before and after, one refused call in each era
+  | Bound | Value | Measurement and choice |
+  |---|---|---|
+  | `MAX_WIRE_BYTES` | 16,384 | Under the cap, a whole verify costs 70–76 µs at 554 B, 1.3 KiB and 4.3 KiB: the Ed25519 check dominates. Past it, decoding, parsing and Ed25519 grow linearly: 81 + 99 µs at 64 KiB, 1.5 + 0.9 ms at 1 MiB, 15 + 6.9 ms at 8 MiB. A wire over the cap is refused before it is decoded, in under 1 µs at any size. An alert is a short human message, and 16 KiB leaves about 16,000 characters of text. |
+  | `DEFAULT_MAX_NONCES` | 10,000 | 521 B of heap per remembered 128-character nonce (502 B at 100,000), so 5 MiB at the bound. A full prune at the bound took 1.7 ms (13 ms at 100,000). A nonce is held until `issued_at + 300`, and messages may be issued up to 60 s ahead, so the bound sustains about 27 accepted messages a second per verifier; filling it took 0.94 s at about 10,700 verifies a second. A class-5 alert rate is orders of magnitude below that. At the bound, a new message is refused (`nonce-cache-full`, PV-7). |
+  | `MAX_WIRE_DEPTH` | 8 | The alert message is 3 deep, which leaves room for a pluggable payload. |
 
-`2026-07-28`, the v2 client against a teaching node (`spikes/2010-interop` probe, `notes.read` with
-`name: "../x"`):
+- **What did not carry over from the spike, and why:**
+  1. **Gate 3's effect ranking.** The spike ranked an effect by `indexOf` and accepted when it was at or
+     below the floor. An effect the ordering does not know gives -1, which is "below" every floor, so
+     a pluggable schema naming an unknown effect would be **accepted**. Now it is refused
+     (`unknown-effect`).
+  2. **`JSON.parse`.** The spike parsed with `JSON.parse` plus a surrogate walk. This module uses the
+     core's strict parser, which refuses duplicate keys, depth and lone surrogates, then closes the
+     other two encoding decisions with a lexical scan of the number tokens. `-0` would otherwise read as
+     `0`, which is a fresh `issued_at` at the right time.
+  3. **The nonce store.** The spike's store pruned every entry on every look and had no bound. This one
+     looks up its entry directly, prunes only at capacity, and refuses at the bound.
+  4. **The signer.** The spike signed with a `KeyObject`. Here signing goes through `ProvenanceSigner`
+     only (PV-2), and the fixture key lives in `test/`.
+  5. **Check names.** The spike's `field` and `unknown-field` covered several sites. Each site now has
+     its own name (`sender-id`, `key-id`, `origin-class`, `issued-at`, `nonce`, `alert-*`), so each can
+     be deleted alone.
+  6. **Not applicable to Option A:** the spike's `alg: none` and HS256-keyed-with-the-public-key proofs
+     (JOSE, Option C), and Option B's tests. Every Option A proof carried over: the 15 shared
+     negatives, including the baseline, and the replay-after-prune proof.
+- **Replay across a restart is a known limit**, not built (RULES.md). Nonces live in memory, so a
+  verifier restarted inside a message's 300 s window would accept it again. The options are to persist
+  the nonce memory, or to refuse messages issued before the process started, which also refuses honest
+  in-flight ones. This is a ruling for the architect.
 
-- before (`-2010`'s record): `400 {"jsonrpc":"2.0","id":4,"error":{"code":-32602,"message":"Invalid arguments for tool notes.read"}}`,
-  which the client surfaces as `ProtocolError: Invalid arguments for tool notes.read`;
-- after: `200 {"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"Invalid arguments for tool notes.read: /name fails pattern"}],"isError":true,"resultType":"complete","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"clearseal-node","version":"0.0.0"}}}}`,
-  which the client returns as a `CallToolResult` with `isError: true`.
+## -2011's findings, promoted
 
-`2025-11-25` (`arguments-refused.test.ts`, tool `pick`, `name` failing its pattern):
-
-- before (the era-status table on `main`: `both([400, -32602], 200)`): `200 {"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"Invalid arguments for tool pick"}}`;
-- after: `200 {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"Invalid arguments for tool pick: /name fails pattern"}],"isError":true}}`.
-
-## -2010's findings, promoted
-
-| -2010 finding | Durable home (architecture §10, 2026-11-28 `-2010` row) |
+| -2011 finding | Durable home |
 |---|---|
-| D10: schema-invalid arguments as a protocol error | this work order |
-| D5: resource-not-found code and `data.uri` | carried into `-2009` |
-| D1–D4, D6–D9, D11, N1, B1, F1 | needs-none (ruled) |
+| R1 (`rpc-refused` written in two places), R2 (the era tail duplicates `shapeResult`) | needs-none: kept by ruling, recorded in architecture §10's `-2011` row |
+| F1–F3 (row proofs moved with the code) | needs-none: fixed in `-2011` |
 
 ## What was built
 
-1. **The wire form (§1.1).** `dispatch.ts` `refusedArguments` handles a verdict that is not `true`. It
-   writes `rpc-refused {code: -32602, method: "tools/call"}`, plus the principal through `ctx.audit`,
-   and returns `{content: [{type: "text", text}], isError: true}`, adding `resultType` and `_meta` on
-   `2026-07-28`. It returns before the cage is built, so no request state, approval or handler is
-   reached.
-2. **The text (§1.2).**
-   - Measured on z-schema 12.8.0 (pattern, enum, maximum, const and `unevaluatedProperties`
-     failures): `message` and `params` carry argument values, namely the failing string, the enum or
-     const value, the number, and the extra property's name. `path` can carry a caller-chosen key.
-   - So only `keyword` (or z-schema's fixed `code` when `keyword` is absent, as for `const`) and the
-     instance `path` are used. Each `path` segment survives only if the schema declares it under
-     `properties` on the failure's own `schemaPath`, or if it is an array index; any other segment
-     becomes `*`.
-   - Caps: 3 failures; 64 characters per segment; 200 per pointer (a longer one ends in `/…`); 40 per
-     keyword; 512 for the whole text.
-   - With the synchronous compiler (tests only), the text is `…: they do not match its input schema`.
-3. **Accounting (§1.3).** These tests assert the audit line, the rate limit and the tripwire for a
-   refused call:
-   - `arguments-refused.test.ts` §1.1: exactly
-     `[{event: "rpc-refused", fields: {code: -32602, method: "tools/call", principal: "alice"}}]` in
-     each era. `p1-exit` asserts the same line on a real teaching node.
-   - `arguments-refused.test.ts` §1.3: with a burst of 2, two refused calls spend it and the third is
-     answered 429.
-   - `tripwire.test.ts` TW-1: five refused `read_only` calls write one `tripwire-read-burst` row.
-4. **Everything else unchanged (§1.4).** Each refusal below keeps its protocol-error form. The
-   era-status table asserts each one's status and code unchanged, and only the schema row changed.
+- **`packages/core/src/provenance/`**, 444 lines in five files (`index.ts` included): `envelope.ts` (the contract, `canonicalBytes`,
+  the pluggable `PayloadSchema` and the built-in alert schema), `signer.ts` (`ProvenanceSigner`,
+  `signMessage`), `allowlist.ts` (`loadAllowlist`, `checkChannel`), `verify.ts` (`ProvenanceVerifier`),
+  and `RULES.md` (PV-1…PV-9, each tied to its red-proof). It is exported from the core as one namespace,
+  `provenance`, so its names never collide with `audit`'s `Signer` and `KeyEntry`. That is the one
+  `index.ts` export line.
+- **The wire is unchanged (N3).** `canonical_bytes`, `CONTEXT` and the field order are `-0102` §1.1's.
+- **The vectors are byte-identical.** For each of `spikes/0102-envelope/vectors/option-a.json`'s four
+  (`minimal`, `m5-nbsp`, `m5-composed`, `m5-decomposed`), `canonicalBytes` equals `signed_bytes_b64`
+  and `signMessage`'s whole wire equals `wire_b64`, byte for byte, through the fixture signer, and
+  the verifier accepts the oracle's wire. The fixture public key equals §1.1's and the oracle's.
+- **53 tests** in `test/provenance/provenance.test.ts`, every refusal asserted by gate and check.
+- **The signer contract** (PV-2; RULES.md *The signer contract*): `kid` and `sign(bytes)`. It returns
+  the raw 64-byte pure-Ed25519 signature over exactly `canonical_bytes`, and rejects on failure. The
+  module never asks for, reads or holds key material.
 
-   | Refusal | Specification category (tools page, *Error Handling*) |
-   |---|---|
-   | unknown tool; the pin gate's refusal | "Unknown tool" |
-   | `params.name` missing; `params.arguments` not an object; `inputResponses` malformed | "Malformed requests (requests that fail to satisfy CallToolRequest schema)" |
-   | the `x-mcp-header` mismatch | a request-structure rule over headers and body (streamable HTTP's `HeaderMismatch`), not the tool's input |
-   | the validation timeout; `validation-error`; `-1005c`'s not-ready refusal | "Server errors": the server could not validate, so there is nothing the model can correct |
-5. **Deletion rows (§1.5).** See *Stubs* below. One new row, `arguments-tool-error-form`, has a stub
-   that restores the 400 -32602 form, and it turns the new wire-form tests red.
-6. **Interop re-run (§1.6).** `probe.ts` re-run: the refused-arguments step is now `{"ok": true}`, a `CallToolResult` with
-   `isError: true` and the text above, where it was `ProtocolError`. Every other step's outcome is
-   unchanged. `conformance.ts` re-run: 140 passed, 45 failed in total; the required set is
-   96/15/6/2/1, as before; the not-passing set is identical (none newly failing, none newly
-   passing). Only `spikes/2010-interop/results/` changed in the spike.
+## Deletion rows: 42, every one RED by assertion
 
-## Findings
-
-1. **F1: this WO took away `refusal-audit-lines`' proof, and the build restored it.** That row's stub
-   deletes `server.ts`'s `rpc-refused` write. Its one test checked that line for an extra-property
-   refusal, which `dispatch.ts` now writes. Re-proving the rows that name the edited tests showed
-   `MISS … stayed green`. Fix: the same `p1-exit` test now also sends an unknown method (still a
-   JSON-RPC error, 404 -32601) and asserts `server.ts`'s line for it. The row is RED again.
-2. **F2: the new audit write has its own row.** `arguments-refused-audit-line`'s stub deletes
-   `dispatch.ts`'s `ctx.audit("rpc-refused", …)`, and §1.1's exact audit-row assertion goes red. It
-   is in `rows.lock`, as is `arguments-tool-error-form`.
-
-3. **F3: `era-legacy-status-200` named the changed case.** Its stub keeps the modern status for a
-   legacy-era JSON-RPC error, and its `mustFail` listed `ST arguments fail the input schema`, which is
-   now a result (200 in both eras) and stays green under it. CI on `b36f9f5` showed `MISS` on shard
-   22, the only one in 22 shards. Its entry was replaced by `ST arguments not an object`, another
-   legacy JSON-RPC error from the same table, so the row keeps six proofs. Re-proven:
-   `RED  era-legacy-status-200 | … | stub applied; 6/6 named test(s) red by assertion | 3608 ms`.
-
-## Architect-ruled fence widening (WO §2 named `dispatch.ts` and one helper)
-
-Ruled 2026-11-28: WO §1.2 needs the failing pointer and keyword, and only the validator has them.
-
-| File | Why it changed |
-|---|---|
-| `packages/core/src/transport/dispatch.ts` | the refusal's wire form and text (in the fence) |
-| `packages/core/src/transport/schema.ts` | `compileSchemaReporting` and `SchemaFailure`: the failures read from z-schema and capped. This is the WO's "helper it needs for the text". `compileSchema` is defined on top of it and stays boolean |
-| `packages/core/src/transport/schema-worker.ts` | posts `{valid: false, failures}` for a failing value |
-| `packages/core/src/transport/schema-pool.ts` | resolves a job with that verdict |
-| `packages/core/src/transport/registry.ts` | `ValidationVerdict = boolean \| {failures}` for `validate` and `SchemaCompiler` |
-
-The ruling's conditions, and how each holds:
-- **(a) The outcome is unchanged for every input.** `compileSchema` returns `check(value) === true`,
-  and the worker posts `valid: verdict === true`. Both come from z-schema's `.valid`, as before.
-  `schema.test.ts` (rows `schema-closed`, `manifest-schema`, `edition-config-schema`) passes
-  unchanged.
-- **(b) The deadline, the timeout, the ready-worker rule and the pool size are untouched.** No line of the deadline, timer,
-  readiness or pool-size code changed (`schema-pool.ts`'s diff is the reply type and the resolve
-  value). Every `validation-*` row stays RED with its stub byte-identical:
-
-  ```
-  RED  validation-deadline | Runtime input validation against the pinned schema; output size cap | stub applied; 2/2 named test(s) red by assertion | 61114 ms
-  RED  validation-ready-slot | Runtime input validation against the pinned schema; output size cap | stub applied; 1/1 named test(s) red by assertion | 3163 ms
-  RED  validation-ready-rearm | Runtime input validation against the pinned schema; output size cap | stub applied; 1/1 named test(s) red by assertion | 3922 ms
-  RED  validation-worker-exit | Runtime input validation against the pinned schema; output size cap | stub applied; 1/1 named test(s) red by assertion | 8646 ms
-  ```
-- **(c) Only pointers and keywords cross the worker boundary.** In `arguments-refused.test.ts`, the
-  test *the worker's own reply* posts pattern, enum, extra-property and 20-deep failures straight to
-  the worker. Each reply's keys are exactly `{id, ok, valid, failures}`, and each failure's are
-  `{pointer, keyword}`. The posted JSON carries neither the injection string nor the schema's pattern
-  source or enum value.
-- **(d) The caps apply in the worker, before posting.** `failuresOf` runs in the worker, and the same
-  test sees the 20-deep pointer cut at the cap.
-
-## Stubs
-
-Every stub was proven with `git apply --check` and `node scripts/control-deletion.mjs --row <id>
---show`. For each failing test, the `--show` reason is an assertion, not a crash.
-
-**Context-only regenerations** (architect ruling 1). The removed and added lines are byte-identical
-to the old stub (checked by `diff` of the `-`/`+` lines); only the context moved.
+Every new row maps to §8 *Message provenance, three gates*. Each stub removes exactly its check, while
+keeping the copy buildable. Four first stubs deleted a type guard along with the check, so the copy no
+longer built and the runner reported MISS; they were rewritten to remove only the check. The coverage
+detector passes, `--self-test` passes, and the ids are in `rows.lock`.
 
 ```
-RED  mirrored-param-headers | Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header) | stub applied; 2/2 named test(s) red by assertion | 2164 ms
-RED  tripwire-counts-refused-calls | Tripwire (read burst, loud, no refusal) | stub applied; 1/1 named test(s) red by assertion | 2159 ms
+RED  provenance-size-cap | 1/1 named test(s) red by assertion | 2133 ms
+RED  provenance-strict-utf8 | 1/1 named test(s) red by assertion | 2144 ms
+RED  provenance-strict-parse | 1/1 named test(s) red by assertion | 2110 ms
+RED  provenance-negative-zero | 1/1 named test(s) red by assertion | 2135 ms
+RED  provenance-non-shortest-number | 1/1 named test(s) red by assertion | 2085 ms
+RED  provenance-unknown-field-outer | 1/1 named test(s) red by assertion | 2088 ms
+RED  provenance-unknown-field-envelope | 1/1 named test(s) red by assertion | 2166 ms
+RED  provenance-version | 1/1 named test(s) red by assertion | 2160 ms
+RED  provenance-origin-class | 1/1 named test(s) red by assertion | 2131 ms
+RED  provenance-issued-at | 1/1 named test(s) red by assertion | 2092 ms
+RED  provenance-integer-range | 1/1 named test(s) red by assertion | 2073 ms
+RED  provenance-nonce-pattern | 1/1 named test(s) red by assertion | 2108 ms
+RED  provenance-alert-unknown-field | 1/1 named test(s) red by assertion | 2148 ms
+RED  provenance-signature-canonical | 1/1 named test(s) red by assertion | 2081 ms
+RED  provenance-key-window | 1/1 named test(s) red by assertion | 2105 ms
+RED  provenance-bad-signature | 1/1 named test(s) red by assertion | 2149 ms
+RED  provenance-stale | 1/1 named test(s) red by assertion | 2092 ms
+RED  provenance-future | 1/1 named test(s) red by assertion | 2129 ms
+RED  provenance-replay | 1/1 named test(s) red by assertion | 2152 ms
+RED  provenance-nonce-cache-full | 1/1 named test(s) red by assertion | 2063 ms
+RED  provenance-clock-high-water | 1/1 named test(s) red by assertion | 2121 ms
+RED  provenance-clock-on-accept | 1/1 named test(s) red by assertion | 2149 ms
+RED  provenance-nonce-per-sender | 1/1 named test(s) red by assertion | 2103 ms
+RED  provenance-remember-on-accept | 1/1 named test(s) red by assertion | 2088 ms
+RED  provenance-author-listed | 1/1 named test(s) red by assertion | 2132 ms
+RED  provenance-author-owns-key | 1/1 named test(s) red by assertion | 2099 ms
+RED  provenance-effect-known | 1/1 named test(s) red by assertion | 2194 ms
+RED  provenance-effect-floor | 1/1 named test(s) red by assertion | 2155 ms
+RED  provenance-audit-refused | 1/1 named test(s) red by assertion | 2079 ms
+RED  provenance-audit-accepted | 1/1 named test(s) red by assertion | 2124 ms
+RED  provenance-allowlist-key-object | 1/1 named test(s) red by assertion | 2148 ms
+RED  provenance-allowlist-public-pem | 1/1 named test(s) red by assertion | 2126 ms
+RED  provenance-channel-authors-list | 1/1 named test(s) red by assertion | 2113 ms
+RED  provenance-allowlist-duplicate-kid | 1/1 named test(s) red by assertion | 2126 ms
+RED  provenance-allowlist-inverted-window | 1/1 named test(s) red by assertion | 2076 ms
+RED  provenance-allowlist-ed25519 | 1/1 named test(s) red by assertion | 2080 ms
+RED  provenance-allowlist-kid-pattern | 1/1 named test(s) red by assertion | 2174 ms
+RED  provenance-allowlist-sender-pattern | 1/1 named test(s) red by assertion | 2078 ms
+RED  provenance-allowlist-window-integers | 1/1 named test(s) red by assertion | 2072 ms
+RED  provenance-channel-floor | 1/1 named test(s) red by assertion | 2130 ms
+RED  provenance-signer-64-bytes | 1/1 named test(s) red by assertion | 2097 ms
+RED  provenance-serialization-surrogate | 1/1 named test(s) red by assertion | 2135 ms
 ```
 
-**Control-follows-code rewrite** (architect ruling, listed apart from the context-only ones):
-`arguments-schema-refused.patch`.
-
-| | removed line | added line |
-|---|---|---|
-| old stub | `if (!valid) throw new Refusal(400, INVALID_PARAMS, \`Invalid arguments for tool ${name}\`);` | `void valid;` |
-| new stub | `if (valid !== true) return refusedArguments(era, name, valid, ctx);` | `void valid;` (byte-identical) |
-
-The stub still deletes exactly the one control: the action on the validator's verdict. The validation
-and its deadline still run, and failing arguments reach the handler.
-
-```
-RED  arguments-schema-refused | Runtime input validation against the pinned schema; output size cap | stub applied; 3/3 named test(s) red by assertion | 2487 ms
-```
-
-Its `mustFail` now names `arguments-refused.test.ts` §1.1, which goes red on the missing `isError`
-because the handler answered `picked`. TL-10 (renamed for the new form) goes red because the echo
-handler answered `hi` without `isError`. The teaching test WO §5.1 goes red because `../outside.md`
-reached the `notes.read` handler. The era-status row `ST arguments fail the input schema` moved to the
-new row: it checks only status and code, so it cannot tell a ran handler (200) from the refusal (200).
-
-**New row** `arguments-tool-error-form`. Its stub restores the 400 -32602 form, the refusal itself
-unchanged. It is in `rows.lock`.
-
-```
-RED  arguments-tool-error-form | Runtime input validation against the pinned schema; output size cap | stub applied; 3/3 named test(s) red by assertion | 3572 ms
-```
-
-`schema-closed` (the `unevaluatedProperties` row) keeps its stub byte-identical:
-
-```
-RED  schema-closed | Runtime input validation against the pinned schema; output size cap | stub applied; 2/2 named test(s) red by assertion | 2071 ms
-```
+**15 reasoned exemptions** (`exempt.json`), each saying why no honest single-check stub exists:
+- **Inside `json.ts` (protected):** the duplicate-key closure, whose honest deletion is the strict
+  parse, the row `provenance-strict-parse`; the depth bound; and a lone surrogate on the wire.
+- **Layers, where another named check refuses the same input:** a top level or envelope that is not an
+  object; `unsigned` and `missing-field`; the `sender-id` and `key-id` patterns, where the
+  allowlist's patterns and gates 1 and 2 refuse; `alert-shape` and `alert-missing-field`;
+  `alert-severity`, where `unknown-effect` refuses; the allowlist's parse and public-key checks.
+- **Fail closed by exception rather than by name:** `alert-text`; the signature's presence;
+  `unknown-key`.
+- **Belt-and-suspenders, labelled at the site:** gate 1's key-type assertion, behind the allowlist's
+  Ed25519 rule.
+- **No security role:** the channel name and author pattern.
+- **Not a line:** the gate order (PV-9), proven by its own test.
 
 ## Adversarial pass (WO §5)
 
-A fresh subagent was given the diff, §2's invariants and both revisions' *Error Handling* text. It
-tried each §5 attack and ran its own script against `compileSchemaReporting`.
+A fresh subagent (Opus, for judgement on a security path) was given the src diff, WO §1–§2 and §5, and
+`-0102` §1.1, and ran probe scripts against the module. It found **six breaks, all fixed in this PR**
+(`f135bc1`), each with a red-proof and a deletion row:
 
-- **Broke, fixed: a digit-only key the caller chose.** Under `additionalProperties`, the arguments
-  `{"1234567890": 1}` gave the pointer `/1234567890`. The array-index rule accepted any segment of
-  1 to 10 digits, whatever its container. Fix (`1d05484`): only a segment the schema declares under
-  `properties` survives; array indices also read `*`. The worker-reply test now plants that key.
-- **Held:**
-  - argument values in `pattern`, `enum`, `const` and `maximum` failures;
-  - caller keys under `additionalProperties`, `patternProperties`, `$ref`/`$defs`, `propertyNames`,
-    `unevaluatedProperties`, `dependentSchemas` and `anyOf`, plus keys like `x/y`, `~1`, the empty
-    key and `__proto__x`: all `*` or an empty pointer;
-  - a declared name used as a caller key at another depth: `/o/*`;
-  - keywords: whitelisted;
-  - no handler, cage, request state or approval after the refusal (`dispatch.ts`, the return before
-    the cage);
-  - `valid !== true` fails closed for any odd verdict;
-  - MRTR retries;
-  - the rate limit and tripwire on a retry loop;
-  - the legacy shape;
-  - the valid/invalid outcome and the pool's timers.
-- **Unsure, recorded:** the three-failure cap is also enforced by `MAX_FAILURES`, whatever z-schema's
-  `breakOnFirstError` returns.
+1. **Accepted what it must refuse: a non-Ed25519 key from plain JSON configuration.**
+   - `keyOf` passed any non-string through. A key-shaped object,
+     `{type: "public", asymmetricKeyType: "ed25519", format: "jwk", key: <RSA JWK>}`, cleared both
+     type checks, the label read as plain properties, and `edVerify` took it as a key spec. An
+     RSA-signed message was accepted. P-256 was too, with `dsaEncoding`.
+   - Now a non-string must be a genuine `KeyObject` (`provenance-allowlist-key-object`). Gate 1's
+     belt checks `instanceof KeyObject` as well.
+2. **A private key's PEM loaded as its public half**, contradicting PV-2. Now only SPKI public-key PEM
+   text loads (`provenance-allowlist-public-pem`).
+3. **Integer malleability for a pluggable schema.** A wire integer past 2^53−1 parses to a different
+   integer than it spells: `9007199254740993` reads as `…992`, and was accepted under a `…992`
+   signature. Now it is refused as `integer-range` (`provenance-integer-range`). The alert schema was
+   not affected, since its integers are range-checked.
+4. **Wrong gate named: nonce squatting.** One accepted author sending another's nonce first made the
+   genuine message refuse as `replay`. Nonces are now held per sender
+   (`provenance-nonce-per-sender`).
+5. **Clock poisoning by a refused message.** The high-water reading advanced before the gates
+   finished, so an authentic old wire checked at a far-future `now` locked out the present. Now it
+   advances only on accept (`provenance-clock-on-accept`). An *accepted* message at a wrong `now`
+   still moves it; that is recorded as a known limit in RULES.md.
+6. **Throws instead of refusing.** The key-spec object made every message for its kid throw; fixed by
+   (1). A channel without `authors` threw a `TypeError` and is now refused by name
+   (`provenance-channel-authors-list`). The others are caller-typed (`wire` not bytes, a schema
+   returning a non-string) and left as programming errors.
+
+**Held, run by the subagent:**
+- JSON escapes in fields and keys (the signature covers decoded values, by contract); a kid that
+  extends another; every window boundary in both directions.
+- Replay with other content or on another channel, at a full cache, and at exactly `issued_at + 300`.
+- NUL bytes and fake length prefixes inside text; the size cap at 16,384 and 16,385 bytes.
+- `01`, `1e400`, `-1`, `__proto__` and `constructor`; mutating `authors` after construction.
+- The number scanner against `-0 1.0 1e0` inside strings and escapes; audit fields only
+  pattern-checked; the verifier always loads its own allowlist.
+
+**Recorded limits** (RULES.md *Known limits*): replay across a restart; no channel binding in
+`canonical_bytes` (the contract's); an accepted message at a wrong future `now`; the refusal line's
+`sender` is an unauthenticated claim.
 
 ## Gates
 
-- `npm run check`, locally on `4fbfc3b`: 955 of 957 passed. The two failures,
-  `frozen.test.ts`'s *admitted validator still runs* and `p1-exit`'s *containment* test, still
-  asserted the old 400. Both were updated in `1d05484` and pass, with the transport, schema, pinning
-  and teaching suites. CI runs the whole suite and every shard: green on `b7aab66` (runs 46135818669 push and 46135824110
-  pull_request), with control-deletion shards taking 97–228 s, under five minutes. `b36f9f5` was red on
-  shard 22 (F3), and `1d05484` was red on the `refusal-audit-lines` MISS (F1).
-- Every touched row and every `validation-*` row is RED by assertion (above), as are the rows naming
-  the tests edited in `1d05484`: all RED:
+- The provenance suite: 53 of 53.  and 
+> clearseal-reference@0.0.0 lint
+> eslint --max-warnings 0 . && node scripts/check-directives.mjs
 
-  ```
-  RED  admitted-freeze · options-captured · state-key-captured · server-info-captured | 1/1 each
-  RED  startnode-manifest-loaded 2/2 · audit-canary 2/2 · entry-captures-before-edition 1/1
-  RED  refusal-audit-lines | Transport hardening (…) | stub applied; 1/1 named test(s) red by assertion | 10047 ms   (after F1)
-  RED  arguments-refused-audit-line | Runtime input validation against the pinned schema; output size cap | stub applied; 1/1 named test(s) red by assertion | 2338 ms
-  ```.
-- Leak gate: `--self-test`, `--tree` and `--history` exit 0 before each push; `dbb96d5` is not an
-  ancestor.
-- Protected surfaces against `e5ef83b`: `docs/`, `scripts/` and `.github/` diff to empty. In
-  `packages/*/src` only the five files named above changed. Of the existing stubs, only the three
-  recorded above changed.
-- Reduction pass (diff): −0 net · 0 duplicates removed · 0 dead paths removed · 0 protected kept ·
-  2 findings below.
-  - **R1.** `rpc-refused`'s shape is now written in two places: `server.ts`, for every JSON-RPC error,
-    and `dispatch.ts` `refusedArguments`. One source would need `server.ts` (protected) to audit a
-    result marked as a refusal. That is a later WO, or none.
-  - **R2.** `refusedArguments` repeats `shapeResult`'s three-line era tail (`resultType`, `_meta`). A
-    shared helper would move two stubs' context again, so it is left for the next WO that touches
-    `shapeResult`.
+check-directives: 183 file(s), 0 directive problem(s) are clean. The coverage detector passes,
+   passes, and every row above is RED by assertion.
+- Leak gate: ,  and  exit 0 before each push. The fixture key is the
+   fake seed, written as a byte pattern. Every  and  is  or .
+- Protected surfaces against : ,  and  diff to empty, and no
+  existing stub changed. In , only  and the one  export line
+  changed.  is used, not changed.
+- CI on the final head: «CI».
+- Reduction pass (diff): the spike's , ,  and the
+  B/C-only helpers were not carried over. The verifier keeps one key-shape helper (), which
+  both levels and the payload use. Nothing left to remove: −0 net · 0 duplicates removed · 0 dead
+  paths · 1 protected kept (gate 1's labelled key-type belt) · 0 findings.
 
 ## Deliberately not built
 
-- Any other refusal's wire form; the validator's options (it still breaks on its first error, so a
-  call usually reports one failure); `-2009`.
-- Pointer segments for caller-chosen keys (`additionalProperties`, `patternProperties`): they read `*`.
+- A transport route or any ingress for messages; key generation and custody, and any non-test signer;
+  manifest signing and audit checkpoints (other WOs); the teaching tour (`-2005`).
+- Persistence of the nonce memory (the restart limit above).

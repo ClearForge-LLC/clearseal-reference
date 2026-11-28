@@ -1,0 +1,10 @@
+--- a/packages/core/src/provenance/allowlist.ts
++++ b/packages/core/src/provenance/allowlist.ts
+@@ -42,7 +42,6 @@ export type ProvenanceAllowlist = ReadonlyMap<string, ProvenanceKey>;
+ function keyOf(data: string | KeyObject, kid: string): KeyObject {
+   // A key-shaped plain object is not a key: its `type` fields are only properties, and node:crypto
+   // would take it as a key spec in any format (CSR-WO-2004 adversarial pass).
+-  if (typeof data !== "string" && !(data instanceof KeyObject)) throw new AllowlistError(`kid "${kid}": the public key is neither PEM text nor a KeyObject`);
+   // A private key's PEM would load as its public half: the allowlist never holds private material (PV-2).
+   if (typeof data === "string" && !data.trimStart().startsWith("-----BEGIN PUBLIC KEY-----")) throw new AllowlistError(`kid "${kid}": the public key is not SPKI PEM text`);
+   let key: KeyObject;

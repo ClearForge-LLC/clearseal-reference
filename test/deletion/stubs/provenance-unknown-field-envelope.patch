@@ -1,6 +1,6 @@
 --- a/packages/core/src/provenance/verify.ts
 +++ b/packages/core/src/provenance/verify.ts
-@@ -144,7 +144,7 @@ export class ProvenanceVerifier<P = Alert> {
+@@ -151,7 +151,7 @@ export class ProvenanceVerifier<P = Alert> {
      const env = outer["envelope"];
      if (!isPlainObject(env)) return refuse("structure", "malformed");
      const envBad = keyProblem(env, ["v", "sender_id", "origin_class", "key_id", "issued_at", "nonce", this.#schema.key]);

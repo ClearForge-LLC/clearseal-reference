@@ -1,6 +1,6 @@
 --- a/packages/core/src/provenance/verify.ts
 +++ b/packages/core/src/provenance/verify.ts
-@@ -151,7 +151,7 @@ export class ProvenanceVerifier<P = Alert> {
+@@ -158,7 +158,7 @@ export class ProvenanceVerifier<P = Alert> {
      who["sender"] = sender_id;
      if (typeof key_id !== "string" || !ID_RE.test(key_id)) return refuse("structure", "key-id");
      who["kid"] = key_id;

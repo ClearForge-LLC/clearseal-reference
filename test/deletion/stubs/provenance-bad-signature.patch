@@ -1,9 +1,9 @@
 --- a/packages/core/src/provenance/verify.ts
 +++ b/packages/core/src/provenance/verify.ts
-@@ -166,7 +166,6 @@ export class ProvenanceVerifier<P = Alert> {
+@@ -173,7 +173,6 @@ export class ProvenanceVerifier<P = Alert> {
      if (now < entry.notBefore || now > entry.notAfter) return refuse("signature", "key-window");
-     // belt-and-suspenders: loadAllowlist admits only Ed25519 keys (PV-6); the algorithm is never taken from the message.
-     if (entry.publicKey.asymmetricKeyType !== "ed25519") return refuse("signature", "key-type");
+     // belt-and-suspenders: loadAllowlist admits only Ed25519 KeyObjects (PV-6); the algorithm is never taken from the message.
+     if (!(entry.publicKey instanceof KeyObject) || entry.publicKey.asymmetricKeyType !== "ed25519") return refuse("signature", "key-type");
 -    if (!edVerify(null, canonicalBytes(fields, this.#schema), entry.publicKey, sig)) return refuse("signature", "bad-signature");
      const t = this.#nonces.clock(now);
      if (issued_at < t - PAST_WINDOW_S) return refuse("signature", "stale");

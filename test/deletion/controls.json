@@ -5291,7 +5291,22 @@
         "packages/core/test/provenance/provenance.test.ts"
       ],
       "mustFail": [
-        "issued-at: a negative, a string, and past 2^53-1"
+        "issued-at: a negative and a string (past 2^53-1 is integer-range)"
+      ]
+    },
+    {
+      "id": "provenance-integer-range",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-3: an integer past 2^53-1 is refused (it reads as a different integer than it spells)",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-integer-range.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "integer-range: an integer past 2^53-1 is refused, since it reads as a different integer than it spells"
       ]
     },
     {
@@ -5432,7 +5447,7 @@
     {
       "id": "provenance-clock-high-water",
       "section8": "Message provenance, three gates",
-      "control": "CSR-WO-2004 PV-7: the verifier's clock never runs behind its latest reading",
+      "control": "CSR-WO-2004 PV-7: the verifier's clock never runs behind its latest accepted reading",
       "touches": [
         "packages/core/src/provenance/verify.ts"
       ],
@@ -5442,6 +5457,36 @@
       ],
       "mustFail": [
         "stale: the clock never runs behind its latest reading, so a step back does not reopen a message"
+      ]
+    },
+    {
+      "id": "provenance-clock-on-accept",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-7: the clock reading advances only on accept, so a wrong now on a refused message moves nothing",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-clock-on-accept.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "the clock moves only on accept: a valid message checked at a wrong future now does not lock out the present"
+      ]
+    },
+    {
+      "id": "provenance-nonce-per-sender",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-7: a nonce is held per sender, so one author cannot block another by sending its nonce first",
+      "touches": [
+        "packages/core/src/provenance/verify.ts"
+      ],
+      "stub": "stubs/provenance-nonce-per-sender.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "replay is per sender: one author sending another's nonce first never blocks the other's message"
       ]
     },
     {
@@ -5547,6 +5592,51 @@
       ],
       "mustFail": [
         "baseline: a valid message is accepted, and writes one line: sender, kid, effect"
+      ]
+    },
+    {
+      "id": "provenance-allowlist-key-object",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: a non-string key must be a real KeyObject (a key-shaped plain object is refused)",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-allowlist-key-object.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "refuses a key-shaped plain object and a private key's PEM: only public PEM text or a real KeyObject loads"
+      ]
+    },
+    {
+      "id": "provenance-allowlist-public-pem",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: key text must be SPKI public-key PEM (a private key's PEM is refused)",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-allowlist-public-pem.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "refuses a key-shaped plain object and a private key's PEM: only public PEM text or a real KeyObject loads"
+      ]
+    },
+    {
+      "id": "provenance-channel-authors-list",
+      "section8": "Message provenance, three gates",
+      "control": "CSR-WO-2004 PV-6: a channel's authors is a list",
+      "touches": [
+        "packages/core/src/provenance/allowlist.ts"
+      ],
+      "stub": "stubs/provenance-channel-authors-list.patch",
+      "tests": [
+        "packages/core/test/provenance/provenance.test.ts"
+      ],
+      "mustFail": [
+        "a channel with an unknown floor is refused at verify, never ranked"
       ]
     },
     {
