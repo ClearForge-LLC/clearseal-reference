@@ -1,0 +1,12 @@
+--- a/packages/core/src/containment/cage.ts
++++ b/packages/core/src/containment/cage.ts
+@@ -366,9 +366,6 @@ export class RecordingCage implements Cage {
+ 
+   connect(host: string, port: number): Promise<Socket> {
+     try {
+-      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+-        this.#record({ kind: "net", sink: `${host}:${String(port)}`, allowed: false });
+-      }
+       const name = host.toLowerCase();
+       const allowed = this.#domain.hosts.some((h) => h.host === name && (h.port === undefined || h.port === port));
+       this.#record({ kind: "net", sink: `${host}:${String(port)}`, allowed });

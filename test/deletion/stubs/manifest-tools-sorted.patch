@@ -1,0 +1,14 @@
+--- a/packages/core/src/pinning/manifest.ts
++++ b/packages/core/src/pinning/manifest.ts
+@@ -123,11 +123,6 @@ export function parseManifest(text: string): Manifest {
+   if (!schemaValid(record)) throw new ManifestError("the manifest does not match manifest.schema.json");
+   const manifest = record as unknown as Manifest;
+   if (!RFC3339.test(manifest.generated_at) || Number.isNaN(Date.parse(manifest.generated_at))) throw new ManifestError("generated_at is not an RFC 3339 date-time");
+-  for (let i = 1; i < manifest.tools.length; i++) {
+-    const order = byName(manifest.tools[i - 1] as ManifestEntry, manifest.tools[i] as ManifestEntry);
+-    if (order === 0) throw new ManifestError(`the tool ${manifest.tools[i]?.name ?? ""} appears twice`);
+-    if (order > 0) throw new ManifestError("tools are not sorted by name in UTF-16 code units (A9)");
+-  }
+   if (manifestHashOf(manifest.tools) !== manifest.manifest_hash) throw new ManifestError("manifest_hash does not recompute: an entry was edited");
+   return manifest;
+ }

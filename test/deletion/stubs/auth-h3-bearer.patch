@@ -1,0 +1,14 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -119,10 +119,7 @@ export class JwtVerifier implements Verifier {
+     // H3: another scheme is a missing token, with no error code (RFC 6750: the client used a method
+     // this server does not support). "Bearer", case-insensitive, with anything but one token after
+     // one space is a malformed request.
+-    if (!/^Bearer(\s|$)/i.test(auth)) return { ok: false, reason: "scheme" };
+-    const m = /^Bearer ([^\s]+)$/i.exec(auth);
+-    if (m === null) return fail("malformed-bearer", "invalid_request");
+-    const token = m[1] as string;
++    const token = auth.replace(/^\S*\s*/, "");
+     // H4
+     const parts = token.length <= MAX_TOKEN ? token.split(".") : [];
+     if (parts.length !== 3) return fail("malformed");

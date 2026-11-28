@@ -32,6 +32,26 @@ runs as the `control-deletion` CI job on every push and pull request.
 - **Name a test only if it discriminates.** It must pass on the unpatched tree, and fail by
   assertion under the stub, not by a crash, a timeout or a skip. The runner checks both.
 
+## What keeps the job whole (CSR-WO-2008c)
+
+`scripts/deletion-coverage.mjs`, run first in `npm test`, fails CI when the job stops covering what
+it should:
+
+- **Every test file runs in some row's baseline.** A `packages/*/test/**/*.test.ts` file is listed in
+  a row's `tests`, or it is in `unlisted.json` with a one-line reason it proves no control.
+- **Every built §8 row has a row.** A row's `section8` is the §8 title exactly; a built row that is no
+  `packages/*/src` control is in `exempt.json` with the proof it has instead.
+- **Every `CHECKS.md` check is named by exactly one row.** The row whose stub deletes the check lists
+  its id in `checks`. A check no stub can delete (an absence) is in `exempt.json` as `{check, reason}`.
+
+- **No row drops out silently.** `rows.lock` lists every row id; a row removed from `controls.json`
+  but not from the lock, or a row added to one and not the other, is a failure. Removing a control is
+  two visible edits in one pull request, with the reason.
+- **Every listed file proves something.** A file a row lists must have a test some row names.
+
+An exemption or an allowlist entry that goes stale (its file gone, or a row now covers it) is itself a
+failure.
+
 ## Running it
 
 ```sh

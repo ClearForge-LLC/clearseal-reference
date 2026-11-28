@@ -1,0 +1,18 @@
+--- a/packages/core/src/containment/cage.ts
++++ b/packages/core/src/containment/cage.ts
+@@ -230,7 +230,6 @@ export class RecordingCage implements Cage {
+     this.#realRoots = realRoots ?? domain.fs.map(resolveReal);
+     this.#onRefused = onRefused;
+     this.#readOnly = policy?.capabilityClass === "read_only";
+-    Object.freeze(this);
+   }
+ 
+   #record(reach: Reach): void {
+@@ -392,7 +391,6 @@ export class RecordingCage implements Cage {
+   }
+ }
+ 
+-Object.freeze(RecordingCage.prototype);
+ 
+ /** A cage factory for one tool's domain and policy: the roots' real paths are resolved once, here,
+  *  not per call. A root that is a symlink is followed once, at registration; the resolved bound

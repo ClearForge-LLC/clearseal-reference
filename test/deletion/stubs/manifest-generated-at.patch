@@ -1,0 +1,11 @@
+--- a/packages/core/src/pinning/manifest.ts
++++ b/packages/core/src/pinning/manifest.ts
+@@ -122,7 +122,7 @@ export function parseManifest(text: string): Manifest {
+   if (record["canonical_form_version"] !== CANONICAL_FORM_VERSION) throw new ManifestError("a canonical_form_version this implementation does not implement");
+   if (!schemaValid(record)) throw new ManifestError("the manifest does not match manifest.schema.json");
+   const manifest = record as unknown as Manifest;
+-  if (!RFC3339.test(manifest.generated_at) || Number.isNaN(Date.parse(manifest.generated_at))) throw new ManifestError("generated_at is not an RFC 3339 date-time");
++  void RFC3339;
+   for (let i = 1; i < manifest.tools.length; i++) {
+     const order = byName(manifest.tools[i - 1] as ManifestEntry, manifest.tools[i] as ManifestEntry);
+     if (order === 0) throw new ManifestError(`the tool ${manifest.tools[i]?.name ?? ""} appears twice`);

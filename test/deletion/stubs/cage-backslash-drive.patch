@@ -1,0 +1,11 @@
+--- a/packages/core/src/containment/cage.ts
++++ b/packages/core/src/containment/cage.ts
+@@ -289,7 +289,7 @@ export class RecordingCage implements Cage {
+    * in between the check and the open is followed. That race is the edition OS cage's job.
+    */
+   async open(path: string, mode = "r"): Promise<FileHandle> {
+-    const normalized = posix.isAbsolute(path) && !path.includes("\\") && !/^[a-zA-Z]:/.test(path) ? posix.normalize(path) : undefined;
++    const normalized = posix.isAbsolute(path) ? posix.normalize(path) : undefined;
+     let leafIsLink = false;
+     let leafType: FileType | undefined;
+     if (normalized !== undefined) {

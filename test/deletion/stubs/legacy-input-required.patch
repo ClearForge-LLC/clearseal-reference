@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -480,8 +480,6 @@ function shapeResult(era: Era, binding: StateBinding, result: ToolResult, caps:
+       // available on this revision. It goes back at 200, as every legacy-era JSON-RPC error for
+       // a request does (statusForEra); the refusal's own 400 is its status on the modern mapping
+       // (SPEC-MAP LG-8).
+-      ctx.audit("legacy-input-required", { tool: name });
+-      throw audited(new Refusal(400, METHOD_NOT_FOUND, `This tool needs a multi round-trip request, which protocol revision ${LEGACY_VERSION} cannot carry; use ${MODERN_VERSION}`, { requires: MODERN_VERSION }));
+     }
+     const out: Record<string, unknown> = { resultType: "input_required" };
+     if (result.inputRequests !== undefined) {

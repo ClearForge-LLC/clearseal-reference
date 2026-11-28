@@ -1,0 +1,11 @@
+--- a/packages/core/src/auth/jwks.ts
++++ b/packages/core/src/auth/jwks.ts
+@@ -48,7 +48,7 @@ function fetchText(url: URL, ca: string | undefined): Promise<string> {
+   return new Promise((resolve, reject) => {
+     const deadline = setTimeout(() => {
+       req.destroy(new Error("deadline"));
+-    }, JWKS_TIMEOUT_MS);
++    }, JWKS_TIMEOUT_MS * 2.5);
+     const done = (): void => {
+       clearTimeout(deadline);
+     };

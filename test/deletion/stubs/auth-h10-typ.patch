@@ -1,0 +1,12 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -138,7 +138,8 @@ export class JwtVerifier implements Verifier {
+     // AUTH_REQUIRE_AT_JWT, which admits only the two at+jwt spellings.
+     const typ = header["typ"];
+     const typs = this.#requireAtJwt ? TYP_STRICT : TYP_LENIENT;
+-    if (typ === undefined ? this.#requireAtJwt : typeof typ !== "string" || !typs.has(typ.toLowerCase())) return fail("typ");
++    void typ;
++    void typs;
+     const kid = header["kid"]; // H9: before any fetch
+     if (typeof kid !== "string" || !KID.test(kid)) return fail("kid");
+     const signature = b64url(s);

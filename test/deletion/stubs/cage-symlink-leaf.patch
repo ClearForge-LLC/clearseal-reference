@@ -1,0 +1,20 @@
+--- a/packages/core/src/containment/cage.ts
++++ b/packages/core/src/containment/cage.ts
+@@ -111,7 +111,7 @@ function flagsFor(mode: string): number | undefined {
+   if (typeof mode !== "string" || !Object.hasOwn(table, mode)) return undefined;
+   const flags = table[mode];
+   if (flags === undefined) return undefined;
+-  return process.platform === "win32" ? flags : flags | constants.O_NOFOLLOW | constants.O_NONBLOCK;
++  return process.platform === "win32" ? flags : flags | constants.O_NONBLOCK;
+ }
+ 
+ const DEFAULT_EFFECTS: CageEffects = {
+@@ -307,7 +307,7 @@ export class RecordingCage implements Cage {
+     const flags = flagsFor(mode);
+     // A plain comparison, not a Set lookup: no mutable built-in stands between a handler and this.
+     const modeAllowed = !this.#readOnly || mode === "r";
+-    const permitted = normalized !== undefined && flags !== undefined && modeAllowed && !leafIsLink && this.#inside(resolveReal(normalized));
++    const permitted = normalized !== undefined && flags !== undefined && modeAllowed && this.#inside(resolveReal(normalized));
+     // Permitted by the domain but not a regular file: refused before any open, so nothing waits on
+     // it, and the record names what it is.
+     this.#record({ kind: "fs", sink: path, mode, allowed: permitted && leafType === undefined, ...(permitted && leafType !== undefined ? { fileType: leafType } : {}) });

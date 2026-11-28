@@ -1,0 +1,10 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -93,7 +93,6 @@ export class JwtVerifier implements Verifier {
+     const algs = config.algs ?? KNOWN_ALGS;
+     for (const a of algs) if (!(KNOWN_ALGS as readonly string[]).includes(a)) throw new AuthConfigError(`AUTH_ALGS names ${a}, which this verifier does not implement`);
+     const skew = config.clockSkewS ?? DEFAULT_CLOCK_SKEW_S;
+-    if (!Number.isFinite(skew) || skew < 0 || skew > 300) throw new AuthConfigError("AUTH_CLOCK_SKEW_S must be 0 to 300");
+     const lifetime = config.maxTokenLifetimeS ?? DEFAULT_MAX_TOKEN_LIFETIME_S;
+     const [minLife, maxLife] = MAX_TOKEN_LIFETIME_BOUNDS_S;
+     if (!Number.isFinite(lifetime) || lifetime < minLife || lifetime > maxLife) throw new AuthConfigError(`AUTH_MAX_TOKEN_LIFETIME_S must be ${String(minLife)} to ${String(maxLife)}`);

@@ -1,0 +1,13 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -415,10 +415,6 @@ export async function startTransport(options: TransportOptions): Promise<Running
+     }
+ 
+     // 2. method
+-    if (req.method !== "POST") {
+-      refuseEarly(res, 405, "method", { Allow: "POST" });
+-      return;
+-    }
+ 
+     const aborter = new AbortController();
+     // The in-flight slot is taken after authentication (F1) and held until the response has closed

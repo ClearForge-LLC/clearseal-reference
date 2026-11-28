@@ -1,0 +1,10 @@
+--- a/packages/core/src/pinning/canonical.ts
++++ b/packages/core/src/pinning/canonical.ts
+@@ -128,7 +128,6 @@ function serialize(v: unknown, depth = 0): string {
+   if (v === false) return "false";
+   if (typeof v === "number") return serializeNumber(v);
+   if (typeof v === "string") return serializeString(v);
+-  if (typeof v === "object" && depth >= MAX_NESTING) refuse("A1", `nested deeper than ${String(MAX_NESTING)}`);
+   if (Array.isArray(v)) return `[${dataElements(v).map((x) => serialize(x, depth + 1)).join(",")}]`;
+   if (typeof v === "object" && isPlainObject(v)) {
+     // A1: members ordered by their names as UTF-16 code units, which is how < compares strings.

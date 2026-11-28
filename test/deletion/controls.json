@@ -40,12 +40,15 @@
       "stub": "stubs/drift-refused.patch",
       "tests": [
         "packages/core/test/pinning/gate.test.ts",
-        "packages/core/test/pinning/startup.test.ts"
+        "packages/core/test/pinning/startup.test.ts",
+        "packages/teaching/test/manifest.test.ts",
+        "packages/core/test/pinning/cli.test.ts"
       ],
       "mustFail": [
         "an edited description drifts the tool: refused, the rest admitted",
         "a changed capability tag drifts the tool (every pinned field is inside the hash)",
-        "strict (the default): a drifted tool stops the node before it binds, with the refusal logged once"
+        "strict (the default): a drifted tool stops the node before it binds, with the refusal logged once",
+        "the same check refuses a definition whose description was edited after pinning"
       ]
     },
     {
@@ -363,7 +366,8 @@
         "packages/core/src/pinning/canonical.ts"
       ],
       "tests": [
-        "packages/core/test/pinning/vectors.test.ts"
+        "packages/core/test/pinning/vectors.test.ts",
+        "packages/core/test/pinning/boundaries.test.ts"
       ],
       "mustFail": [
         "A1-1 (A1, json): canonical",
@@ -442,7 +446,8 @@
         "packages/core/src/containment/cage.ts"
       ],
       "tests": [
-        "packages/core/test/containment/reach.test.ts"
+        "packages/core/test/containment/reach.test.ts",
+        "packages/core/test/containment/adversarial.test.ts"
       ],
       "mustFail": [
         "WO §5.2: a path that climbs out with .. is refused",
@@ -507,7 +512,8 @@
         "packages/core/src/containment/harness.ts"
       ],
       "tests": [
-        "packages/core/test/containment/reach.test.ts"
+        "packages/core/test/containment/reach.test.ts",
+        "packages/core/test/containment/adversarial.test.ts"
       ],
       "mustFail": [
         "three pass with their reaches listed; the misbehaving one fails, naming the tool and the sink"
@@ -776,7 +782,10 @@
       "mustFail": [
         "unauthenticated /mcp: 401, WWW-Authenticate naming the metadata document, no error code"
       ],
-      "stub": "stubs/missing-token-challenge.patch"
+      "stub": "stubs/missing-token-challenge.patch",
+      "checks": [
+        "G3"
+      ]
     },
     {
       "id": "audience-check",
@@ -792,7 +801,10 @@
         "C3 aud \"them\" → invalid_token / aud",
         "C3 aud missing → invalid_token / aud"
       ],
-      "stub": "stubs/audience-check.patch"
+      "stub": "stubs/audience-check.patch",
+      "checks": [
+        "C3"
+      ]
     },
     {
       "id": "issuer-check",
@@ -808,7 +820,10 @@
         "C2 iss another issuer → invalid_token / iss",
         "C2 iss missing → invalid_token / iss"
       ],
-      "stub": "stubs/issuer-check.patch"
+      "stub": "stubs/issuer-check.patch",
+      "checks": [
+        "C2"
+      ]
     },
     {
       "id": "expiry-check",
@@ -823,7 +838,10 @@
       "mustFail": [
         "C4 exp 90 s ago (skew 60) → invalid_token / exp"
       ],
-      "stub": "stubs/expiry-check.patch"
+      "stub": "stubs/expiry-check.patch",
+      "checks": [
+        "C4"
+      ]
     },
     {
       "id": "algorithm-check",
@@ -840,7 +858,10 @@
         "H6 WO §5.1: HS256 keyed with the issuer's own public key → invalid_token / alg",
         "H6 alg PS256, not on the allow-list → invalid_token / alg"
       ],
-      "stub": "stubs/algorithm-check.patch"
+      "stub": "stubs/algorithm-check.patch",
+      "checks": [
+        "H6"
+      ]
     },
     {
       "id": "signature-check",
@@ -856,7 +877,10 @@
         "K3 payload altered after signing → invalid_token / signature",
         "K3 signed by another key under a served kid → invalid_token / signature"
       ],
-      "stub": "stubs/signature-check.patch"
+      "stub": "stubs/signature-check.patch",
+      "checks": [
+        "K3"
+      ]
     },
     {
       "id": "rsa-key-rules",
@@ -888,7 +912,10 @@
         "cache expired and the issuer down: 503, Retry-After from the cooldown, no challenge, one auth-unavailable line; issuer up: 200",
         "a cold cache with the issuer down, and a key set answering 200 with garbage: 503 each"
       ],
-      "stub": "stubs/outage-503.patch"
+      "stub": "stubs/outage-503.patch",
+      "checks": [
+        "J4"
+      ]
     },
     {
       "id": "jwks-reject-unauthorized",
@@ -933,6 +960,9 @@
       ],
       "mustFail": [
         "a forged Origin and an extra request property are each refused before any handler runs"
+      ],
+      "checks": [
+        "G5"
       ]
     },
     {
@@ -3692,6 +3722,1318 @@
       "mustFail": [
         "a validation slower than validationTimeoutMs is abandoned at the deadline with 400 -32602, and /health answers meanwhile",
         "ST validation over validationTimeoutMs"
+      ]
+    },
+    {
+      "id": "request-timeout",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.1: a request whose body never finishes is answered 408 at requestTimeoutMs (the stub drops the option, leaving Node's 300 s default)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/request-timeout.patch",
+      "tests": [
+        "packages/core/test/transport/request-timeout.test.ts"
+      ],
+      "mustFail": [
+        "a request whose body never finishes is answered 408 after requestTimeoutMs, and the connection closes"
+      ]
+    },
+    {
+      "id": "approval-listener-request-timeout",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-2008c §1.1: the approval listener answers a request whose body never finishes with 408 at its 10 s receive timeout (the stub drops the option, leaving Node's 300 s default)",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-listener-request-timeout.patch",
+      "tests": [
+        "packages/core/test/approval/listener-timeout.test.ts"
+      ],
+      "mustFail": [
+        "a decision whose body never finishes is answered 408 after the listener's 10 s, and the connection closes"
+      ]
+    },
+    {
+      "id": "content-type-415",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: a body whose Content-Type is not exactly one application/json (charset utf-8 at most) is refused 415 before it is read (the stub deletes the check, so the request is served)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/content-type-415.patch",
+      "tests": [
+        "packages/core/test/transport/adversarial.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "F9 F10 F11 duplicate Host → 400; absolute-form target → 400; duplicate Authorization → 400; duplicate Content-Type → 415; Content-Encoding → 415; TE other than chunked → 400",
+        "ST Content-Type not JSON",
+        "415 Content-Type not JSON"
+      ]
+    },
+    {
+      "id": "content-coding-415",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: a body with a content coding other than identity is refused 415 before it is read (the stub deletes the check, so the request is served)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/content-coding-415.patch",
+      "tests": [
+        "packages/core/test/transport/adversarial.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "F9 F10 F11 duplicate Host → 400; absolute-form target → 400; duplicate Authorization → 400; duplicate Content-Type → 415; Content-Encoding → 415; TE other than chunked → 400",
+        "ST Content-Encoding",
+        "415 a content coding"
+      ]
+    },
+    {
+      "id": "method-post-only",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: any method but POST on the endpoint is refused 405 with Allow: POST (the stub deletes the check, so the request runs on into the later layers)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/method-post-only.patch",
+      "tests": [
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/eras.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts",
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "ST GET on the endpoint",
+        "WO §3.4 LG-1 D-2 legacy initialize: no session header; notifications/initialized 202; legacy tools/list; GET still 405",
+        "405 GET /mcp",
+        "SH-42 GET → 405 Allow: POST",
+        "SH-42 DELETE → 405 Allow: POST"
+      ]
+    },
+    {
+      "id": "health-get-only",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: any method but GET on /health and the metadata document is refused 405 with Allow: GET (the stub deletes the check, so the document is served)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/health-get-only.patch",
+      "tests": [
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "405 POST /health",
+        "405 POST the metadata document"
+      ]
+    },
+    {
+      "id": "x-mcp-header-annotation-refused",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: a tool whose x-mcp-header annotation breaks the Schema Extension constraints (empty, not a token, not unique, not one primitive type, not statically under properties) is refused at registration (the stub accepts every annotation)",
+      "touches": [
+        "packages/core/src/transport/headers.ts"
+      ],
+      "stub": "stubs/x-mcp-header-annotation-refused.patch",
+      "tests": [
+        "packages/core/test/transport/x-mcp-header.test.ts"
+      ],
+      "mustFail": [
+        "refused: empty",
+        "refused: not a token (space)",
+        "refused: control character (CR LF)",
+        "refused: not case-insensitively unique",
+        "refused: type number",
+        "refused: type object",
+        "refused: no type",
+        "refused: two primitive types",
+        "refused: under items",
+        "refused: under anyOf",
+        "refused: under if/then",
+        "refused: under $defs (reachable only by $ref)",
+        "refused: on the root"
+      ]
+    },
+    {
+      "id": "arguments-schema-refused",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "CSR-WO-2008c §1.2: arguments the pinned input schema rejects are refused 400 -32602 before the handler (the stub ignores the validator's verdict; the validation and its deadline still run)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/arguments-schema-refused.patch",
+      "tests": [
+        "packages/core/test/transport/refusals.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/teaching/test/notes.test.ts"
+      ],
+      "mustFail": [
+        "TL-10 D-7 extra request property against a tool schema → 400 -32602",
+        "ST arguments fail the input schema",
+        "WO §5.1: names that climb, are absolute, carry a NUL or a backslash, or are very long are refused by the pinned schema"
+      ]
+    },
+    {
+      "id": "json-duplicate-key",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: the strict JSON parser refuses a duplicate key at any depth, in request bodies and in the verifier's token header, payload and key set (the stub deletes the check, so the last value wins)",
+      "touches": [
+        "packages/core/src/transport/json.ts"
+      ],
+      "stub": "stubs/json-duplicate-key.patch",
+      "tests": [
+        "packages/core/test/transport/json.test.ts",
+        "packages/core/test/transport/refusals.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts",
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "refuses a duplicate key at any depth",
+        "duplicate key → 400 -32700 (refused at parse)",
+        "ST duplicate key",
+        "400 a duplicate key",
+        "H5 header with a duplicate key (alg twice) → invalid_token / header",
+        "C1 payload with a duplicate key (sub twice) → invalid_token / payload",
+        "J5 a key set that is not a key set, or has a duplicate key, is refused"
+      ]
+    },
+    {
+      "id": "json-depth",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: the strict JSON parser refuses nesting deeper than its cap, objects and arrays (the stub deletes both checks)",
+      "touches": [
+        "packages/core/src/transport/json.ts"
+      ],
+      "stub": "stubs/json-depth.patch",
+      "tests": [
+        "packages/core/test/transport/json.test.ts",
+        "packages/core/test/transport/refusals.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "depth: exactly the cap accepted, one more refused",
+        "over-depth body → 400 -32600",
+        "ST nested deeper than maxJsonDepth",
+        "400 nesting over the depth cap"
+      ]
+    },
+    {
+      "id": "json-lone-surrogate",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-2008c §1.2: the strict JSON parser refuses a lone surrogate, escaped high or low or raw (the stub decodes every \\u escape as-is and drops the raw check)",
+      "touches": [
+        "packages/core/src/transport/json.ts"
+      ],
+      "stub": "stubs/json-lone-surrogate.patch",
+      "tests": [
+        "packages/core/test/transport/json.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "refuses lone surrogate escapes, high and low",
+        "400 a lone surrogate",
+        "refuses a raw lone surrogate code unit, as a caller may hand in any string (CSR-WO-2008c)"
+      ]
+    },
+    {
+      "id": "request-state-integrity",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "CSR-WO-2008c §1.2: MRTR requestState is opened only when its HMAC tag verifies under this server's key (the stub deletes the tag check)",
+      "touches": [
+        "packages/core/src/transport/request-state.ts"
+      ],
+      "stub": "stubs/request-state-integrity.patch",
+      "tests": [
+        "packages/core/test/transport/mrtr.test.ts",
+        "packages/core/test/transport/refusals.test.ts"
+      ],
+      "mustFail": [
+        "sealed under another key is refused",
+        "a truncated tag, extra segments, and non-base64url are refused",
+        "MR-4 tampered requestState → 400 -32602"
+      ]
+    },
+    {
+      "id": "request-state-binding",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "CSR-WO-2008c §1.2: MRTR requestState is accepted only for the principal, method, tool and arguments it was sealed for (the stub deletes the binding check)",
+      "touches": [
+        "packages/core/src/transport/request-state.ts"
+      ],
+      "stub": "stubs/request-state-binding.patch",
+      "tests": [
+        "packages/core/test/transport/mrtr.test.ts",
+        "packages/core/test/transport/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "MR-5 WO §5.6 a state captured from one tool's call is refused on another tool",
+        "another principal is refused",
+        "F7 a requestState issued for one set of arguments is refused on another",
+        "another method or tool is refused (CSR-WO-2008c: dispatch binds tools/call, so only openState can show the method clause)"
+      ]
+    },
+    {
+      "id": "request-state-expiry",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "CSR-WO-2008c §1.2: MRTR requestState is refused once past its expiry (the stub deletes the expiry check)",
+      "touches": [
+        "packages/core/src/transport/request-state.ts"
+      ],
+      "stub": "stubs/request-state-expiry.patch",
+      "tests": [
+        "packages/core/test/transport/mrtr.test.ts"
+      ],
+      "mustFail": [
+        "after the expiry is refused"
+      ]
+    },
+    {
+      "id": "auth-h2-missing",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H2: no Authorization header is a 401 with the challenge and no error code (the decision is made twice, by H2 and by H3's scheme branch, so the stub deletes both: a missing header then reaches the Bearer parse and is answered 400 invalid_request)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h2-missing.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts",
+        "packages/core/test/auth/transport.test.ts"
+      ],
+      "mustFail": [
+        "H2 no Authorization header → no error / missing",
+        "unauthenticated /mcp: 401, WWW-Authenticate naming the metadata document, no error code"
+      ],
+      "checks": [
+        "H2"
+      ]
+    },
+    {
+      "id": "auth-h3-bearer",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H3: another scheme is no token (401, no error) and a Bearer with anything but one token is 400 invalid_request (the stub takes whatever follows the first word as the token)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h3-bearer.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts",
+        "packages/core/test/auth/transport.test.ts"
+      ],
+      "mustFail": [
+        "H3 scheme is Basic (no error code: an unsupported method) → no error / scheme",
+        "H3 Bearer with two tokens → invalid_request / malformed-bearer",
+        "H3 two Bearer credentials joined by a comma → invalid_request / malformed-bearer",
+        "H3 Bearer with no token → invalid_request / malformed-bearer",
+        "H3 a scheme other than Bearer: 401 with the challenge and no error code (RFC 6750)",
+        "H3 a malformed Bearer (two credentials joined by a comma): 400 invalid_request, not dispatched"
+      ],
+      "checks": [
+        "H3"
+      ]
+    },
+    {
+      "id": "auth-h4-compact",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H4: the token is at most 8 KiB and exactly three segments (the stub deletes the cap and the count; the canonical spelling is auth-h4-canonical)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h4-compact.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "H4 four segments → invalid_token / malformed",
+        "H4 a validly signed token over 8 KiB → invalid_token / malformed"
+      ],
+      "checks": [
+        "H4"
+      ]
+    },
+    {
+      "id": "auth-h4-canonical",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H4 (its canonical clause): a base64url segment is decoded only in its one canonical spelling, unused trailing bits zero (the stub accepts any spelling Node decodes)",
+      "touches": [
+        "packages/core/src/auth/jws.ts"
+      ],
+      "stub": "stubs/auth-h4-canonical.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "H4 a valid signature respelled: unused trailing bits set (adversarial A11) → invalid_token / malformed"
+      ]
+    },
+    {
+      "id": "auth-jose-utf8",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H5 and C1: the token's header and payload are decoded as strict UTF-8, an invalid byte refused, never replaced (the stub decodes leniently; one decoder serves both; the duplicate-key clause is json-duplicate-key)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-jose-utf8.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "a header with an invalid byte is refused",
+        "sub bytes 75 FF, 75 FE and 75 C0 are refused; 75 EF BF BD (a real U+FFFD) is a different, valid principal"
+      ],
+      "checks": [
+        "H5",
+        "C1"
+      ]
+    },
+    {
+      "id": "auth-h7-crit",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H7: a token with crit is refused (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h7-crit.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "H7 crit present → invalid_token / crit"
+      ],
+      "checks": [
+        "H7"
+      ]
+    },
+    {
+      "id": "auth-h9-kid",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H9: kid is required, 1 to 128 characters of [A-Za-z0-9._-], and a bad one is refused before any key is fetched (the stub sends any kid to the key set, which fetches for it)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h9-kid.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "H9 a missing or malformed kid is refused before any key is fetched (CSR-WO-2008c)"
+      ],
+      "checks": [
+        "H9"
+      ]
+    },
+    {
+      "id": "auth-h10-typ",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H10: typ, when present, is one of the JWT or at+jwt spellings, and AUTH_REQUIRE_AT_JWT requires at+jwt (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h10-typ.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts",
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "H10 typ JOSE → invalid_token / typ",
+        "the matrix under both settings"
+      ],
+      "checks": [
+        "H10"
+      ]
+    },
+    {
+      "id": "auth-k1-by-kid",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, K1: the key is the one the key set serves under the token's kid (the stub serves every key for a kid it does not know, so a token signed by any served key is accepted)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-k1-by-kid.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "K1 kid not in the key set → invalid_token / unknown-kid"
+      ],
+      "checks": [
+        "K1"
+      ]
+    },
+    {
+      "id": "auth-k2-key-fits",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, K2: only a key whose use, key_ops and alg fit the header's alg is tried (the stub tries every key)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-k2-key-fits.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "K2 a P-256 key served with use enc → invalid_token / key-mismatch",
+        "K2 a P-256 key served with key_ops [encrypt] (adversarial A8) → invalid_token / key-mismatch",
+        "K2 a P-256 key served with alg ES384 → invalid_token / key-mismatch"
+      ],
+      "checks": [
+        "K2"
+      ]
+    },
+    {
+      "id": "auth-c4a-horizon",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, C4a: exp no further than now + skew + AUTH_MAX_TOKEN_LIFETIME_S (the stub deletes the horizon)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-c4a-horizon.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "exp at the horizon (now + skew + 86400) is accepted; one second past is refused exp-horizon",
+        "AUTH_MAX_TOKEN_LIFETIME_S is bounded 60 to 604800 and moves the edge"
+      ],
+      "checks": [
+        "C4a"
+      ]
+    },
+    {
+      "id": "auth-c5-nbf",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, C5: nbf, when present, is a number before now + skew (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-c5-nbf.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "C5 nbf 90 s ahead → invalid_token / nbf",
+        "C5 nbf a string → invalid_token / nbf"
+      ],
+      "checks": [
+        "C5"
+      ]
+    },
+    {
+      "id": "auth-c6-iat",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, C6: iat, when present, is a number no later than now + skew (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-c6-iat.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "C6 iat 90 s ahead → invalid_token / iat",
+        "C6 iat a string → invalid_token / iat"
+      ],
+      "checks": [
+        "C6"
+      ]
+    },
+    {
+      "id": "auth-c7-sub",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, C7: sub is a non-empty string of at most 256 code units (the stub takes any sub as the principal)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-c7-sub.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "C7 sub missing → invalid_token / sub",
+        "C7 sub empty → invalid_token / sub",
+        "C7 sub of 257 characters → invalid_token / sub",
+        "C7 sub a number → invalid_token / sub"
+      ],
+      "checks": [
+        "C7"
+      ]
+    },
+    {
+      "id": "auth-g1-blank-config",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, G1: a blank AUTH_ISSUER, AUTH_JWKS_URL or AUTH_AUDIENCE refuses start (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g1-blank-config.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "a blank issuer, key-set URL or audience refuses start, naming the variable"
+      ],
+      "checks": [
+        "G1"
+      ]
+    },
+    {
+      "id": "auth-j1-https",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, J1: AUTH_JWKS_URL must be https: (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j1-https.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "J1 a key-set URL that is not https refuses construction"
+      ],
+      "checks": [
+        "J1"
+      ]
+    },
+    {
+      "id": "auth-j2-ttl",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, J2: the key set is cached for the TTL only, and a clock stepped back expires it (the stub keeps the cache for ever)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j2-ttl.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts",
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "J2 cache hit: two verifications, one fetch; past the TTL, a second fetch",
+        "a token minted before the step is refused once it is outside skew; the cache is not stretched",
+        "J4 issuer down with a warm cache: verified; with a cold cache: 401; with an expired cache: 401",
+        "cache expired and the issuer down: 503, Retry-After from the cooldown, no challenge, one auth-unavailable line; issuer up: 200"
+      ],
+      "checks": [
+        "J2"
+      ]
+    },
+    {
+      "id": "auth-j3-refetch-window",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, J3: an unknown kid triggers one refetch per TTL window (the stub refetches for every unknown kid)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j3-refetch-window.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "J3 unknown kid: one refetch finds a rotated key; a second unknown kid in the window gets none, and 401"
+      ],
+      "checks": [
+        "J3"
+      ]
+    },
+    {
+      "id": "auth-j5-caps",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, J5: a key set over 64 KiB or 32 keys, or not strict UTF-8, is refused (the stub deletes the two caps and decodes leniently; the duplicate-key clause is json-duplicate-key)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j5-caps.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "J5 WO §5.7: a 10 MB key set that is valid JSON is refused at the cap",
+        "J5 32 keys are served; 33 are refused",
+        "a key set with an invalid byte is refused"
+      ],
+      "checks": [
+        "J5"
+      ]
+    },
+    {
+      "id": "auth-j6-deadline",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, J6: the whole key-set fetch has a 3 s deadline (the stub stretches it 2.5-fold: deleting it runs the tests into their own 10 s timeout, which is not an assertion)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j6-deadline.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "J6 a key set that never answers times out at 3 s",
+        "J6 a key set dripped one byte every 400 ms is cut off at the 3 s deadline (adversarial A1)"
+      ],
+      "checks": [
+        "J6"
+      ]
+    },
+    {
+      "id": "auth-h1-duplicate",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H1: a request with two Authorization headers is refused 400 duplicate-authorization (the stub deletes the check, so the request is served)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-h1-duplicate.patch",
+      "tests": [
+        "packages/core/test/auth/transport.test.ts",
+        "packages/core/test/transport/adversarial.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "H1 two Authorization headers, both valid: 400 and nothing dispatched",
+        "F9 F10 F11 duplicate Host → 400; absolute-form target → 400; duplicate Authorization → 400; duplicate Content-Type → 415; Content-Encoding → 415; TE other than chunked → 400",
+        "ST Authorization sent twice",
+        "400 H1 Authorization sent twice"
+      ],
+      "checks": [
+        "H1"
+      ]
+    },
+    {
+      "id": "auth-h3a-token-elsewhere",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H3a: a token also offered in the query or a form body is refused 400 invalid_request and never read (the stub disables the check)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-h3a-token-elsewhere.patch",
+      "tests": [
+        "packages/core/test/auth/transport.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "WO §5.5 a token in the header and the query: 400 invalid_request, and the query token is never read",
+        "WO §5.5 a token in the header and a form body: 400 invalid_request",
+        "a token in the query alone is refused the same way, never used",
+        "400 a token in the query too (auth-refused only)"
+      ],
+      "checks": [
+        "H3a"
+      ]
+    },
+    {
+      "id": "auth-g2-prm",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, G2: the RFC 9728 document is served at both well-known paths (the stub stops serving it)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-g2-prm.patch",
+      "tests": [
+        "packages/core/test/auth/transport.test.ts",
+        "packages/core/test/transport/eras.test.ts"
+      ],
+      "mustFail": [
+        "the protected-resource metadata document, at both well-known paths (G2)",
+        "AU-1 the protected-resource metadata document is bearer-free",
+        "/health and the metadata document stay reachable; the document names the verifier's issuer"
+      ],
+      "checks": [
+        "G2"
+      ]
+    },
+    {
+      "id": "auth-g4-http-refused",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, G4: every HTTP-level refusal writes exactly one http-refused audit line (the stub disables both places that write it)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-g4-http-refused.patch",
+      "tests": [
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "400 a target that is not origin-form",
+        "404 an unknown route",
+        "400 Host sent twice",
+        "405 GET /mcp",
+        "405 POST /health",
+        "403 /health with a Host not allowed",
+        "403 /mcp with a Host not allowed",
+        "403 /mcp with an Origin not allowed",
+        "400 H1 Authorization sent twice",
+        "406 Accept without JSON",
+        "415 Content-Type not JSON",
+        "415 a content coding",
+        "400 a transfer coding other than chunked",
+        "413 a body over the cap",
+        "400 a body that is not UTF-8",
+        "400 a body that is not JSON",
+        "400 a duplicate key",
+        "400 a lone surrogate",
+        "400 nesting over the depth cap",
+        "400 a batch (framing)",
+        "503 at capacity: the second call is refused with one line naming the caller"
+      ],
+      "checks": [
+        "G4"
+      ]
+    },
+    {
+      "id": "manifest-schema",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: a manifest that does not match manifest.schema.json is refused at load (the stub skips the schema check)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-schema.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "an extra build slot, a non-null hash-shaped mistake, or a bad generated_at is refused"
+      ]
+    },
+    {
+      "id": "manifest-generated-at",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: a manifest whose generated_at is not an RFC 3339 date-time is refused at load (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-generated-at.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "an extra build slot, a non-null hash-shaped mistake, or a bad generated_at is refused",
+        "a generated_at the RFC 3339 pattern admits but the calendar does not (month 13) is refused (CSR-WO-2008c)"
+      ]
+    },
+    {
+      "id": "manifest-tools-sorted",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: a manifest whose tools are out of UTF-16 order, or name one tool twice, is refused at load (A9; the stub deletes the check)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-tools-sorted.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "tools out of order, or a name twice, is refused (A9)"
+      ]
+    },
+    {
+      "id": "manifest-hash-recomputes",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: a manifest whose manifest_hash does not recompute over its tools is refused at load (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-hash-recomputes.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "a hand-edited tool_hash: manifest_hash no longer recomputes, and the load is refused"
+      ]
+    },
+    {
+      "id": "edition-config-schema",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: startNode refuses to start when the edition's variables do not match its configuration schema (N4; the stub skips the check) Two cases stay refused under the stub by later checks (the resource URL, the port range) and are not named",
+      "touches": [
+        "packages/core/src/node/start.ts"
+      ],
+      "stub": "stubs/edition-config-schema.patch",
+      "tests": [
+        "packages/teaching/test/config.test.ts"
+      ],
+      "mustFail": [
+        "refuses start: an unknown TEACHING_ variable",
+        "refuses start: a notes root from the environment: the root is pinned, not configured",
+        "refuses start: a manifest from the environment: the node reads the committed file"
+      ]
+    },
+    {
+      "id": "pin-approve-needs-yes",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §1.4: npm run pin -- approve writes the manifest only with --yes (the stub writes it without)",
+      "touches": [
+        "packages/core/src/pinning/cli.ts"
+      ],
+      "stub": "stubs/pin-approve-needs-yes.patch",
+      "tests": [
+        "packages/core/test/pinning/cli.test.ts"
+      ],
+      "mustFail": [
+        "the whole path: approve refused without --yes; approve --yes; diff clean; edit → drift; verify"
+      ]
+    },
+    {
+      "id": "auth-g1-algs",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G1 (its AUTH_ALGS clause): AUTH_ALGS naming an algorithm this verifier does not implement refuses start, which keeps none and HS* off the allow-list H6 relies on (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g1-algs.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "AUTH_ALGS naming an algorithm this verifier does not implement refuses start (HS256, none, PS256)"
+      ]
+    },
+    {
+      "id": "auth-g1-skew",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G1 (its skew clause): AUTH_CLOCK_SKEW_S outside 0 to 300, or not a number, refuses start (the stub deletes the bound)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g1-skew.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "a skew or TTL that is not a sane number refuses start"
+      ]
+    },
+    {
+      "id": "auth-g1-lifetime",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G1 (its lifetime clause): AUTH_MAX_TOKEN_LIFETIME_S outside 60 to 604800 refuses start (the stub deletes the bound)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g1-lifetime.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "AUTH_MAX_TOKEN_LIFETIME_S is bounded 60 to 604800 and moves the edge"
+      ]
+    },
+    {
+      "id": "auth-j2-ttl-bounds",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, J2 (its TTL bound): AUTH_JWKS_TTL_S outside 30 s to 86,400 s, or not a number, refuses start (the stub deletes the bound)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j2-ttl-bounds.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "a skew or TTL that is not a sane number refuses start"
+      ]
+    },
+    {
+      "id": "auth-j3-shared-fetch",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, J3 (its sharing clause): concurrent lookups on a cold cache share one fetch (the stub starts a fetch per lookup)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j3-shared-fetch.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "J3 a burst of verifications on a cold cache shares one fetch (adversarial A9)"
+      ]
+    },
+    {
+      "id": "auth-g5-ca-file",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G5 (its CA-file clause): AUTH_JWKS_CA_FILE must be a regular file of at most 1 MiB holding PEM certificates and nothing else (the stub reads whatever is there)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g5-ca-file.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "WO §5.6: missing, a directory, empty, a private key, a certificate with a key, a malformed certificate, or /dev/zero: start is refused",
+        "A5: other PEM armour in any case is refused; commentary between certificates is not",
+        "A9: a FIFO is refused at once, without blocking the start"
+      ]
+    },
+    {
+      "id": "auth-g5-audience-differs",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G5 (its audience clause): an AUTH_AUDIENCE that differs from the resource URL writes one auth-audience-differs line at start (the stub deletes the line)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-g5-audience-differs.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "one auth-audience-differs line naming both; none when they match; the node starts either way"
+      ]
+    },
+    {
+      "id": "auth-g5-log-escaping",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G5 (its sink clause): the default audit sink escapes DEL, the C1 controls, U+2028, U+2029 and every format character (the stub escapes nothing beyond JSON)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-g5-log-escaping.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "user-\\u202Enimda and a U+2028 in sub each land on one line, escaped; every listed character and lone surrogates too",
+        "through the transport: the default sink writes the escaped line, while a custom sink receives the principal unchanged",
+        "A2: DEL, the C1 controls and every format character are escaped too, astral ones as surrogate pairs"
+      ]
+    },
+    {
+      "id": "auth-g5-decimal",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G5 (its decimal clause): the numeric AUTH_* settings are plain decimal digits, so 0x3c, 6e1 and 60.5 refuse start (the stub accepts anything Number() reads)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g5-decimal.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "A6: the numeric settings are plain decimal digits"
+      ]
+    },
+    {
+      "id": "cage-o-nofollow",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, R-1: on POSIX the cage opens with O_NOFOLLOW, so a symlink swapped into the leaf between the check and the open is refused by the kernel and recorded (the stub drops the flag)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-o-nofollow.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts",
+        "packages/core/test/containment/corrections.test.ts"
+      ],
+      "mustFail": [
+        "R-1: a symlink swapped into the leaf between check and open cannot create or truncate a file outside the root (O_NOFOLLOW)",
+        "swap-then-open through dispatch in w, a and wx: the victim is byte-identical, the call fails with the containment error, and exactly one audit line names the sink",
+        "the cage records the kernel's refusal and throws ContainmentRefusal, not the raw ELOOP"
+      ]
+    },
+    {
+      "id": "cage-descriptor-recheck",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, A3: on Linux the opened descriptor's real path is checked after the open, and a file swapped in from outside is closed and refused (the stub deletes the recheck)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-descriptor-recheck.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A3: the opened descriptor is checked after the open: a file swapped in from outside is closed and refused"
+      ]
+    },
+    {
+      "id": "cage-backslash-drive",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, A13: a path with a backslash or a drive prefix is refused, never normalized (the stub normalizes any absolute path)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-backslash-drive.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A13: a path with a backslash or a drive prefix is refused"
+      ]
+    },
+    {
+      "id": "cage-port-bounds",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, A15: a port that is not an integer from 1 to 65535 is refused, even on a portless entry (the stub deletes the bound)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-port-bounds.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A15: a port that is not an integer from 1 to 65535 is refused, even on a portless entry"
+      ]
+    },
+    {
+      "id": "cage-frozen",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, A8: the cage and its prototype are frozen, so reached() cannot be replaced (the stub freezes neither)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-frozen.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A8: the cage and its prototype are frozen; reached() cannot be replaced"
+      ]
+    },
+    {
+      "id": "domain-fs-nul-backslash",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, an fs: root containing NUL or a backslash is refused at parse (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/containment/domain.ts"
+      ],
+      "stub": "stubs/domain-fs-nul-backslash.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "refuses NUL, a backslash, a port over 65535, hex and numeric-leading host forms"
+      ]
+    },
+    {
+      "id": "domain-host-not-address",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, a host: entry that is an address literal (a hex label, or a last label not starting with a letter) is refused at parse (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/containment/domain.ts"
+      ],
+      "stub": "stubs/domain-host-not-address.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts",
+        "packages/core/test/containment/construction.test.ts"
+      ],
+      "mustFail": [
+        "refuses NUL, a backslash, a port over 65535, hex and numeric-leading host forms",
+        "malformed entries are refused, naming the tool and the entry"
+      ]
+    },
+    {
+      "id": "domain-port-range",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, a host: entry's port is 1 to 65535 with no leading zero, or the entry is refused at parse (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/containment/domain.ts"
+      ],
+      "stub": "stubs/domain-port-range.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts",
+        "packages/core/test/containment/construction.test.ts"
+      ],
+      "mustFail": [
+        "refuses NUL, a backslash, a port over 65535, hex and numeric-leading host forms",
+        "malformed entries are refused, naming the tool and the entry"
+      ]
+    },
+    {
+      "id": "harness-one-run",
+      "section8": "Reach harness",
+      "control": "CSR-WO-2008c §5, A7: a second reach-harness run while one is active is refused, since the shim is process-wide (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/containment/harness.ts"
+      ],
+      "stub": "stubs/harness-one-run.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A7: a second run while one is active is refused; the shim is restored after a run (#38); spawn is blocked (#33)"
+      ]
+    },
+    {
+      "id": "harness-shim-counted",
+      "section8": "Reach harness",
+      "control": "CSR-WO-2008c §5, A5: a reach the shim sees (direct fs, net, DNS, a raw socket, a worker, a spawn) counts against the tool's domain (the stub ignores the shim's log)",
+      "touches": [
+        "packages/core/src/containment/harness.ts"
+      ],
+      "stub": "stubs/harness-shim-counted.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts",
+        "packages/core/test/containment/reach.test.ts",
+        "packages/core/test/containment/corrections.test.ts"
+      ],
+      "mustFail": [
+        "A5: direct net, DNS, a raw socket and a worker are all undeclared",
+        "A4: a direct read through an in-root symlink to outside fails the tool",
+        "three pass with their reaches listed; the misbehaving one fails, naming the tool and the sink",
+        "WO §5.4: a handler that spawns a child process is an undeclared reach, and the harness never runs it",
+        "a read_only tool writing inside its root through fs directly fails (the shim sees the write); reading passes"
+      ]
+    },
+    {
+      "id": "harness-corpus-required",
+      "section8": "Reach harness",
+      "control": "CSR-WO-2008c §5, A12: a registered tool with no harness corpus is an error, so no tool escapes the harness by being left off a list (the stub gives it an empty corpus)",
+      "touches": [
+        "packages/core/src/pinning/registry.ts"
+      ],
+      "stub": "stubs/harness-corpus-required.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A12: targets come from the registry's frozen domains, and a registered tool without a corpus is an error"
+      ]
+    },
+    {
+      "id": "canonical-nesting-cap",
+      "section8": "Canonicalizer from a written spec, cross-language vectors",
+      "control": "CSR-WO-2008c §5, A1: input nested deeper than 512 objects and arrays is refused, and a cycle is refused at the cap, not a stack overflow (the stub deletes the cap on the value path)",
+      "touches": [
+        "packages/core/src/pinning/canonical.ts"
+      ],
+      "stub": "stubs/canonical-nesting-cap.patch",
+      "tests": [
+        "packages/core/test/pinning/boundaries.test.ts"
+      ],
+      "mustFail": [
+        "JSON text and a tool's input_schema value, at 512 and 513",
+        "a cycle is refused at the limit, not a stack overflow"
+      ]
+    },
+    {
+      "id": "canonical-data-members",
+      "section8": "Canonicalizer from a written spec, cross-language vectors",
+      "control": "CSR-WO-2008c §5, A1: an accessor, a symbol key or a non-enumerable member is refused, never skipped (the stub skips them)",
+      "touches": [
+        "packages/core/src/pinning/canonical.ts"
+      ],
+      "stub": "stubs/canonical-data-members.patch",
+      "tests": [
+        "packages/core/test/pinning/boundaries.test.ts"
+      ],
+      "mustFail": [
+        "an accessor, a symbol key, a non-enumerable member or an array's extra property is refused, never skipped"
+      ]
+    },
+    {
+      "id": "canonical-array-extra",
+      "section8": "Canonicalizer from a written spec, cross-language vectors",
+      "control": "CSR-WO-2008c §5, A1: an array carrying anything besides its elements and length is refused (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/pinning/canonical.ts"
+      ],
+      "stub": "stubs/canonical-array-extra.patch",
+      "tests": [
+        "packages/core/test/pinning/boundaries.test.ts"
+      ],
+      "mustFail": [
+        "an accessor, a symbol key, a non-enumerable member or an array's extra property is refused, never skipped"
+      ]
+    },
+    {
+      "id": "era-legacy-status-200",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "CSR-WO-2008c §5, ST-2: on the legacy era a JSON-RPC error answering a well-formed request goes back at 200 with the error object unchanged, which the official SDK client needs (the stub keeps the modern status)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/era-legacy-status-200.patch",
+      "tests": [
+        "packages/core/test/sdk-client/sdk-client.test.ts",
+        "packages/core/test/transport/era-status.test.ts"
+      ],
+      "mustFail": [
+        "ST-2 at 200 the SDK client receives the JSON-RPC error: McpError, code -32601, data.requires",
+        "ST unknown method",
+        "ST unknown tool",
+        "ST arguments fail the input schema",
+        "ST handler throws",
+        "ST result over maxResultBytes"
+      ]
+    },
+    {
+      "id": "legacy-input-required",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "CSR-WO-2008c §5, LG-8: a handler's input_required result is never carried to a legacy-era request; it is refused -32601 naming 2026-07-28 (the stub lets it through)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/legacy-input-required.patch",
+      "tests": [
+        "packages/core/test/transport/corrections.test.ts",
+        "packages/core/test/transport/era-status.test.ts"
+      ],
+      "mustFail": [
+        "LG-8 ST-2 legacy tools/call to an MRTR tool → 200 (the legacy era's convention, CSR-WO-1005b), application/json, -32601, and the tool is logged at the seam",
+        "ST input_required on the legacy era (LG-8)"
+      ]
+    },
+    {
+      "id": "auth-g1-resource-url",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G1 (its resource-URL clause): with the core's verifier, a transport with no resource URL refuses to start (the stub deletes the check, and the transport starts)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-g1-resource-url.patch",
+      "tests": [
+        "packages/core/test/auth/transport.test.ts"
+      ],
+      "mustFail": [
+        "with the core's verifier and no resource URL, the transport refuses to start"
+      ]
+    },
+    {
+      "id": "manifest-unknown-field",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §5: a manifest with an unknown top-level field is refused at load (the decision is made twice, by the explicit check and by manifest.schema.json, so the stub deletes the check and skips the schema call)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-unknown-field.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "an unknown top-level field is refused"
+      ]
+    },
+    {
+      "id": "manifest-versions",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §5: a manifest_version or canonical_form_version this implementation does not implement is refused at load (made twice, by the explicit checks and by the schema; the stub deletes both)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-versions.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "canonical_form_version 2, or manifest_version 2, is refused"
+      ]
+    },
+    {
+      "id": "cage-symlink-leaf",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, A2: a symlink leaf is never followed, so nothing is created outside the root through one (the decision is made twice, by the pre-open lstat and by O_NOFOLLOW, so the stub deletes both)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-symlink-leaf.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A2: a dangling symlink leaf is refused, and nothing is created outside the root on write"
       ]
     }
   ]

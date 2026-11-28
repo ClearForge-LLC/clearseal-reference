@@ -1,0 +1,13 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -139,8 +139,8 @@ export class JwtVerifier implements Verifier {
+     const typ = header["typ"];
+     const typs = this.#requireAtJwt ? TYP_STRICT : TYP_LENIENT;
+     if (typ === undefined ? this.#requireAtJwt : typeof typ !== "string" || !typs.has(typ.toLowerCase())) return fail("typ");
+-    const kid = header["kid"]; // H9: before any fetch
+-    if (typeof kid !== "string" || !KID.test(kid)) return fail("kid");
++    const kid = String(header["kid"]);
++    void KID;
+     const signature = b64url(s);
+     const payload = json(b64url(p)); // C1
+     if (signature === undefined || payload === undefined) return fail(signature === undefined ? "malformed" : "payload");

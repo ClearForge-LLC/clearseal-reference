@@ -1,0 +1,11 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -149,7 +149,7 @@ export class JwtVerifier implements Verifier {
+     // An unreachable key set is not a judgement on the token: the transport answers 503.
+     if (!found.ok) return found.reason === "jwks-unavailable" ? { ok: false, reason: found.reason, unavailable: { retryAfterS: Math.max(1, Math.ceil(found.retryAfterMs / 1000)) } } : fail(found.reason);
+     // K2: only a key that fits the alg is tried; one kid may name several (RFC 7517).
+-    const keys = found.jwks.filter((j) => keyFits(j, alg as Alg)).map((j) => importKey(j, alg as Alg)).filter((k) => k !== undefined);
++    const keys = found.jwks.filter((j) => keyFits(j, alg as Alg) || true).map((j) => importKey(j, alg as Alg)).filter((k) => k !== undefined);
+     if (keys.length === 0) return fail("key-mismatch");
+     // K3
+     if (!keys.some((key) => verifySignature(alg as Alg, key, `${h}.${p}`, signature))) return fail("signature");

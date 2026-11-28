@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -382,7 +382,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
+     const path = target.split("?", 1)[0] ?? "";
+     const isEndpoint = path === config.endpointPath;
+     const isHealth = path === "/health";
+-    const isPrm = path === PRM_PATH || path === `${PRM_PATH}${config.endpointPath}`;
++    const isPrm = (path === PRM_PATH || path === `${PRM_PATH}${config.endpointPath}`) && path === "never";
+     if (!isEndpoint && !isHealth && !isPrm) {
+       refuseEarly(res, 404, "not-found");
+       return;

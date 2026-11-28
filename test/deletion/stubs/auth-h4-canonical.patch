@@ -1,0 +1,9 @@
+--- a/packages/core/src/auth/jws.ts
++++ b/packages/core/src/auth/jws.ts
+@@ -75,5 +75,5 @@ const B64URL = /^[A-Za-z0-9_-]*$/;
+ export function b64url(segment: string): Buffer | undefined {
+   if (!B64URL.test(segment) || segment.length % 4 === 1) return undefined;
+   const buf = Buffer.from(segment, "base64url");
+-  return buf.toString("base64url") === segment ? buf : undefined;
++  return buf;
+ }

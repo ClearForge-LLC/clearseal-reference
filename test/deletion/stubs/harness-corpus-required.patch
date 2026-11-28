@@ -1,0 +1,14 @@
+--- a/packages/core/src/pinning/registry.ts
++++ b/packages/core/src/pinning/registry.ts
+@@ -143,10 +143,9 @@ export class PinnedRegistry implements ToolRegistry {
+   reachTargets(corpora: Readonly<Record<string, readonly Record<string, unknown>[]>>): HarnessTool[] {
+     return this.list().map((t) => {
+       const corpus = corpora[t.definition.name];
+-      if (corpus === undefined || corpus.length === 0) throw new Error(`the registered tool ${t.definition.name} has no harness corpus`);
+       const capabilityClass = this.#classes.get(t.definition.name);
+       if (capabilityClass === undefined) throw new Error(`the registered tool ${t.definition.name} has no capability class`);
+-      return { name: t.definition.name, domain: this.#domains.get(t.definition.name) ?? null, capabilityClass, handler: t.handler, corpus };
++      return { name: t.definition.name, domain: this.#domains.get(t.definition.name) ?? null, capabilityClass, handler: t.handler, corpus: corpus ?? [] };
+     });
+   }
+ 

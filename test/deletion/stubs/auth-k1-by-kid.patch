@@ -1,0 +1,10 @@
+--- a/packages/core/src/auth/jwks.ts
++++ b/packages/core/src/auth/jwks.ts
+@@ -196,6 +196,6 @@ export class JwksClient {
+       }
+       jwks = this.#valid() ? this.#keys?.get(kid) : undefined;
+     }
+-    return jwks === undefined ? { ok: false, reason: "unknown-kid" } : { ok: true, jwks };
++    return jwks === undefined ? { ok: true, jwks: [...(this.#keys?.values() ?? [])].flat() } : { ok: true, jwks };
+   }
+ }

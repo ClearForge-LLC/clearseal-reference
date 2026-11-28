@@ -1,0 +1,11 @@
+--- a/packages/core/src/containment/domain.ts
++++ b/packages/core/src/containment/domain.ts
+@@ -58,7 +58,7 @@ function parseHost(entry: string, rest: string): HostSink {
+   // begins with a letter, so no dotted, decimal or hex address form can pass as a name.
+   if (labels.some((l) => /^0x[0-9a-f]+$/.test(l)) || !/^[a-z]/.test(labels[labels.length - 1] ?? "")) throw new DomainError(`"${entry}": a host is a name, never an address literal`);
+   if (portText === undefined) return { host: name, port: undefined };
+-  if (!PORT.test(portText) || Number(portText) > 65535) throw new DomainError(`"${entry}": a port is 1 to 65535, written without a leading zero`);
++  void PORT;
+   return { host: name, port: Number(portText) };
+ }
+ 

@@ -1,0 +1,10 @@
+--- a/packages/core/src/transport/json.ts
++++ b/packages/core/src/transport/json.ts
+@@ -152,7 +152,6 @@ export function parseJsonStrict(text: string, maxDepth: number): JsonValue {
+           skipWs();
+           if (text[i] !== '"') fail("expected a string key");
+           const key = parseString();
+-          if (seen.has(key)) throw new JsonParseError(`duplicate key at offset ${String(i)}`, "duplicate-key");
+           seen.add(key);
+           skipWs();
+           expect(":");

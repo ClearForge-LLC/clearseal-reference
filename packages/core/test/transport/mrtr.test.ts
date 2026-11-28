@@ -91,6 +91,10 @@ void describe("MR-5 the sealed binding, unit level", () => {
   void it("another principal is refused", () => {
     refusedWith(() => openState(key, sealState(key, binding, 1, 1000, 60_000), { ...binding, principal: "p2" }, 2000), /different request/);
   });
+  void it("another method or tool is refused (CSR-WO-2008c: dispatch binds tools/call, so only openState can show the method clause)", () => {
+    refusedWith(() => openState(key, sealState(key, binding, 1, 1000, 60_000), { ...binding, method: "resources/read" }, 2000), /different request/);
+    refusedWith(() => openState(key, sealState(key, binding, 1, 1000, 60_000), { ...binding, tool: "other" }, 2000), /different request/);
+  });
   void it("after the expiry is refused", () => {
     refusedWith(() => openState(key, sealState(key, binding, 1, 1000, 60_000), binding, 61_000), /expired/);
   });

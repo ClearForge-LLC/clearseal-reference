@@ -1,0 +1,13 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -400,10 +400,6 @@ export async function startTransport(options: TransportOptions): Promise<Running
+     const originOk = origins === undefined || (origins.length === 1 && allowedOrigins.includes((origins[0] ?? "").toLowerCase()));
+ 
+     if (isHealth || isPrm) {
+-      if (req.method !== "GET") {
+-        refuseEarly(res, 405, "method", { Allow: "GET" });
+-        return;
+-      }
+       if (!hostOk || !originOk) {
+         refuseEarly(res, 403, hostOk ? "origin-not-allowed" : "host-not-allowed");
+         return;

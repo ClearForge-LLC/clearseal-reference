@@ -1,0 +1,22 @@
+--- a/packages/core/src/transport/headers.ts
++++ b/packages/core/src/transport/headers.ts
+@@ -73,16 +73,10 @@ export function paramHeaders(inputSchema: unknown): ParamHeader[] {
+   const found: ParamHeader[] = [];
+   walkSchema(inputSchema, ({ node, staticPath: path }) => {
+     if (!Object.hasOwn(node, "x-mcp-header")) return;
+-    const where = path === null ? "a non-static location" : `/${path.join("/")}`;
+-    if (path === null || path.length === 0) throw new AnnotationError(`x-mcp-header at ${where} is not on a property statically reachable through properties`);
+-    const name = node["x-mcp-header"];
+-    if (typeof name !== "string" || name === "") throw new AnnotationError(`x-mcp-header at ${where} is empty or not a string`);
+-    if (!TOKEN.test(name)) throw new AnnotationError(`x-mcp-header at ${where} is not an HTTP token`);
+-    const type = primitiveType(node["type"]);
+-    if (type === undefined) throw new AnnotationError(`x-mcp-header at ${where} is on a property whose type is not exactly one of integer, string, boolean`);
++    const name = String(node["x-mcp-header"]);
++    const type = primitiveType(node["type"]) ?? "string";
+     const header = `mcp-param-${name.toLowerCase()}`;
+-    if (found.some((f) => f.header === header)) throw new AnnotationError(`x-mcp-header "${name}" is not case-insensitively unique`);
+-    found.push({ name, header, path, type });
++    found.push({ name, header, path: path ?? [], type });
+   });
+   return found;
+ }

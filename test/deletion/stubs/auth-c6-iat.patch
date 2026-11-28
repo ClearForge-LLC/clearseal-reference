@@ -1,0 +1,11 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -166,8 +166,6 @@ export class JwtVerifier implements Verifier {
+     if (exp > now + this.#skewS + this.#maxLifetimeS) return fail("exp-horizon");
+     const nbf = payload["nbf"]; // C5
+     if (nbf !== undefined && (typeof nbf !== "number" || !Number.isFinite(nbf) || !(nbf < now + this.#skewS))) return fail("nbf");
+-    const iat = payload["iat"]; // C6
+-    if (iat !== undefined && (typeof iat !== "number" || !Number.isFinite(iat) || iat > now + this.#skewS)) return fail("iat");
+     const sub = payload["sub"]; // C7
+     if (typeof sub !== "string" || sub.length === 0 || sub.length > 256) return fail("sub");
+     return { ok: true, principal: { id: sub } };

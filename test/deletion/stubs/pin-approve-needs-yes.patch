@@ -1,0 +1,13 @@
+--- a/packages/core/src/pinning/cli.ts
++++ b/packages/core/src/pinning/cli.ts
+@@ -123,10 +123,6 @@ export async function runPin(argv: readonly string[], out: (line: string) => voi
+     out(formatDiff(lines));
+     const changed = lines.some((l) => l.status !== "unchanged");
+     if (args.command === "diff") return changed ? 1 : 0;
+-    if (!args.yes) {
+-      err("approve writes the manifest only with --yes, after the diff above has been read");
+-      return 2;
+-    }
+     writeFileSync(args.manifest, serializeManifest(buildManifest(definitions)));
+     out(`approved: ${args.manifest} written with ${String(definitions.length)} tool(s)`);
+     return 0;

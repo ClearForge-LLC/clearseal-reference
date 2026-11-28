@@ -1,0 +1,10 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -482,7 +482,6 @@ export async function startTransport(options: TransportOptions): Promise<Running
+       const contentTypes = req.headersDistinct["content-type"] ?? [];
+       if (contentTypes.length !== 1 || !isJsonContentType(contentTypes[0])) throw refusal(415, INVALID_REQUEST, "Unsupported Media Type: send application/json", "content-type");
+       const coding = req.headers["content-encoding"];
+-      if (coding !== undefined && coding.trim().toLowerCase() !== "identity") throw refusal(415, INVALID_REQUEST, "Unsupported Media Type: content codings are not accepted", "content-coding");
+       const te = req.headers["transfer-encoding"];
+       if (te !== undefined && te.trim().toLowerCase() !== "chunked") throw refusal(400, INVALID_REQUEST, "Only the chunked transfer coding is accepted", "transfer-coding", undefined, { Connection: "close" });
+ 
