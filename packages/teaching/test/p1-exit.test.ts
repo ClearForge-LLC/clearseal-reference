@@ -208,6 +208,11 @@ void describe("P1 exit gate: against a real teaching node", () => {
           const lines = live().lines;
           assert.ok(lines.some((l) => l.startsWith('http-refused {"status":403,"reason":"origin-not-allowed"')), `a forged Origin writes http-refused: ${lines.slice(-4).join(" | ")}`);
           assert.ok(lines.some((l) => l.startsWith('rpc-refused {"code":-32602,"method":"tools/call"')), `an extra property writes rpc-refused: ${lines.slice(-4).join(" | ")}`);
+          // Since CSR-WO-2011 the extra property's line is written by dispatch (its answer is a result),
+          // so a refusal still answered as a JSON-RPC error proves the transport's own rpc-refused line.
+          const unknown = await mcp(t, "tools/nonexistent", {}, { token: token() });
+          assert.equal(unknown.status, 404, unknown.text);
+          assert.ok(live().lines.some((l) => l.startsWith('rpc-refused {"code":-32601,"method":"tools/nonexistent"')), `an unknown method writes rpc-refused: ${live().lines.slice(-4).join(" | ")}`);
         }
         assert.match(extra.text, /Invalid arguments for tool notes\.read/);
         rows.push(`${label}: forged Origin → ${String(origin.status)}, extra property → ${String(extra.status)}`);

@@ -3877,6 +3877,21 @@
       ]
     },
     {
+      "id": "arguments-refused-audit-line",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "CSR-WO-2011 §1.3: the refusal writes the rpc-refused line the protocol-error form had server.ts write (a result does not trigger server.ts's)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/arguments-refused-audit-line.patch",
+      "tests": [
+        "packages/core/test/transport/arguments-refused.test.ts"
+      ],
+      "mustFail": [
+        "§1.1 both eras: 200, isError true, resultType only on 2026-07-28; no handler, no cage; the one audit line"
+      ]
+    },
+    {
       "id": "arguments-tool-error-form",
       "section8": "Runtime input validation against the pinned schema; output size cap",
       "control": "CSR-WO-2011 §1.1: the refusal is a tool execution error (200, isError: true) in both eras, not a protocol error (the stub restores the 400 -32602 form; the refusal itself still happens)",

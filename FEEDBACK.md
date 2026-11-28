@@ -87,6 +87,17 @@ work order. Built on Node v24.21.0 on Furnace, 2026-11-28. Every commit's author
    96/15/6/2/1, as before; the not-passing set is identical (none newly failing, none newly
    passing). Only `spikes/2010-interop/results/` changed in the spike.
 
+## Findings
+
+1. **F1: this WO took away `refusal-audit-lines`' proof, and the build restored it.** That row's stub
+   deletes `server.ts`'s `rpc-refused` write. Its one test checked that line for an extra-property
+   refusal, which `dispatch.ts` now writes. Re-proving the rows that name the edited tests showed
+   `MISS … stayed green`. Fix: the same `p1-exit` test now also sends an unknown method (still a
+   JSON-RPC error, 404 -32601) and asserts `server.ts`'s line for it. The row is RED again.
+2. **F2: the new audit write has its own row.** `arguments-refused-audit-line`'s stub deletes
+   `dispatch.ts`'s `ctx.audit("rpc-refused", …)`, and §1.1's exact audit-row assertion goes red. It
+   is in `rows.lock`, as is `arguments-tool-error-form`.
+
 ## Architect-ruled fence widening (WO §2 named `dispatch.ts` and one helper)
 
 Ruled 2026-11-28: WO §1.2 needs the failing pointer and keyword, and only the validator has them.
@@ -171,11 +182,58 @@ RED  schema-closed | Runtime input validation against the pinned schema; output 
 
 ## Adversarial pass (WO §5)
 
-«ADV»
+A fresh subagent was given the diff, §2's invariants and both revisions' *Error Handling* text. It
+tried each §5 attack and ran its own script against `compileSchemaReporting`.
+
+- **Broke, fixed: a digit-only key the caller chose.** Under `additionalProperties`, the arguments
+  `{"1234567890": 1}` gave the pointer `/1234567890`. The array-index rule accepted any segment of
+  1 to 10 digits, whatever its container. Fix (`1d05484`): only a segment the schema declares under
+  `properties` survives; array indices also read `*`. The worker-reply test now plants that key.
+- **Held:**
+  - argument values in `pattern`, `enum`, `const` and `maximum` failures;
+  - caller keys under `additionalProperties`, `patternProperties`, `$ref`/`$defs`, `propertyNames`,
+    `unevaluatedProperties`, `dependentSchemas` and `anyOf`, plus keys like `x/y`, `~1`, the empty
+    key and `__proto__x`: all `*` or an empty pointer;
+  - a declared name used as a caller key at another depth: `/o/*`;
+  - keywords: whitelisted;
+  - no handler, cage, request state or approval after the refusal (`dispatch.ts`, the return before
+    the cage);
+  - `valid !== true` fails closed for any odd verdict;
+  - MRTR retries;
+  - the rate limit and tripwire on a retry loop;
+  - the legacy shape;
+  - the valid/invalid outcome and the pool's timers.
+- **Unsure, recorded:** the three-failure cap is also enforced by `MAX_FAILURES`, whatever z-schema's
+  `breakOnFirstError` returns.
 
 ## Gates
 
-«GATES»
+- `npm run check`, locally on `4fbfc3b`: 955 of 957 passed. The two failures,
+  `frozen.test.ts`'s *admitted validator still runs* and `p1-exit`'s *containment* test, still
+  asserted the old 400. Both were updated in `1d05484` and pass, with the transport, schema, pinning
+  and teaching suites. CI runs the whole suite and every shard on the final head: «CI».
+- Every touched row and every `validation-*` row is RED by assertion (above), as are the rows naming
+  the tests edited in `1d05484`: all RED:
+
+  ```
+  RED  admitted-freeze · options-captured · state-key-captured · server-info-captured | 1/1 each
+  RED  startnode-manifest-loaded 2/2 · audit-canary 2/2 · entry-captures-before-edition 1/1
+  RED  refusal-audit-lines | Transport hardening (…) | stub applied; 1/1 named test(s) red by assertion | 10047 ms   (after F1)
+  RED  arguments-refused-audit-line | Runtime input validation against the pinned schema; output size cap | stub applied; 1/1 named test(s) red by assertion | 2338 ms
+  ```.
+- Leak gate: `--self-test`, `--tree` and `--history` exit 0 before each push; `dbb96d5` is not an
+  ancestor.
+- Protected surfaces against `e5ef83b`: `docs/`, `scripts/` and `.github/` diff to empty. In
+  `packages/*/src` only the five files named above changed. Of the existing stubs, only the three
+  recorded above changed.
+- Reduction pass (diff): −0 net · 0 duplicates removed · 0 dead paths removed · 0 protected kept ·
+  2 findings below.
+  - **R1.** `rpc-refused`'s shape is now written in two places: `server.ts`, for every JSON-RPC error,
+    and `dispatch.ts` `refusedArguments`. One source would need `server.ts` (protected) to audit a
+    result marked as a refusal. That is a later WO, or none.
+  - **R2.** `refusedArguments` repeats `shapeResult`'s three-line era tail (`resultType`, `_meta`). A
+    shared helper would move two stubs' context again, so it is left for the next WO that touches
+    `shapeResult`.
 
 ## Deliberately not built
 

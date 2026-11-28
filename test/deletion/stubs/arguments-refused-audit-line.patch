@@ -1,0 +1,10 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -330,7 +330,6 @@ const MAX_REFUSED_ARGUMENTS_TEXT = 512;
+  * arguments (schema.ts SchemaFailure).
+  */
+ function refusedArguments(era: Era, name: string, verdict: ValidationVerdict, ctx: DispatchContext): Record<string, unknown> {
+-  ctx.audit("rpc-refused", { code: INVALID_PARAMS, method: "tools/call" });
+   const failures = typeof verdict === "object" ? verdict.failures : [];
+   const why = failures.length === 0 ? "they do not match its input schema" : failures.map((f) => `${f.pointer === "" ? "(root)" : f.pointer} fails ${f.keyword}`).join("; ");
+   const out = { content: [{ type: "text", text: `Invalid arguments for tool ${name}: ${why}`.slice(0, MAX_REFUSED_ARGUMENTS_TEXT) }], isError: true };
