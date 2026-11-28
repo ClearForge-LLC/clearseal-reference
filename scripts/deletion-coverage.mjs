@@ -8,7 +8,8 @@
 //       (and when a row's `section8` names no §8 title, or an exemption names a row that is not
 //       built or does have a deletion row);
 //   (c) a CHECKS.md id is named by no row's `checks`, or by more than one (and when a `checks` entry
-//       names an id not in CHECKS.md).
+//       names an id not in CHECKS.md). An id no stub can delete, such as an absence, is exempt only by
+//       an exempt.json entry {check, reason}, which goes stale when a row names the id.
 
 import { existsSync, globSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -17,7 +18,7 @@ const ROOT = path.join(import.meta.dirname, "..");
 
 /** @typedef {{ id: string, section8?: string, tests?: string[], checks?: string[] }} Row */
 /** @typedef {{ path: string, reason: string }} Unlisted */
-/** @typedef {{ section8: string, reason: string }} Exempt */
+/** @typedef {{ section8?: string, check?: string, reason: string }} Exempt */
 /** @typedef {{ title: string, status: string, built: boolean }} Section8Row */
 
 /** Backticks out, whitespace collapsed: the form in which §8 titles and `section8` are compared. @param {string} s */
@@ -99,7 +100,7 @@ export function detect({ rows, testFiles, unlisted, exempt, architecture, checks
   const section8 = parseSection8(architecture);
   const titles = new Map(section8.map((s) => [s.title, s]));
   const rowTitles = new Set(rows.map((r) => (r.section8 === undefined ? "" : normalise(r.section8))));
-  const exemptTitles = new Map(exempt.map((e) => [normalise(e.section8), e]));
+  const exemptTitles = new Map(exempt.flatMap((e) => (e.section8 === undefined ? [] : [[normalise(e.section8), e]])));
   for (const s of section8) {
     if (s.built && !rowTitles.has(s.title) && !exemptTitles.has(s.title)) {
       failures.push(
@@ -146,7 +147,14 @@ export function detect({ rows, testFiles, unlisted, exempt, architecture, checks
       }
     }
   }
+  const exemptChecks = new Map(exempt.flatMap((e) => (e.check === undefined ? [] : [[e.check, e]])));
+  for (const [id, e] of exemptChecks) {
+    if (!known.has(id)) failures.push(`(c) test/deletion/exempt.json exempts check ${id}, which is not in packages/core/src/auth/CHECKS.md. Fix or delete the entry.`);
+    else if ((namedBy.get(id) ?? []).length > 0) failures.push(`(c) test/deletion/exempt.json exempts check ${id}, but a row names it. Delete the exemption.`);
+    if (typeof e.reason !== "string" || e.reason.trim() === "") failures.push(`(c) test/deletion/exempt.json entry for check ${id} has an empty reason. Say why no stub can delete it.`);
+  }
   for (const [id, by] of namedBy) {
+    if (by.length === 0 && exemptChecks.has(id)) continue;
     if (by.length === 0) {
       failures.push(`(c) CHECKS.md check ${id} is named by no row's \`checks\`. Add "${id}" to the \`checks\` of the one row whose stub deletes it, or write that row.`);
     } else if (by.length > 1) {

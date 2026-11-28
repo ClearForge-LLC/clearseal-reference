@@ -24,7 +24,7 @@ const ARCH = [
 ].join("\n");
 const CHECKS = ["| # | Check | Source |", "|---|---|---|", "| H1 | one | RFC |", "| H3a | two | RFC |", "| K2 | three | RFC |"].join("\n");
 
-/** @returns {Parameters<typeof detect>[0] & { rows: { id: string, section8?: string, tests: string[], checks: string[] }[], testFiles: string[], unlisted: { path: string, reason: string }[], exempt: { section8: string, reason: string }[] }} */
+/** @returns {Parameters<typeof detect>[0] & { rows: { id: string, section8?: string, tests: string[], checks: string[] }[], testFiles: string[], unlisted: { path: string, reason: string }[], exempt: { section8?: string, check?: string, reason: string }[] }} */
 const good = () => ({
   rows: [
     { id: "r1", section8: "Alpha control", tests: ["packages/x/test/a.test.ts"], checks: ["H1", "H3a"] },
@@ -113,6 +113,25 @@ void describe("deletion coverage detector: planted inputs", () => {
     const f = detect(input).failures;
     assert.equal(f.length, 1);
     assert.match(f[0] ?? "", /K2.*no row/);
+  });
+
+  void it("(c) a check id no row names is green when exempt with a reason, and the exemption goes stale when a row names it", () => {
+    const input = good();
+    input.rows[1]?.checks.pop();
+    input.exempt.push({ check: "K2", reason: "an absence: no code to delete" });
+    assert.deepEqual(detect(input).failures, []);
+    input.rows[1]?.checks.push("K2");
+    const f = detect(input).failures;
+    assert.equal(f.length, 1);
+    assert.match(f[0] ?? "", /exempts check K2, but a row names it/);
+  });
+
+  void it("(c) an exemption for an id not in CHECKS.md, or with no reason, is red", () => {
+    const input = good();
+    input.exempt.push({ check: "Z9", reason: "x" }, { check: "H1", reason: " " });
+    const f = detect(input).failures;
+    assert.ok(f.some((m) => /exempts check Z9, which is not in/.test(m)));
+    assert.ok(f.some((m) => /check H1 has an empty reason/.test(m)));
   });
 
   void it("(c) a `checks` entry naming an id not in CHECKS.md is red", () => {

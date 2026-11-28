@@ -1,0 +1,10 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -446,7 +446,6 @@ export async function startTransport(options: TransportOptions): Promise<Running
+       if (!originOk) throw refusal(403, INVALID_REQUEST, "Forbidden: Origin is not allowed", "origin-not-allowed");
+ 
+       // 4. auth: one Authorization header at most, then the verifier (F10).
+-      if ((req.headersDistinct.authorization?.length ?? 0) > 1) throw refusal(400, INVALID_REQUEST, "Authorization is sent more than once", "duplicate-authorization");
+       // RFC 6750: the token travels in the header only here. One offered in the query or a form
+       // body as well is a second method, a malformed request, and it is never read.
+       if (tokenElsewhere(target, req.headersDistinct["content-type"])) {

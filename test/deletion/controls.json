@@ -776,7 +776,10 @@
       "mustFail": [
         "unauthenticated /mcp: 401, WWW-Authenticate naming the metadata document, no error code"
       ],
-      "stub": "stubs/missing-token-challenge.patch"
+      "stub": "stubs/missing-token-challenge.patch",
+      "checks": [
+        "G3"
+      ]
     },
     {
       "id": "audience-check",
@@ -792,7 +795,10 @@
         "C3 aud \"them\" → invalid_token / aud",
         "C3 aud missing → invalid_token / aud"
       ],
-      "stub": "stubs/audience-check.patch"
+      "stub": "stubs/audience-check.patch",
+      "checks": [
+        "C3"
+      ]
     },
     {
       "id": "issuer-check",
@@ -808,7 +814,10 @@
         "C2 iss another issuer → invalid_token / iss",
         "C2 iss missing → invalid_token / iss"
       ],
-      "stub": "stubs/issuer-check.patch"
+      "stub": "stubs/issuer-check.patch",
+      "checks": [
+        "C2"
+      ]
     },
     {
       "id": "expiry-check",
@@ -823,7 +832,10 @@
       "mustFail": [
         "C4 exp 90 s ago (skew 60) → invalid_token / exp"
       ],
-      "stub": "stubs/expiry-check.patch"
+      "stub": "stubs/expiry-check.patch",
+      "checks": [
+        "C4"
+      ]
     },
     {
       "id": "algorithm-check",
@@ -840,7 +852,10 @@
         "H6 WO §5.1: HS256 keyed with the issuer's own public key → invalid_token / alg",
         "H6 alg PS256, not on the allow-list → invalid_token / alg"
       ],
-      "stub": "stubs/algorithm-check.patch"
+      "stub": "stubs/algorithm-check.patch",
+      "checks": [
+        "H6"
+      ]
     },
     {
       "id": "signature-check",
@@ -856,7 +871,10 @@
         "K3 payload altered after signing → invalid_token / signature",
         "K3 signed by another key under a served kid → invalid_token / signature"
       ],
-      "stub": "stubs/signature-check.patch"
+      "stub": "stubs/signature-check.patch",
+      "checks": [
+        "K3"
+      ]
     },
     {
       "id": "rsa-key-rules",
@@ -888,7 +906,10 @@
         "cache expired and the issuer down: 503, Retry-After from the cooldown, no challenge, one auth-unavailable line; issuer up: 200",
         "a cold cache with the issuer down, and a key set answering 200 with garbage: 503 each"
       ],
-      "stub": "stubs/outage-503.patch"
+      "stub": "stubs/outage-503.patch",
+      "checks": [
+        "J4"
+      ]
     },
     {
       "id": "jwks-reject-unauthorized",
@@ -933,6 +954,9 @@
       ],
       "mustFail": [
         "a forged Origin and an extra request property are each refused before any handler runs"
+      ],
+      "checks": [
+        "G5"
       ]
     },
     {
@@ -3957,6 +3981,499 @@
       ],
       "mustFail": [
         "after the expiry is refused"
+      ]
+    },
+    {
+      "id": "auth-h2-missing",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H2: no Authorization header is a 401 with the challenge, audited as missing (layered: with the line gone H3's scheme check refuses the same request the same way, so the tests go red on the audit reason)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h2-missing.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts",
+        "packages/core/test/auth/transport.test.ts"
+      ],
+      "mustFail": [
+        "H2 no Authorization header → no error / missing",
+        "unauthenticated /mcp: 401, WWW-Authenticate naming the metadata document, no error code"
+      ],
+      "checks": [
+        "H2"
+      ]
+    },
+    {
+      "id": "auth-h3-bearer",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H3: another scheme is no token (401, no error) and a Bearer with anything but one token is 400 invalid_request (the stub takes whatever follows the first word as the token)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h3-bearer.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts",
+        "packages/core/test/auth/transport.test.ts"
+      ],
+      "mustFail": [
+        "H3 scheme is Basic (no error code: an unsupported method) → no error / scheme",
+        "H3 Bearer with two tokens → invalid_request / malformed-bearer",
+        "H3 two Bearer credentials joined by a comma → invalid_request / malformed-bearer",
+        "H3 Bearer with no token → invalid_request / malformed-bearer",
+        "H3 a scheme other than Bearer: 401 with the challenge and no error code (RFC 6750)",
+        "H3 a malformed Bearer (two credentials joined by a comma): 400 invalid_request, not dispatched"
+      ],
+      "checks": [
+        "H3"
+      ]
+    },
+    {
+      "id": "auth-h4-compact",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H4: the token is at most 8 KiB and exactly three segments (the stub deletes the cap and the count; the canonical spelling is auth-h4-canonical)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h4-compact.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "H4 four segments → invalid_token / malformed",
+        "H4 a validly signed token over 8 KiB → invalid_token / malformed"
+      ],
+      "checks": [
+        "H4"
+      ]
+    },
+    {
+      "id": "auth-h4-canonical",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H4 (its canonical clause): a base64url segment is decoded only in its one canonical spelling, unused trailing bits zero (the stub accepts any spelling Node decodes)",
+      "touches": [
+        "packages/core/src/auth/jws.ts"
+      ],
+      "stub": "stubs/auth-h4-canonical.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "H4 a valid signature respelled: unused trailing bits set (adversarial A11) → invalid_token / malformed"
+      ]
+    },
+    {
+      "id": "auth-jose-utf8",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H5 and C1: the token's header and payload are decoded as strict UTF-8, an invalid byte refused, never replaced (the stub decodes leniently; one decoder serves both; the duplicate-key clause is json-duplicate-key)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-jose-utf8.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "a header with an invalid byte is refused",
+        "sub bytes 75 FF, 75 FE and 75 C0 are refused; 75 EF BF BD (a real U+FFFD) is a different, valid principal"
+      ],
+      "checks": [
+        "H5",
+        "C1"
+      ]
+    },
+    {
+      "id": "auth-h7-crit",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H7: a token with crit is refused (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h7-crit.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "H7 crit present → invalid_token / crit"
+      ],
+      "checks": [
+        "H7"
+      ]
+    },
+    {
+      "id": "auth-h9-kid",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H9: kid is required, 1 to 128 characters of [A-Za-z0-9._-], refused before any fetch (layered: with the check gone the kid goes to the key set and is refused unknown-kid, so the tests go red on the reason)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h9-kid.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "H9 no kid → invalid_token / kid",
+        "H9 WO §5.4: path-shaped kid → invalid_token / kid",
+        "H9 kid of 129 characters → invalid_token / kid",
+        "H9 kid a number → invalid_token / kid"
+      ],
+      "checks": [
+        "H9"
+      ]
+    },
+    {
+      "id": "auth-h10-typ",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H10: typ, when present, is one of the JWT or at+jwt spellings, and AUTH_REQUIRE_AT_JWT requires at+jwt (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-h10-typ.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts",
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "H10 typ JOSE → invalid_token / typ",
+        "the matrix under both settings"
+      ],
+      "checks": [
+        "H10"
+      ]
+    },
+    {
+      "id": "auth-k1-by-kid",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, K1: the key is the one the key set serves under the token's kid (the stub serves every key for a kid it does not know, so a token signed by any served key is accepted)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-k1-by-kid.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "K1 kid not in the key set → invalid_token / unknown-kid"
+      ],
+      "checks": [
+        "K1"
+      ]
+    },
+    {
+      "id": "auth-k2-key-fits",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, K2: only a key whose use, key_ops and alg fit the header's alg is tried (the stub tries every key)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-k2-key-fits.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "K2 a P-256 key served with use enc → invalid_token / key-mismatch",
+        "K2 a P-256 key served with key_ops [encrypt] (adversarial A8) → invalid_token / key-mismatch",
+        "K2 a P-256 key served with alg ES384 → invalid_token / key-mismatch"
+      ],
+      "checks": [
+        "K2"
+      ]
+    },
+    {
+      "id": "auth-c4a-horizon",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, C4a: exp no further than now + skew + AUTH_MAX_TOKEN_LIFETIME_S (the stub deletes the horizon)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-c4a-horizon.patch",
+      "tests": [
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "exp at the horizon (now + skew + 86400) is accepted; one second past is refused exp-horizon",
+        "AUTH_MAX_TOKEN_LIFETIME_S is bounded 60 to 604800 and moves the edge"
+      ],
+      "checks": [
+        "C4a"
+      ]
+    },
+    {
+      "id": "auth-c5-nbf",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, C5: nbf, when present, is a number before now + skew (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-c5-nbf.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "C5 nbf 90 s ahead → invalid_token / nbf",
+        "C5 nbf a string → invalid_token / nbf"
+      ],
+      "checks": [
+        "C5"
+      ]
+    },
+    {
+      "id": "auth-c6-iat",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, C6: iat, when present, is a number no later than now + skew (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-c6-iat.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "C6 iat 90 s ahead → invalid_token / iat",
+        "C6 iat a string → invalid_token / iat"
+      ],
+      "checks": [
+        "C6"
+      ]
+    },
+    {
+      "id": "auth-c7-sub",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, C7: sub is a non-empty string of at most 256 code units (the stub takes any sub as the principal)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-c7-sub.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "C7 sub missing → invalid_token / sub",
+        "C7 sub empty → invalid_token / sub",
+        "C7 sub of 257 characters → invalid_token / sub",
+        "C7 sub a number → invalid_token / sub"
+      ],
+      "checks": [
+        "C7"
+      ]
+    },
+    {
+      "id": "auth-g1-blank-config",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, G1: a blank AUTH_ISSUER, AUTH_JWKS_URL or AUTH_AUDIENCE refuses start (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/verifier.ts"
+      ],
+      "stub": "stubs/auth-g1-blank-config.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "a blank issuer, key-set URL or audience refuses start, naming the variable"
+      ],
+      "checks": [
+        "G1"
+      ]
+    },
+    {
+      "id": "auth-j1-https",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, J1: AUTH_JWKS_URL must be https: (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j1-https.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "J1 a key-set URL that is not https refuses construction"
+      ],
+      "checks": [
+        "J1"
+      ]
+    },
+    {
+      "id": "auth-j2-ttl",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, J2: the key set is cached for the TTL only, and a clock stepped back expires it (the stub keeps the cache for ever)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j2-ttl.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts",
+        "packages/core/test/auth/corrections.test.ts"
+      ],
+      "mustFail": [
+        "J2 cache hit: two verifications, one fetch; past the TTL, a second fetch",
+        "a token minted before the step is refused once it is outside skew; the cache is not stretched",
+        "J4 issuer down with a warm cache: verified; with a cold cache: 401; with an expired cache: 401",
+        "cache expired and the issuer down: 503, Retry-After from the cooldown, no challenge, one auth-unavailable line; issuer up: 200"
+      ],
+      "checks": [
+        "J2"
+      ]
+    },
+    {
+      "id": "auth-j3-refetch-window",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, J3: an unknown kid triggers one refetch per TTL window (the stub refetches for every unknown kid)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j3-refetch-window.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "J3 unknown kid: one refetch finds a rotated key; a second unknown kid in the window gets none, and 401"
+      ],
+      "checks": [
+        "J3"
+      ]
+    },
+    {
+      "id": "auth-j5-caps",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, J5: a key set over 64 KiB or 32 keys, or not strict UTF-8, is refused (the stub deletes the two caps and decodes leniently; the duplicate-key clause is json-duplicate-key)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j5-caps.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "J5 WO §5.7: a 10 MB key set that is valid JSON is refused at the cap",
+        "J5 32 keys are served; 33 are refused",
+        "a key set with an invalid byte is refused"
+      ],
+      "checks": [
+        "J5"
+      ]
+    },
+    {
+      "id": "auth-j6-deadline",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, J6: the whole key-set fetch has a 3 s deadline (the stub stretches it 2.5-fold: deleting it runs the tests into their own 10 s timeout, which is not an assertion)",
+      "touches": [
+        "packages/core/src/auth/jwks.ts"
+      ],
+      "stub": "stubs/auth-j6-deadline.patch",
+      "tests": [
+        "packages/core/test/auth/verifier.test.ts"
+      ],
+      "mustFail": [
+        "J6 a key set that never answers times out at 3 s",
+        "J6 a key set dripped one byte every 400 ms is cut off at the 3 s deadline (adversarial A1)"
+      ],
+      "checks": [
+        "J6"
+      ]
+    },
+    {
+      "id": "auth-h1-duplicate",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H1: a request with two Authorization headers is refused 400 duplicate-authorization (the stub deletes the check, so the request is served)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-h1-duplicate.patch",
+      "tests": [
+        "packages/core/test/auth/transport.test.ts",
+        "packages/core/test/transport/adversarial.test.ts",
+        "packages/core/test/transport/era-status.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "H1 two Authorization headers, both valid: 400 and nothing dispatched",
+        "F9 F10 F11 duplicate Host → 400; absolute-form target → 400; duplicate Authorization → 400; duplicate Content-Type → 415; Content-Encoding → 415; TE other than chunked → 400",
+        "ST Authorization sent twice",
+        "400 H1 Authorization sent twice"
+      ],
+      "checks": [
+        "H1"
+      ]
+    },
+    {
+      "id": "auth-h3a-token-elsewhere",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, H3a: a token also offered in the query or a form body is refused 400 invalid_request and never read (the stub disables the check)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-h3a-token-elsewhere.patch",
+      "tests": [
+        "packages/core/test/auth/transport.test.ts",
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "WO §5.5 a token in the header and the query: 400 invalid_request, and the query token is never read",
+        "WO §5.5 a token in the header and a form body: 400 invalid_request",
+        "a token in the query alone is refused the same way, never used",
+        "400 a token in the query too (auth-refused only)"
+      ],
+      "checks": [
+        "H3a"
+      ]
+    },
+    {
+      "id": "auth-g2-prm",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, G2: the RFC 9728 document is served at both well-known paths (the stub stops serving it)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-g2-prm.patch",
+      "tests": [
+        "packages/core/test/auth/transport.test.ts",
+        "packages/core/test/transport/eras.test.ts"
+      ],
+      "mustFail": [
+        "the protected-resource metadata document, at both well-known paths (G2)",
+        "AU-1 the protected-resource metadata document is bearer-free",
+        "/health and the metadata document stay reachable; the document names the verifier's issuer"
+      ],
+      "checks": [
+        "G2"
+      ]
+    },
+    {
+      "id": "auth-g4-http-refused",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §1.3, G4: every HTTP-level refusal writes exactly one http-refused audit line (the stub disables both places that write it)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-g4-http-refused.patch",
+      "tests": [
+        "packages/core/test/transport/refusal-audit.test.ts"
+      ],
+      "mustFail": [
+        "400 a target that is not origin-form",
+        "404 an unknown route",
+        "400 Host sent twice",
+        "405 GET /mcp",
+        "405 POST /health",
+        "403 /health with a Host not allowed",
+        "403 /mcp with a Host not allowed",
+        "403 /mcp with an Origin not allowed",
+        "400 H1 Authorization sent twice",
+        "406 Accept without JSON",
+        "415 Content-Type not JSON",
+        "415 a content coding",
+        "400 a transfer coding other than chunked",
+        "413 a body over the cap",
+        "400 a body that is not UTF-8",
+        "400 a body that is not JSON",
+        "400 a duplicate key",
+        "400 a lone surrogate",
+        "400 nesting over the depth cap",
+        "400 a batch (framing)",
+        "503 at capacity: the second call is refused with one line naming the caller"
+      ],
+      "checks": [
+        "G4"
       ]
     }
   ]

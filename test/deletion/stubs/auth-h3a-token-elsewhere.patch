@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -449,7 +449,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
+       if ((req.headersDistinct.authorization?.length ?? 0) > 1) throw refusal(400, INVALID_REQUEST, "Authorization is sent more than once", "duplicate-authorization");
+       // RFC 6750: the token travels in the header only here. One offered in the query or a form
+       // body as well is a second method, a malformed request, and it is never read.
+-      if (tokenElsewhere(target, req.headersDistinct["content-type"])) {
++      if (tokenElsewhere(target, req.headersDistinct["content-type"]) && target === "never") {
+         audit("auth-refused", { reason: "token-elsewhere" });
+         throw audited(new Refusal(400, INVALID_REQUEST, "The access token is accepted in the Authorization header only", undefined, { "WWW-Authenticate": `${challenge()["WWW-Authenticate"] ?? ""}, error="invalid_request"` }));
+       }

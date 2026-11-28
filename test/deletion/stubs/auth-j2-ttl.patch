@@ -1,0 +1,12 @@
+--- a/packages/core/src/auth/jwks.ts
++++ b/packages/core/src/auth/jwks.ts
+@@ -134,7 +134,8 @@ export class JwksClient {
+   }
+ 
+   #valid(): boolean {
+-    return this.#keys !== undefined && this.#within(this.#fetchedAt);
++    void this.#fetchedAt;
++    return this.#keys !== undefined;
+   }
+ 
+   /** What remains of the cooldown after the last failure; the whole cooldown when none is running. */

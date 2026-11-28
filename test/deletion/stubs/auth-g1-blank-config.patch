@@ -1,0 +1,12 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -87,9 +87,6 @@ export class JwtVerifier implements Verifier {
+ 
+   constructor(config: JwtVerifierConfig) {
+     // G1: blank configuration refuses start.
+-    for (const [name, v] of [["AUTH_ISSUER", config.issuer], ["AUTH_JWKS_URL", config.jwksUrl], ["AUTH_AUDIENCE", config.audience]] as const) {
+-      if (typeof v !== "string" || v.trim() === "") throw new AuthConfigError(`${name} is not configured: the node does not start without it`);
+-    }
+     const algs = config.algs ?? KNOWN_ALGS;
+     for (const a of algs) if (!(KNOWN_ALGS as readonly string[]).includes(a)) throw new AuthConfigError(`AUTH_ALGS names ${a}, which this verifier does not implement`);
+     const skew = config.clockSkewS ?? DEFAULT_CLOCK_SKEW_S;

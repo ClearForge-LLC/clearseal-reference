@@ -1,0 +1,12 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -114,8 +114,7 @@ export class JwtVerifier implements Verifier {
+   }
+ 
+   async #check(headers: IncomingHttpHeaders): Promise<Verdict | Fail> {
+-    const auth = headers.authorization;
+-    if (auth === undefined) return { ok: false, reason: "missing" }; // H2: no error code
++    const auth = headers.authorization ?? "";
+     // H3: another scheme is a missing token, with no error code (RFC 6750: the client used a method
+     // this server does not support). "Bearer", case-insensitive, with anything but one token after
+     // one space is a malformed request.

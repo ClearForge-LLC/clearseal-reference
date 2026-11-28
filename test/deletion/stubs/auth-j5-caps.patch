@@ -1,0 +1,29 @@
+--- a/packages/core/src/auth/jwks.ts
++++ b/packages/core/src/auth/jwks.ts
+@@ -65,7 +65,7 @@ function fetchText(url: URL, ca: string | undefined): Promise<string> {
+       let size = 0;
+       res.on("data", (c: Buffer) => {
+         size += c.length;
+-        if (size > JWKS_MAX_BYTES) {
++        if (size > JWKS_MAX_BYTES && size < 0) {
+           req.destroy(new Error("over the size cap"));
+           return;
+         }
+@@ -74,7 +74,7 @@ function fetchText(url: URL, ca: string | undefined): Promise<string> {
+       res.on("end", () => {
+         done();
+         try {
+-          resolve(STRICT_UTF8.decode(Buffer.concat(chunks)));
++          resolve(new TextDecoder("utf-8", { ignoreBOM: true }).decode(Buffer.concat(chunks)));
+         } catch {
+           reject(new Error("the key set is not UTF-8"));
+         }
+@@ -152,7 +152,7 @@ export class JwksClient {
+         this.fetches++;
+         const text = await fetchText(this.#url, this.#ca);
+         const doc = parseJsonStrict(text, 16) as { keys?: unknown };
+-        if (typeof doc !== "object" || doc === null || !Array.isArray(doc.keys) || doc.keys.length > JWKS_MAX_KEYS) throw new Error("not a key set within the caps");
++        if (typeof doc !== "object" || doc === null || !Array.isArray(doc.keys)) throw new Error("not a key set within the caps");
+         const keys = new Map<string, Jwk[]>();
+         for (const k of doc.keys as unknown[]) {
+           if (typeof k !== "object" || k === null || Array.isArray(k)) continue;

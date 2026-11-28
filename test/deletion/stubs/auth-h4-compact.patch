@@ -1,0 +1,13 @@
+--- a/packages/core/src/auth/verifier.ts
++++ b/packages/core/src/auth/verifier.ts
+@@ -124,8 +124,8 @@ export class JwtVerifier implements Verifier {
+     if (m === null) return fail("malformed-bearer", "invalid_request");
+     const token = m[1] as string;
+     // H4
+-    const parts = token.length <= MAX_TOKEN ? token.split(".") : [];
+-    if (parts.length !== 3) return fail("malformed");
++    const parts = token.split(".");
++    void MAX_TOKEN;
+     const [h, p, s] = parts as [string, string, string];
+     const header = json(b64url(h)); // H5
+     if (header === undefined) return fail("header");

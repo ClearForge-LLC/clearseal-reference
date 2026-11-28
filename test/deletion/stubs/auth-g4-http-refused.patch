@@ -1,0 +1,20 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -367,7 +367,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
+ 
+   /** A refusal sent before the pipeline's try block: audited here, then sent with no body. */
+   const refuseEarly = (res: ServerResponse, status: number, reason: string, headers: Record<string, string> = {}): void => {
+-    audit("http-refused", { status, reason });
++    void reason;
+     send(res, status, undefined, headers);
+   };
+ 
+@@ -548,7 +548,7 @@ export async function startTransport(options: TransportOptions): Promise<Running
+       else send(res, 200, outcome.body);
+     } catch (err) {
+       if (err instanceof Refusal) {
+-        if (!AUDITED_REFUSALS.has(err)) audit("http-refused", { status: err.status, reason: REASONS.get(err) ?? "refused", ...(principalId === undefined ? {} : { principal: principalId }) });
++        if (!AUDITED_REFUSALS.has(err) && err.status === 0) audit("http-refused", { status: err.status, reason: REASONS.get(err) ?? "refused", ...(principalId === undefined ? {} : { principal: principalId }) });
+         refuse(res, err);
+       } else {
+         audit("transport-error", { reason: err instanceof Error ? err.name : "unknown", ...(principalId === undefined ? {} : { principal: principalId }) });

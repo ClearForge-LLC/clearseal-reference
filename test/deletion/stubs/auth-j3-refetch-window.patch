@@ -1,0 +1,11 @@
+--- a/packages/core/src/auth/jwks.ts
++++ b/packages/core/src/auth/jwks.ts
+@@ -182,7 +182,7 @@ export class JwksClient {
+     if (!this.#valid()) return { ok: false, reason: "jwks-unavailable", retryAfterMs: this.#cooldownLeft() };
+     // Map.get, never an object lookup: a kid of __proto__ or constructor names nothing.
+     let jwks = this.#keys?.get(kid);
+-    if (jwks === undefined && !this.#within(this.#lastUnknownRefetch)) {
++    if (jwks === undefined) {
+       const previous = this.#lastUnknownRefetch;
+       const landedBefore = this.#landed;
+       this.#lastUnknownRefetch = this.#now();

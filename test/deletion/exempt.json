@@ -14,5 +14,9 @@
   {
     "section8": "Property-based tests on parsers",
     "reason": "they are tests, not a control; there is nothing to delete"
+  },
+  {
+    "check": "H8",
+    "reason": "an absence: jku, x5u, jwk and x5c are never read, so there is no code to delete; a stub would have to add a fetch. verifier.test.ts proves the attacker's key set is never fetched"
   }
 ]
