@@ -1,399 +1,131 @@
-# FEEDBACK: CSR-WO-2008c (every built control fails its own row, and a detector keeps it that way)
+# FEEDBACK: CSR-WO-1005c (a validation's deadline starts when its worker is ready, and a receive timeout fires when it says)
 
-Branch `wo/CSR-WO-2008c`, cut from `main` at `3332570` (contains `-2008b`'s merge `81a7d5d` and the
-docs PR that adds this work order). Built on Node v24.21.0 on Furnace, as `forge`. Every commit's
-author and committer is `clearforgekey[bot]`'s noreply address. Parked as one unmerged pull request
-(#88). Its description was written at `5688906` and is out of date (69 rows, seven exemptions); this
-file is current.
+Branch `wo/CSR-WO-1005c`, cut from `main` at `011e271` (contains `-2008c`'s merge `f6080e9` and the docs
+PR that widened this WO). Built on Node v24.21.0 on Furnace, as `forge`; every commit's author and
+committer is `clearforgekey[bot]`'s noreply address. Parked as one unmerged pull request.
 
-## Read this first: what could not be stubbed honestly
+## Read this first
 
-Five things have no row whose stub deletes them, because no honest stub exists. Each is an absence (a
-stub would have to add code) or a layer that cannot be peeled (another check, or the platform, refuses
-the same input the same way, and that check is itself another control or out of a stub's reach):
+- **The race is fixed in the pool, and no test waits for it.** F2's 500 ms settle is gone: its follow-up
+  call goes straight after the timeout and passes. At a 40 ms deadline a call straight after a timeout
+  answers 200 in every round: 3 of 3 idle, and 18 of 18 (6 copies × 3 rounds) on 2 cores under load,
+  where `-2008b` measured 3 of 3 failing idle at that deadline.
+- **Approach (a), by necessity and by measurement.** A slot is offered to `#pump` only once its worker
+  is online and has acknowledged every schema it was sent; priming compiles carry negative ids. (b),
+  starting the timer when the worker acknowledges a job, needs the worker to acknowledge a job, which
+  it does not, and `schema-worker.ts` is protected. Priming, measured with the fixture's 13 schemas:
+  71–85 ms idle, at most 453 ms on 2 cores under load.
+- **Readiness has its own bound: 5 s** (about 11 times the worst loaded reading). A worker not ready
+  within it is replaced and audited as `validation-worker-not-ready`. A queued job waits up to twice
+  that for a ready worker (so a replacement gets its whole window), then is refused as a timeout is:
+  400 -32602, fail closed. A job queued behind ready workers that are busy waits for them, as before.
+- **Behaviour change, §1.5:** both servers now sweep for timed-out requests every second (the
+  transport every min(setting, 1 s), at least 100 ms apart). Before and after, measured:
 
-| Control | Why no row | Where it is proven instead |
-|---|---|---|
-| **H8**: `jku`, `x5u`, `jwk` and `x5c` are never read | An absence: no code reads them, so a stub would have to add a fetch | `verifier.test.ts` *the attacker's key set … is never fetched* |
-| **Batch refusal** (`jsonrpc.ts:82`) | A layer by construction: with its line deleted the plain-object check refuses the array, and below it the `jsonrpc` check; no stub short of adding batch handling lets one through. Same status, code and audit reason; only SH-9's message regex noticed | `refusals.test.ts` SH-9 |
-| **Legacy `initialize` returns no session header** (`dispatch.ts:231`) | An absence: no code sets the header | `eras.test.ts` LG-1, `refusals.test.ts` SH-43 |
-| **`startNode`'s port range** (`start.ts:184`) | A layer: with it deleted, the transport's own port check refuses the same configuration (`ConfigError: port must be 0–65535`, measured with the stub applied and the core rebuilt), and behind that Node's `listen`, which no stub can reach | `config.test.ts` *a port over 65535*; the transport's check |
-| **H5's and C1's JSON-object guard** (`verifier.ts`, `json()`) | A layer by construction: an array or a scalar has no `alg`, `kid`, `iss` or `aud`, so H6 refuses the header and C2 the payload with the same `invalid_token` | the H6 and C2 rows; the strict-UTF-8 and duplicate-key clauses have their own rows |
+  | server | setting | before (Node's 30 s sweep) | after |
+  |---|---|---|---|
+  | transport (test value) | 1 s | 30,004–30,011 ms | 2,001–2,003 ms |
+  | approval listener | 10 s | 30,006–30,007 ms | 10,010–10,016 ms |
+  | transport (production default) | 30 s | 30–60 s | 30–31 s |
 
-Each is in `test/deletion/exempt.json` (`{control, reason}`, H8 as `{check, reason}`), which the
-detector reads. **Operator ruling (2026-11-28): accepted as exemptions**, covered by their own tests
-and the records above.
+  Cost: 0.020 % of a core at 200 open connections with a 1 s sweep (0.004 % at 30 s, 0.056 % at
+  250 ms, 0.175 % at 100 ms). The tests now assert the 408 lands within the setting plus one sweep
+  plus 500 ms, and wait 10 s and 20 s instead of 45 s.
+- **Fences lifted by operator ruling** for §1.4's audit event, each one line: `node/start.ts` passes
+  its audit sink to the pool, and `audit/policy.ts` and `audit/RULES.md` list the event.
 
-**Four I first called layers have honest rows.** Their decision is made in two places, so the stub
-deletes both, the smallest edit that removes the control:
-- **G1's resource URL** (`auth-g1-resource-url`): it was never a layer. With the check deleted the
-  transport *starts*; the test's `try` caught nothing, so `String(undefined)` failed the regex.
-- **The manifest's unknown-field and version checks** (`manifest-unknown-field`, `manifest-versions`):
-  each deletes its check and skips the `manifest.schema.json` call; the manifest then loads.
-- **A2, the cage's symlink-leaf refusal** (`cage-symlink-leaf`): the pre-open `lstat` and `O_NOFOLLOW`
-  both refuse it; with both deleted the write lands outside the root.
+## -2008c's findings, promoted
 
-**H2 and H9 now go red for their controls.**
-- **H9** (`auth-h9-kid`): a new test asserts a missing or malformed kid is refused *before any key is
-  fetched*; under the stub a key set is fetched for it. The row names that test, not the table cases
-  whose reason assertion fired first.
-- **H2** (`auth-h2-missing`): its decision is also made by H3's scheme branch, so the stub deletes
-  both; a missing header is then answered 400 `invalid_request`, which the client sees.
-
-Every other new row's stub lets the refused input through, checked by hand for the auth rows (the
-forbidden token is accepted: `actual: true` on every table-driven verifier case) and from the failing
-assertion for the rest (the request is served, the manifest loads, the configuration starts,
-*Missing expected rejection*, *registration was accepted*).
-
-## -2008b's findings, promoted
-
-| -2008b finding | Durable home |
+| -2008c finding | Durable home |
 |---|---|
-| 0: a validation straight after a timeout counts the replacement worker's start-up | `CSR-WO-1005c` (ruled 2026-11-27); the test-side settle stands until then |
-| The §5 coverage sweep | this WO |
-| 1: the corrections close-in-flight test does not discriminate the deadline | needs-none: the file stays in `validation-deadline`'s baseline, unnamed |
-| 2: the heap test cannot see the WO's plant | `CSR-WO-2008d` (ruled) |
-| 3: the canary fails most runs on Furnace | `CSR-WO-2008d` (ruled; the fixture margin is -2008d's, not -2003's) |
-| 4: `reach.test.ts` failed once under heavy load | needs-none: it has not recurred, on CI or in this WO's local runs |
-| 5: `ci.yml`'s stale shard comment | this WO §1.6 |
-| 6: `forge`'s git identity | the operator, as a furnace777 change (ruled); every commit here sets it |
+| 1: the sweep missed controls | needs-none: built in `-2008c` |
+| 2: a receive timeout fires on the 30 s sweep | this WO §1.5 |
+| 3: the H9 table cases asserted the reason first | needs-none: fixed in `-2008c` |
+| 4: `CHECKS.md` clause ids | open: the architect's (no ruling yet) |
+| 5: J6's stub stretches | needs-none |
+| 6: `drift-refused` gained a name | needs-none: ratified at merge |
+| 7: the Windows-only containment test | a later WO (ruled 2026-11-28; `-2008e`'s intent) |
+| The five exemptions | needs-none: accepted (ruled 2026-11-28) |
 
 ## Findings
 
 Schema: *finding · where · type · recommendation · decision-needed*.
 
-1. **The sweep missed controls; the unlisted files and the adversarial pass found them.** · coverage ·
-   - The `-2008b` sweep looked at transport files only; 16 test files, not 4, were in no row.
-   - From the unlisted files: `manifest-schema`, `manifest-generated-at`, `manifest-tools-sorted`,
-     `manifest-hash-recomputes`, `edition-config-schema` (startNode validates the edition's variables,
-     N4) and `pin-approve-needs-yes`.
-   - From the adversarial pass (operator ruling: build them here): the `CHECKS.md` clauses
-     (`auth-g1-algs`, `-skew`, `-lifetime`, `auth-j2-ttl-bounds`, `auth-j3-shared-fetch`, `auth-g5-ca-file`,
-     `-audience-differs`, `-log-escaping`, `-decimal`); containment (`cage-o-nofollow` R-1,
-     `cage-descriptor-recheck` A3, `cage-backslash-drive` A13, `cage-port-bounds` A15, `cage-frozen` A8,
-     `domain-fs-nul-backslash`, `domain-host-not-address`, `domain-port-range`); the reach harness
-     (`harness-one-run` A7, `harness-shim-counted` A5, `harness-corpus-required` A12); the canonicalizer
-     (`canonical-nesting-cap` A1 with cycles, `canonical-data-members`, `canonical-array-extra`); the eras
-     (`era-legacy-status-200` ST-2, `legacy-input-required` LG-8).
-   - Recommendation: none further; the detector now names a file that drops out or proves nothing. ·
-     *decision-needed: no*
-2. **A receive timeout fires on Node's 30 s sweep, not at its setting.** · `server.ts:560`,
-   `listener.ts:274` · control semantics ·
-   - Measured: `requestTimeout: 200` answered 408 at 30,008 ms; the transport at 1,000 ms answered at
-     30,004–30,010 ms; the listener's fixed 10 s at 30,006–30,007 ms.
-   - Node checks request timeouts every `connectionsCheckingInterval` (30 s by default). So
-     production's `requestTimeoutMs` 30,000 ends a stalled request 30 to 60 s after it starts, and the
-     listener's 10 s ends one at about 30 s.
-   - No seam was added (operator ruling; WO §1.1 had asked for one on the listener). Each test waits for
-     the real sweep, in its own file, listed only by its own row, with its own 45 s deadline so the stub
-     reads red by assertion.
-   - **What the tests cannot tell apart** (adversarial pass): any timeout under about 30 s. With
-     `requestTimeout: 25_000` hardcoded in both files the tests stayed green (408 at 30,006 and
-     30,011 ms). The rows prove the timeout is there, not that it is the configured value.
-   - Recommendation: if the documented figure must hold, set `connectionsCheckingInterval` alongside
-     `requestTimeout`; that is a behaviour change, outside this WO. · *decision-needed: yes*
-3. **The H9 table cases asserted the reason before the fetch count.** · `verifier.test.ts` · test
-   strength · Under H9's stub the reason assertion fired first, so the cases went red on the reason
-   while the fetch they guard against went unseen. A dedicated test now asserts the fetch count alone,
-   and the row names it. · *decision-needed: no*
-4. **A check id names one row; its other clauses have rows of their own.** · `CHECKS.md` · coverage
-   depth · The row named in `checks` deletes the check's central decision. G1's and G5's other
-   clauses, J2's TTL bound and J3's shared fetch now have rows (finding 1), without an id. H5's and
-   C1's JSON-object guard is a layer by construction (*Read this first*). The clauses the adversarial
-   pass found untested now have tests that their rows name: *another method or tool is refused*
-   (`openState`, since dispatch always binds `tools/call`), *a generated_at … month 13* (the `Date.parse`
-   clause; the pattern admits month 13), and *405 POST the metadata document*. Recommendation: split
-   the ids in `CHECKS.md` (G1a, G5a …) if each clause should be named. · *decision-needed: yes*
-5. **J6's stub stretches rather than deletes.** · `auth-j6-deadline` · stub form · Deleting the 3 s
-   deadline runs the two J6 tests into their own `{ timeout: 10_000 }`, which the runner correctly does
-   not count as an assertion. ×2.5 (7.5 s) breaks both bounds (6 s and 4.5 s) inside that timeout:
-   read 7,500 and 7,502 ms. The `verifier-timeout` and `handler-timeout` precedent. The tests' bounds
-   pass a stretch of about ×1.4 (adversarial pass). · *decision-needed: no*
-6. **An existing row gained a `mustFail` name.** · `drift-refused` · protected surface · §2 lets
-   existing rows gain `tests`; to satisfy the detector's new rule (a listed file must prove
-   something), `drift-refused` also names *the same check refuses a definition whose description was
-   edited after pinning* from the teaching `manifest.test.ts`, which its stub turns red. Its stub is
-   unchanged. · *decision-needed: no* (ratify or revert)
-7. **`adversary-windows.test.ts` proves a control the Linux runners cannot turn red.** · allowlist ·
-   On Linux its one test asserts the platform and returns. **Operator ruling (2026-11-28): recorded for
-   a later WO**, a Windows control-deletion shard (it needs `.github/**`, which this WO protects). ·
-   *decision-needed: no* (ruled)
+1. **A fresh server's first call now waits for priming before its deadline starts.** · `schema-pool.ts`
+   · behaviour · The timer used to start at once and silently included priming. Under 2-core load F2's
+   first call took 857–969 ms with the fix, against its 900 ms bound, so F2 now makes one answered
+   call before timing (a call, not a sleep). Production waits about 80 ms idle. Recommendation: none. ·
+   *decision-needed: no*
+2. **Two test seams in the pool.** · `ValidationPoolOptions` · `readyTimeoutMs` and `workerUrl`,
+   defaulting to today's values, let the tests plant a worker that never answers, answers once, or
+   exits. · *decision-needed: no*
+3. **Three existing stubs regenerated.** · `validation-deadline` (its timer lines moved; it deletes the
+   same three lines and is RED 2/2), `request-timeout` and `approval-listener-request-timeout` (their
+   option line gained the sweep; each still deletes only `requestTimeout`, as §1.5 requires). ·
+   *decision-needed: no*
+4. **A setting under 100 ms sweeps every 100 ms.** · `server.ts` · Every limit must be a positive
+   integer, so 0 cannot reach it; the floor keeps a tiny setting from a 1 ms tick. · *decision-needed:
+   no*
+5. **era-status keeps its `deadline` server** (§1.2): it reads better, with the deadline row alone on a
+   300 ms server and `fast` keeping `handlerTimeoutMs` 100. · *decision-needed: no*
 
-## The detector (§1.5)
+## Rows
 
-`scripts/deletion-coverage.mjs` and its test, run first in `npm test` (so in `npm run check` and in
-both CI `test` jobs). It is pure functions over their inputs, plus one test over the repository.
-
-- **Why `scripts/`, not `test/deletion/coverage.test.ts`:** the root `tsconfig.json` includes
-  `scripts/**/*.mjs`, and ESLint's project service refuses a file outside a tsconfig; a `.ts` under
-  `test/` would need new configuration, and one under `packages/*/test` would have to list itself.
-  `scripts/control-deletion.test.mjs` is the house precedent.
-- **Why `section8` and `checks` on the rows, not a reverse map:** every row already carries
-  `section8`, and the runner ignores fields it does not read, so a `checks` list on the row that
-  deletes a check keeps the map next to the stub that proves it.
-- **It fails when:**
-  - (a) a `packages/*/test/**/*.test.ts` file is in no row and not in `test/deletion/unlisted.json`
-    (or an entry there is stale or has no reason);
-  - (b) a *built* §8 row has no row and is not in `test/deletion/exempt.json` (or a row's `section8`
-    names no §8 title, or an exemption is stale);
-  - (a′) a file a row lists has no test that any row names in `mustFail` (listed, it runs, but proves
-    nothing). Titles are read from the source; a template literal matches by its text before `${`;
-  - (c) a `CHECKS.md` id is named by no row's `checks` or by two, unless exempt by `{check, reason}`
-    (H8), which goes stale when a row names it;
-  - (d) a row id in `test/deletion/rows.lock` has no row in `controls.json`, or a row is not in the
-    lock (operator ruling: a ratchet, labelled `belt-and-suspenders`), so a control cannot drop out
-    with only the manifest edited;
-  - and it refuses to skip: an empty glob, no built §8 row, no `CHECKS.md` id, a §8 status that
-    mentions *built* without leading with it (`partly built`, `✅ built`), and a `CHECKS.md` line whose
-    first cell looks like an id in another form (`**G6**`, `G7 (layer)`) are each a failure.
-- **Its red-proofs, on the real tree, applied by hand and reverted:**
-  - a planted `packages/core/test/transport/planted.test.ts` → exit 1,
-    `(a) packages/core/test/transport/planted.test.ts: a test file in no row's tests …`;
-  - a planted `| Planted control | … | **built** — planted |` row in §8 → exit 1,
-    `(b) docs/architecture.md §8 row "Planted control" is marked built and has no deletion row`;
-  - reverted: exit 0, 13 of 13.
-  - The same failures, the stale cases, every refuse-to-skip case and the ratchet are permanent
-    planted-input tests in the file (20 of its 21 tests; the 21st runs over the repository).
-- **The ratchet's red-proof, on the real tree:** `content-type-415` removed from `controls.json` only →
-  exit 1, `(d) test/deletion/rows.lock names row content-type-415, which controls.json no longer
-  has`; restored, 21 of 21. Before the ratchet that removal was invisible, because sibling rows keep
-  the *Transport hardening* title.
-- **What it cannot see:** a row removed from both `controls.json` and `rows.lock` in one change (two
-  visible edits, for review to catch); whether a row's stub really deletes what its `control` line and
-  `checks` claim (that is the stub's review); and a title built some other way than a literal or a
-  template.
-- **The exemptions** (`exempt.json`): the four §8 rows outside the stub mechanism (*Leak gate*,
-  *Supply chain*, *Control-deletion job*, *Property-based tests*), each with the proof it has
-  instead, and `H8`. **The allowlist** (`unlisted.json`): six files, each with its reason.
-
-## Where the 16 unlisted files went (§1.4)
-
-| File | Now |
-|---|---|
-| `transport/json.test.ts` | `json-duplicate-key`, `json-depth`, `json-lone-surrogate` |
-| `transport/mrtr.test.ts` | `request-state-integrity`, `-binding`, `-expiry` |
-| `transport/refusal-audit.test.ts` | the 415, 405, JSON, H1, H3a and G4 rows |
-| `teaching/notes.test.ts` | `arguments-schema-refused` |
-| `teaching/config.test.ts` | `edition-config-schema` |
-| `pinning/manifest.test.ts` | the four `manifest-*` rows |
-| `pinning/cli.test.ts` | `pin-approve-needs-yes`; and `drift-refused`, whose stub turns its whole-path test red |
-| `sdk-client/sdk-client.test.ts` | `era-legacy-status-200` (first on the allowlist with a wrong reason; the adversarial pass showed its ST-2 test goes red without the mapping) |
-| `containment/adversarial.test.ts` | the cage, domain and harness rows above, each naming its own test; also in `cage-undeclared-reach` and `reach-harness-verdict`'s baselines |
-| `pinning/boundaries.test.ts` | `canonical-nesting-cap`, `canonical-data-members`, `canonical-array-extra`; also in `canonical-hash`'s baseline |
-| `teaching/manifest.test.ts` | `drift-refused`, which now names its edited-description test (finding 6) |
-| `containment/adversary-windows.test.ts`, `containment/windows-links.test.ts`, `index.test.ts`, `pinning/properties.test.ts`, `transport/costly-schema.test.ts` | `unlisted.json`, with reasons |
-
-Existing rows changed only by gaining `tests` entries, `checks` (eight rows), and one `mustFail`
-name (finding 6); no existing stub or red-proof diffs.
-
-## The rows (§3.1)
-
-All 69 new rows in one invocation at `ebae752` (`node scripts/control-deletion.mjs --row …`), in a
-capped scope on Furnace; the §8 title is cut from each line. The two timeout rows were re-run after
-the reduction pass (`3b109a5`): RED, 47 s each.
+New: `validation-ready-slot` (the stub lets `#pump` use an unready worker: the 40 ms test answers 400
+in round 1), `validation-ready-rearm`, `validation-worker-exit`, `request-timeout-sweep`,
+`approval-listener-sweep`. All eight pool and timeout rows in one invocation, after a green baseline
+(6 files, 106 tests):
 
 ```
-control-deletion: baseline green: 24 test file(s), 479 test(s) passed on the unpatched tree
-RED  request-timeout | stub applied; 1/1 named test(s) red by assertion | 47109 ms
-RED  approval-listener-request-timeout | stub applied; 1/1 named test(s) red by assertion | 47105 ms
-RED  content-type-415 | stub applied; 3/3 named test(s) red by assertion | 4035 ms
-RED  content-coding-415 | stub applied; 3/3 named test(s) red by assertion | 3991 ms
-RED  method-post-only | stub applied; 5/5 named test(s) red by assertion | 3490 ms
-RED  health-get-only | stub applied; 1/1 named test(s) red by assertion | 2218 ms
-RED  x-mcp-header-annotation-refused | stub applied; 13/13 named test(s) red by assertion | 2198 ms
-RED  arguments-schema-refused | stub applied; 3/3 named test(s) red by assertion | 3527 ms
-RED  json-duplicate-key | stub applied; 7/7 named test(s) red by assertion | 8304 ms
-RED  json-depth | stub applied; 4/4 named test(s) red by assertion | 3537 ms
-RED  json-lone-surrogate | stub applied; 3/3 named test(s) red by assertion | 2223 ms
-RED  request-state-integrity | stub applied; 3/3 named test(s) red by assertion | 2514 ms
-RED  request-state-binding | stub applied; 3/3 named test(s) red by assertion | 3986 ms
-RED  request-state-expiry | stub applied; 1/1 named test(s) red by assertion | 2239 ms
-RED  auth-h2-missing | stub applied; 2/2 named test(s) red by assertion | 8255 ms
-RED  auth-h3-bearer | stub applied; 6/6 named test(s) red by assertion | 8378 ms
-RED  auth-h4-compact | stub applied; 2/2 named test(s) red by assertion | 8286 ms
-RED  auth-h4-canonical | stub applied; 1/1 named test(s) red by assertion | 8295 ms
-RED  auth-jose-utf8 | stub applied; 2/2 named test(s) red by assertion | 8397 ms
-RED  auth-h7-crit | stub applied; 1/1 named test(s) red by assertion | 8322 ms
-RED  auth-h9-kid | stub applied; 4/4 named test(s) red by assertion | 8265 ms
-RED  auth-h10-typ | stub applied; 2/2 named test(s) red by assertion | 8296 ms
-RED  auth-k1-by-kid | stub applied; 1/1 named test(s) red by assertion | 8285 ms
-RED  auth-k2-key-fits | stub applied; 3/3 named test(s) red by assertion | 8246 ms
-RED  auth-c4a-horizon | stub applied; 2/2 named test(s) red by assertion | 5260 ms
-RED  auth-c5-nbf | stub applied; 2/2 named test(s) red by assertion | 8302 ms
-RED  auth-c6-iat | stub applied; 2/2 named test(s) red by assertion | 8268 ms
-RED  auth-c7-sub | stub applied; 4/4 named test(s) red by assertion | 8286 ms
-RED  auth-g1-blank-config | stub applied; 1/1 named test(s) red by assertion | 8251 ms
-RED  auth-j1-https | stub applied; 1/1 named test(s) red by assertion | 8307 ms
-RED  auth-j2-ttl | stub applied; 4/4 named test(s) red by assertion | 8226 ms
-RED  auth-j3-refetch-window | stub applied; 1/1 named test(s) red by assertion | 8326 ms
-RED  auth-j5-caps | stub applied; 3/3 named test(s) red by assertion | 8340 ms
-RED  auth-j6-deadline | stub applied; 2/2 named test(s) red by assertion | 17086 ms
-RED  auth-h1-duplicate | stub applied; 4/4 named test(s) red by assertion | 4010 ms
-RED  auth-h3a-token-elsewhere | stub applied; 4/4 named test(s) red by assertion | 2256 ms
-RED  auth-g2-prm | stub applied; 3/3 named test(s) red by assertion | 2184 ms
-RED  auth-g4-http-refused | stub applied; 21/21 named test(s) red by assertion | 2232 ms
-RED  manifest-schema | stub applied; 1/1 named test(s) red by assertion | 2059 ms
-RED  manifest-generated-at | stub applied; 1/1 named test(s) red by assertion | 2041 ms
-RED  manifest-tools-sorted | stub applied; 1/1 named test(s) red by assertion | 2065 ms
-RED  manifest-hash-recomputes | stub applied; 1/1 named test(s) red by assertion | 2058 ms
-RED  edition-config-schema | stub applied; 3/3 named test(s) red by assertion | 2130 ms
-RED  pin-approve-needs-yes | stub applied; 1/1 named test(s) red by assertion | 1997 ms
-RED  auth-g1-algs | stub applied; 1/1 named test(s) red by assertion | 8292 ms
-RED  auth-g1-skew | stub applied; 1/1 named test(s) red by assertion | 8282 ms
-RED  auth-g1-lifetime | stub applied; 1/1 named test(s) red by assertion | 5286 ms
-RED  auth-j2-ttl-bounds | stub applied; 1/1 named test(s) red by assertion | 8273 ms
-RED  auth-j3-shared-fetch | stub applied; 1/1 named test(s) red by assertion | 8350 ms
-RED  auth-g5-ca-file | stub applied; 3/3 named test(s) red by assertion | 5252 ms
-RED  auth-g5-audience-differs | stub applied; 1/1 named test(s) red by assertion | 5275 ms
-RED  auth-g5-log-escaping | stub applied; 3/3 named test(s) red by assertion | 5243 ms
-RED  auth-g5-decimal | stub applied; 1/1 named test(s) red by assertion | 5254 ms
-RED  cage-o-nofollow | stub applied; 3/3 named test(s) red by assertion | 2459 ms
-RED  cage-descriptor-recheck | stub applied; 1/1 named test(s) red by assertion | 2445 ms
-RED  cage-backslash-drive | stub applied; 1/1 named test(s) red by assertion | 2442 ms
-RED  cage-port-bounds | stub applied; 1/1 named test(s) red by assertion | 2437 ms
-RED  cage-frozen | stub applied; 1/1 named test(s) red by assertion | 2449 ms
-RED  domain-fs-nul-backslash | stub applied; 1/1 named test(s) red by assertion | 2453 ms
-RED  domain-host-not-address | stub applied; 2/2 named test(s) red by assertion | 2453 ms
-RED  domain-port-range | stub applied; 2/2 named test(s) red by assertion | 2460 ms
-RED  harness-one-run | stub applied; 1/1 named test(s) red by assertion | 2415 ms
-RED  harness-shim-counted | stub applied; 5/5 named test(s) red by assertion | 2447 ms
-RED  harness-corpus-required | stub applied; 1/1 named test(s) red by assertion | 2454 ms
-RED  canonical-nesting-cap | stub applied; 2/2 named test(s) red by assertion | 2056 ms
-RED  canonical-data-members | stub applied; 1/1 named test(s) red by assertion | 2035 ms
-RED  canonical-array-extra | stub applied; 1/1 named test(s) red by assertion | 2030 ms
-RED  era-legacy-status-200 | stub applied; 6/6 named test(s) red by assertion | 3532 ms
-RED  legacy-input-required | stub applied; 2/2 named test(s) red by assertion | 3505 ms
-control-deletion: every stub made its named tests fail by assertion — 69 row(s), 463.3 s
+RED  validation-deadline | stub applied; 2/2 named test(s) red by assertion | 25168 ms
+RED  request-timeout | stub applied; 1/1 named test(s) red by assertion | 12122 ms
+RED  approval-listener-request-timeout | stub applied; 1/1 named test(s) red by assertion | 22067 ms
+RED  validation-ready-slot | stub applied; 1/1 named test(s) red by assertion | 3273 ms
+RED  request-timeout-sweep | stub applied; 1/1 named test(s) red by assertion | 12100 ms
+RED  approval-listener-sweep | stub applied; 1/1 named test(s) red by assertion | 22034 ms
+RED  validation-worker-exit | stub applied; 1/1 named test(s) red by assertion | 8653 ms
+RED  validation-ready-rearm | stub applied; 1/1 named test(s) red by assertion | 3928 ms
 ```
 
-Then, at `6c9c764`, the rows this last round added or changed, in one invocation:
-
-```
-control-deletion: baseline green: 8 test file(s), 231 test(s) passed on the unpatched tree
-RED  health-get-only | stub applied; 2/2 named test(s) red by assertion | 2238 ms
-RED  json-lone-surrogate | stub applied; 3/3 named test(s) red by assertion | 2229 ms
-RED  request-state-binding | stub applied; 4/4 named test(s) red by assertion | 3986 ms
-RED  auth-h2-missing | stub applied; 2/2 named test(s) red by assertion | 8238 ms
-RED  auth-h9-kid | stub applied; 1/1 named test(s) red by assertion | 8254 ms
-RED  auth-g4-http-refused | stub applied; 21/21 named test(s) red by assertion | 2229 ms
-RED  manifest-generated-at | stub applied; 2/2 named test(s) red by assertion | 2056 ms
-RED  auth-g1-resource-url | stub applied; 1/1 named test(s) red by assertion | 2139 ms
-RED  manifest-unknown-field | stub applied; 1/1 named test(s) red by assertion | 2028 ms
-RED  manifest-versions | stub applied; 1/1 named test(s) red by assertion | 2046 ms
-RED  cage-symlink-leaf | stub applied; 1/1 named test(s) red by assertion | 2427 ms
-control-deletion: every stub made its named tests fail by assertion — 11 row(s), 46.3 s
-```
-
-That makes 73 new rows: 238 → 311.
+(`validation-ready-rearm` first failed by a thrown error rather than an assertion; its test now asserts
+the call's outcome, and it was re-run: RED.) The detector is green: 316 rows, all in `rows.lock`.
 
 ## Adversarial pass (WO §5)
 
-A fresh Opus subagent, in its own worktree at `9cb1930`, had the diff, the WO and the deletion README,
-and none of my conclusions. It ran all 44 rows then new in one invocation: all RED by assertion after
-a green baseline (17 files, 404 tests), 364.5 s. Its findings, and what was done:
+A fresh subagent, in its own worktree at `a1979f6`, attacked the slot lifecycle with probes. **The
+fail-closed invariant held on every path** (priming acks carry negative ids and cannot settle a job;
+replies and late events from a replaced worker are inert; a job never reaches a worker lacking its
+schema). What it found, and what was done:
 
-1. **must-fix: batch refusal and the legacy `initialize` had no record.** Both were in my uncommitted
-   FEEDBACK; it read the committed tree. It reproduced the batch layer by hand (120 pass, 1 fail,
-   SH-9's regex). **Done:** both are `{control, reason}` entries in `exempt.json`, which the detector
-   reads; of the controls I had also called layers, four have honest rows now (*Read this first*). I did not take its proposal of a batch row red on the
-   message only: a row must go red for its control, and a message is not the batch's control.
-2. **must-fix: three files were listed with none of their tests named.** **Done:** rows for what they
-   test (finding 1), `drift-refused` names the teaching test (finding 6), and the detector now refuses
-   a listed file that proves nothing.
-3. **must-fix: G5 was credited to a row that deletes one clause.** **Done:** a row per clause (CA file,
-   audience line, sink escaping, decimal settings); G5's id stays on `refusal-audit-lines`.
-4. **should-fix: G1's clauses, J2's TTL bound, J3's shared fetch.** **Done:** rows; G1's resource URL is
-   a layer (*Read this first*). Its note that C4a's named bound test goes red on the edge, not the
-   bound, is answered by `auth-g1-lifetime`, which names it for the bound.
-5. **should-fix: two `edition-config-schema` names red on the message only.** **Done:** dropped; the
-   row's control line says why.
-6. **should-fix: the timeout tests cannot tell a configured value under 30 s apart.** Recorded
-   (finding 2); a fix needs the seam the operator ruled out.
-7. **should-fix: ST-2 and LG-8 had no row, and `sdk-client.test.ts`'s allowlist reason was wrong.**
-   **Done:** `era-legacy-status-200`, `legacy-input-required`; the file moved into the first. LG-8's
-   *state-only* test fails under its stub by a crash, not an assertion, so it is not named.
-8. **should-fix: ways a control or file could drop out with the detector green.** **Done** for the
-   parser cases (leading space, `partly built`, `**G6**`), the empty glob and the unproven file; each
-   has a planted test. Not done: a sub-control inside a bundled §8 title, and whether a stub deletes
-   what its row claims (stated under *The detector*).
-9. **note: `json-lone-surrogate`'s raw clause had no test.** **Done:** `json.test.ts` gains *refuses a
-   raw lone surrogate code unit, as a caller may hand in any string*, green on the tree and red under
-   the stub; the row names it.
-10. **note: rows it read as layered but unlabelled (H3, H4, H3a).** Checked by hand, and they are
-    not: under `auth-h4-compact` the four-segment and 8 KiB tokens are *accepted* (`actual: true`); under
-    `auth-h3-bearer` and `auth-h3a-token-elsewhere` the request is still refused, but with the status or
-    error the check exists to give changed, which the client sees. The smaller untested clauses it
-    named are in finding 4.
-11. **note: process gaps.** The `CHECKS.md` map lives in `checks` (operator ruling); the Windows file is
-    finding 7.
-
-Confirmed fine by it: the seven old rows that gained `checks` each delete their check (apart from the
-layers `CHECKS.md` already lists); `request-state-integrity`, `-expiry`, the `manifest-*` rows and
-`pin-approve-needs-yes` let the refused input through.
+1. **should-fix, fixed:** a schema registered after start re-primed a ready slot without re-arming the
+   readiness bound, so a worker that then hung was skipped for ever (probe: every call refused, no
+   event). Now `#armReady` covers both; test *a schema registered later on a ready worker that then
+   hangs …*, red on the pre-fix pool.
+2. **should-fix, fixed:** no `exit` handler, so a worker that exited quietly cost each job its full
+   deadline. Now replaced at once; test *a ready worker that exits without an error …*, red on the
+   pre-fix pool.
+3. **note, fixed:** a worker that cannot compile a schema respawned in a loop; now it stays unready and
+   is replaced once per readiness bound, audited.
+4. **note, fixed:** the sweep floor (finding 4).
+5. Checked and found fine: `close()` during priming; two timeouts back to back on a one-worker pool
+   with a call queued behind them; the moment between ready and assignment (assignment is synchronous).
 
 ## Gates
 
-- `npm run check` on Node v24.21.0, on Furnace, at `6c9c764`:
-  - lint, typecheck and build green;
-  - the detector 21 of 21 (with the ratchet);
-  - core and teaching 945 of 946, the one failure being the canary (`warm=824ms` against its 900 ms:
-    `-2008b` finding 3, `-2008d`'s);
-  - `check` stops there, so the later stages were run by hand: spike 0102 69, spike 0101 8,
-    `test:subset` 4;
-  - core and teaching grew by seven tests: the two receive-timeout tests, and the raw-surrogate, H9
-    no-fetch, method-binding, calendar-date and POST-metadata cases.
-- CI on `6c9c764` (run 46094613554): **every job green**, both `test` jobs included.
-- `control-deletion --self-test`: passed, locally and on CI.
-- Every new row: RED by assertion (*The rows*).
-- Every shard on CI, at 311 rows and 16 shards (job wall time includes checkout, install and build):
-
-  | shard | rows | CI runner | CI job |
-  |---|---|---|---|
-  | 1/16 | 20 | 128.3 s | 156 s (2 min 36 s) |
-  | 2/16 | 20 | 117.3 s | 144 s (2 min 24 s) |
-  | 3/16 | 20 | 107.6 s | 130 s (2 min 10 s) |
-  | 4/16 | 20 | 117.5 s | 143 s (2 min 23 s) |
-  | 5/16 | 20 | 110.6 s | 136 s (2 min 16 s) |
-  | 6/16 | 20 | 155.6 s | 186 s (3 min 06 s) |
-  | 7/16 | 20 | 149.6 s | 175 s (2 min 55 s) |
-  | 8/16 | 19 | 147.1 s | 174 s (2 min 54 s) |
-  | 9/16 | 19 | 110.3 s | 136 s (2 min 16 s) |
-  | 10/16 | 19 | 94.1 s | 113 s (1 min 53 s) |
-  | 11/16 | 19 | 126.5 s | 151 s (2 min 31 s) |
-  | 12/16 | 19 | 168.7 s | 197 s (3 min 17 s) |
-  | 13/16 | 19 | 88.0 s | 108 s (1 min 48 s) |
-  | 14/16 (`validation-deadline`) | 19 | 223.1 s | 254 s (4 min 14 s) |
-  | 15/16 (`request-timeout`) | 19 | 186.0 s | 210 s (3 min 30 s) |
-  | 16/16 (`approval-listener-request-timeout`, `auth-j6-deadline`) | 19 | 193.2 s | 215 s (3 min 35 s) |
-
-  Earlier runs: 14 shards at 282 rows (run 46088597495) had its slowest job at 249 s, and 16 shards at
-  307 rows (46092903964) at 246 s.
-- Leak gate: `--self-test`, `--tree` and `--history` exited 0 on each pushed head, exit code checked;
-  `dbb96d5` is not an ancestor.
-- Reduction pass (diff): −10 net · 1 duplicate removed (the stalled-request reader both timeout tests
-  carried, now `test/fixtures/stall.ts`) · 1 dead path removed (the `status` alias in both) · 0
-  protected kept · 0 findings below.
-- Protected surfaces, against `3332570`:
-  - `packages/*/src/**` diffs to empty (no seam was needed);
-  - the steering documents, the governance files, `.npmrc` and `.node-version` diff to empty;
-  - `scripts/control-deletion.mjs` diffs to empty;
-  - no existing stub or red-proof changed;
-  - `.github/**` is the shard number and its comment;
-  - `package.json` gains the detector at the head of `test`.
+- `npm run check` on Node v24.21.0, on Furnace: lint, typecheck and build green; the detector 21 of 21;
+  core and teaching 950 of 951, the one failure being the canary (`warm=803ms`, `-2008d`'s); later
+  stages by hand: spike 0102 69, spike 0101 8, `test:subset` 4. `control-deletion --self-test` passes.
+- CI: see the pull request's runs; every shard is expected under five minutes (316 rows, 16 shards).
+- Leak gate: `--self-test`, `--tree` and `--history` exit 0 before each push.
+- Reduction pass (diff): −1 export (`READY_TIMEOUT_MS` is module-private) · 0 duplicates · 0 dead
+  paths · 0 protected kept · 0 findings.
+- Protected surfaces, against `011e271`: `src/**` changes only in `schema-pool.ts`, the two
+  `createServer` option lines (with a comment line each) and the three ruled one-line audit edits;
+  `scripts/**`, `.github/**` and the steering documents diff to empty; existing stubs change only as
+  finding 3 says.
 
 ## Deliberately not built
 
-- Rows for the five controls in *Read this first* (no honest stub exists).
-- A `connectionsCheckingInterval` seam (operator ruling; finding 2).
-- Per-clause ids in `CHECKS.md` (finding 4), and a test that tells a configured receive timeout from
-  another under 30 s (finding 2).
-- Anything in `-1005c` or `-2008d`.
-
-## Push
-
-Four S25-minted tokens for `clearforgekey:clearseal-reference`, each spent only through
-`~/bin/gh-write`: the first pushed `9cb1930` and was revoked straight after (`revoked (HTTP 204)`); the
-second pushed `3b109a5` and `5688906`, opened the pull request, and was revoked; the third pushed
-`6c9c764` and `2dc3167` and was revoked; the fourth pushed `25fa162` and this commit, and was revoked
-after. Every
-commit's author and committer is `clearforgekey[bot]`'s noreply address.
+- Any change to the deadline's value or default, the validator, the pool size, or the canary and heap
+  test (`-2008d`).
+- A worker change for approach (b) (`schema-worker.ts` is protected).
