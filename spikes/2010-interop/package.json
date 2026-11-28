@@ -1,0 +1,15 @@
+{
+  "name": "@clearseal/spike-2010-interop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CSR-WO-2010: the official 2026-07-28 client and conformance suite against a teaching node. Not a workspace, not a dependency of any package.",
+  "scripts": {
+    "probe": "node probe.ts",
+    "conformance": "node conformance.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "@modelcontextprotocol/conformance": "0.2.0-alpha.12"
+  }
+}

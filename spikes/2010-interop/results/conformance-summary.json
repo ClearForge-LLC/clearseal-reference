@@ -1,0 +1,905 @@
+{
+  "suite": "@modelcontextprotocol/conformance 0.2.0-alpha.12",
+  "requirements": "2026-07-28",
+  "target": "packages/core/test/conformance/fixture-server.ts",
+  "ran": "2026-11-28T07:48:55.072Z",
+  "suiteTotal": {
+    "passed": 140,
+    "failed": 45
+  },
+  "checks": {
+    "required": {
+      "SUCCESS": 96,
+      "FAILURE": 15,
+      "SKIPPED": 6,
+      "WARNING": 2,
+      "INFO": 1
+    },
+    "unscored": {
+      "SUCCESS": 44,
+      "FAILURE": 30,
+      "SKIPPED": 1
+    }
+  },
+  "requiredScenarios": 37,
+  "scenarios": {
+    "caching": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 4,
+        "FAILURE": 3,
+        "SKIPPED": 1
+      }
+    },
+    "completion-complete": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "dns-rebinding-protection": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "http-custom-header-server-validation": {
+      "scored": false,
+      "counts": {
+        "SUCCESS": 10
+      }
+    },
+    "http-header-validation": {
+      "scored": false,
+      "counts": {
+        "SUCCESS": 14
+      }
+    },
+    "input-required-result-basic-elicitation": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 3
+      }
+    },
+    "input-required-result-basic-list-roots": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 3
+      }
+    },
+    "input-required-result-basic-sampling": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 3
+      }
+    },
+    "input-required-result-capability-check": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "input-required-result-ignore-extra-params": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "input-required-result-missing-input-response": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "input-required-result-multi-round": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 4
+      }
+    },
+    "input-required-result-multiple-input-requests": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 3
+      }
+    },
+    "input-required-result-non-tool-request": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "input-required-result-request-state": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 3
+      }
+    },
+    "input-required-result-result-type": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "input-required-result-tampered-state": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "input-required-result-unsupported-methods": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "input-required-result-validate-input": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 3
+      }
+    },
+    "json-schema": {
+      "scored": false,
+      "counts": {
+        "SUCCESS": 8
+      }
+    },
+    "prompts-get-embedded-resource": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "prompts-get-simple": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "prompts-get-with-args": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "prompts-get-with-image": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "prompts-list": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "resources-list": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "resources-read-binary": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "resources-read-text": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "resources-templates-read": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "sep-2164-resource-not-found": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2,
+        "WARNING": 2
+      }
+    },
+    "server-sse-multiple-streams": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 1,
+        "INFO": 1
+      }
+    },
+    "server-stateless": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 25,
+        "SKIPPED": 5
+      }
+    },
+    "tasks-capability-negotiation": {
+      "scored": false,
+      "counts": {
+        "FAILURE": 4,
+        "SUCCESS": 1
+      }
+    },
+    "tasks-dispatch-and-envelope": {
+      "scored": false,
+      "counts": {
+        "SUCCESS": 3,
+        "FAILURE": 6
+      }
+    },
+    "tasks-lifecycle": {
+      "scored": false,
+      "counts": {
+        "FAILURE": 8,
+        "SUCCESS": 1
+      }
+    },
+    "tasks-mrtr-composition": {
+      "scored": false,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "tasks-mrtr-input": {
+      "scored": false,
+      "counts": {
+        "FAILURE": 3,
+        "SUCCESS": 1
+      }
+    },
+    "tasks-request-headers": {
+      "scored": false,
+      "counts": {
+        "FAILURE": 3,
+        "SUCCESS": 2
+      }
+    },
+    "tasks-request-state-removal": {
+      "scored": false,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "tasks-required-task-error": {
+      "scored": false,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "tasks-status-notifications": {
+      "scored": false,
+      "counts": {
+        "SKIPPED": 1
+      }
+    },
+    "tasks-wire-fields": {
+      "scored": false,
+      "counts": {
+        "FAILURE": 3,
+        "SUCCESS": 1
+      }
+    },
+    "tools-call-audio": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "tools-call-embedded-resource": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "tools-call-error": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "tools-call-image": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "tools-call-mixed-content": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "tools-call-simple-text": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 2
+      }
+    },
+    "tools-call-with-progress": {
+      "scored": true,
+      "counts": {
+        "FAILURE": 1,
+        "SUCCESS": 1
+      }
+    },
+    "tools-list": {
+      "scored": true,
+      "counts": {
+        "SUCCESS": 4
+      }
+    }
+  },
+  "notPassing": [
+    {
+      "scenario": "caching",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "sep-2549-prompts-list-caching-hints",
+      "message": "prompts/list returned JSON-RPC error -32601: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/server/utilities/caching",
+        "https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2549"
+      ]
+    },
+    {
+      "scenario": "caching",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "sep-2549-resources-list-caching-hints",
+      "message": "resources/list returned JSON-RPC error -32601: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/server/utilities/caching",
+        "https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2549"
+      ]
+    },
+    {
+      "scenario": "caching",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "sep-2549-resources-templates-list-caching-hints",
+      "message": "resources/templates/list returned JSON-RPC error -32601: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/server/utilities/caching",
+        "https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2549"
+      ]
+    },
+    {
+      "scenario": "caching",
+      "scored": true,
+      "status": "SKIPPED",
+      "id": "sep-2549-resources-read-caching-hints",
+      "message": "resources/read was not exercised: resources/list failed or returned no resources.",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/server/utilities/caching",
+        "https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2549"
+      ]
+    },
+    {
+      "scenario": "completion-complete",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "completion-complete",
+      "message": "Failed: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/2025-06-18/server/utilities/completion"
+      ]
+    },
+    {
+      "scenario": "input-required-result-non-tool-request",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "sep-2322-non-tool-incomplete",
+      "message": "JSON-RPC error: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/basic/utilities/mrtr"
+      ]
+    },
+    {
+      "scenario": "prompts-get-embedded-resource",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "prompts-get-embedded-resource",
+      "message": "Failed: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/2025-06-18/server/prompts#embedded-resources"
+      ]
+    },
+    {
+      "scenario": "prompts-get-simple",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "prompts-get-simple",
+      "message": "Failed: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/2025-06-18/server/prompts#getting-prompts"
+      ]
+    },
+    {
+      "scenario": "prompts-get-with-args",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "prompts-get-with-args",
+      "message": "Failed: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/2025-06-18/server/prompts#getting-prompts"
+      ]
+    },
+    {
+      "scenario": "prompts-get-with-image",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "prompts-get-with-image",
+      "message": "Failed: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/2025-06-18/server/prompts#image-content"
+      ]
+    },
+    {
+      "scenario": "prompts-list",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "prompts-list",
+      "message": "Failed: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/2025-06-18/server/prompts#listing-prompts"
+      ]
+    },
+    {
+      "scenario": "resources-list",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "resources-list",
+      "message": "Failed: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/2025-06-18/server/resources#listing-resources"
+      ]
+    },
+    {
+      "scenario": "resources-read-binary",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "resources-read-binary",
+      "message": "Failed: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/2025-06-18/server/resources#reading-resources"
+      ]
+    },
+    {
+      "scenario": "resources-read-text",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "resources-read-text",
+      "message": "Failed: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/2025-06-18/server/resources#reading-resources"
+      ]
+    },
+    {
+      "scenario": "resources-templates-read",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "resources-templates-read",
+      "message": "Failed: Method not found",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/2025-06-18/server/resources#resource-templates"
+      ]
+    },
+    {
+      "scenario": "sep-2164-resource-not-found",
+      "scored": true,
+      "status": "WARNING",
+      "id": "sep-2164-error-code",
+      "message": "Expected error code -32602 (Invalid Params), got -32601. ",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/server/resources#error-handling"
+      ]
+    },
+    {
+      "scenario": "sep-2164-resource-not-found",
+      "scored": true,
+      "status": "WARNING",
+      "id": "sep-2164-data-uri",
+      "message": "Error data.uri is undefined, expected \"test://nonexistent-resource-for-conformance-testing\". This is a SHOULD requirement.",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/server/resources#error-handling"
+      ]
+    },
+    {
+      "scenario": "server-stateless",
+      "scored": true,
+      "status": "SKIPPED",
+      "id": "sep-2575-server-sends-subscription-ack",
+      "message": "notifications/subscriptions/acknowledged is the first message on a subscriptions/listen stream",
+      "specReferences": [
+        "https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575"
+      ]
+    },
+    {
+      "scenario": "server-stateless",
+      "scored": true,
+      "status": "SKIPPED",
+      "id": "sep-2575-server-tags-subscription-id",
+      "message": "Listen-stream notifications carry _meta.../subscriptionId",
+      "specReferences": [
+        "https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575"
+      ]
+    },
+    {
+      "scenario": "server-stateless",
+      "scored": true,
+      "status": "SKIPPED",
+      "id": "sep-2575-server-honors-notification-filter",
+      "message": "Server doesn't send notification types the client didn't request",
+      "specReferences": [
+        "https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575"
+      ]
+    },
+    {
+      "scenario": "server-stateless",
+      "scored": true,
+      "status": "SKIPPED",
+      "id": "sep-2575-server-sends-prompts-list-changed-on-subscription",
+      "message": "List-changed-capable servers notify listen streams with promptsListChanged: true (SHOULD)",
+      "specReferences": [
+        "https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575"
+      ]
+    },
+    {
+      "scenario": "server-stateless",
+      "scored": true,
+      "status": "SKIPPED",
+      "id": "sep-2575-server-sends-tools-list-changed-on-subscription",
+      "message": "List-changed-capable servers notify listen streams with toolsListChanged: true (SHOULD)",
+      "specReferences": [
+        "https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575"
+      ]
+    },
+    {
+      "scenario": "tasks-capability-negotiation",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-extension-advertised",
+      "message": "capabilities.extensions MUST be advertised",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-capability-negotiation",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-tasks-methods-non-declaring",
+      "message": "tasks/get MUST return -32021; got -32601; tasks/update MUST return -32021; got -32601; tasks/cancel MUST return -32021; got -32601",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2575-stateless-mcp",
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-capability-negotiation",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-server-rejects-undeclared-client",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-capability-negotiation",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-per-request-meta-opt-in",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2575-stateless-mcp"
+      ]
+    },
+    {
+      "scenario": "tasks-dispatch-and-envelope",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-server-directed-creation-no-hint",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-dispatch-and-envelope",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-legacy-task-param-ignored",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-dispatch-and-envelope",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-immediate-result-shortcut",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-dispatch-and-envelope",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-result-type-complete-on-non-task-responses",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/basic/utilities/mrtr"
+      ]
+    },
+    {
+      "scenario": "tasks-dispatch-and-envelope",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-durable-create-strong-consistency",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-dispatch-and-envelope",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-tasks-get-invalid-task-id-32602",
+      "message": "expected -32602; got -32601 (if the server is otherwise compliant, verify it does not validate other dimensions — routing headers, _meta, params shape — before method dispatch)",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-lifecycle",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-sync-tool-call",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-lifecycle",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-result-type-task-on-create",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-lifecycle",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-tasks-get-status-working",
+      "message": "Not testable: no task was created by the preceding step, so this check could not be exercised",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-lifecycle",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-tasks-get-status-completed",
+      "message": "Not testable: no task was created by the preceding step, so this check could not be exercised",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-lifecycle",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-tool-error-uses-completed-status",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-lifecycle",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-tasks-get-status-failed",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-lifecycle",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-cancel-ack-empty-result",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-lifecycle",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-cancel-terminal-idempotent-ack",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-mrtr-composition",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-mrtr-synchronous-before-task-creation",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/basic/utilities/mrtr",
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-mrtr-input",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-tasks-get-status-input-required",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/basic/utilities/mrtr"
+      ]
+    },
+    {
+      "scenario": "tasks-mrtr-input",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-mrtr-tasks-update-resumes",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/basic/utilities/mrtr",
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-mrtr-input",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-mrtr-partial-fulfillment",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/draft/basic/utilities/mrtr",
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-request-headers",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-headers-tolerate-mcp-method-on-tools-call",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2243-http-standardization"
+      ]
+    },
+    {
+      "scenario": "tasks-request-headers",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-routing-headers-accepted-on-tasks-get",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2243-http-standardization"
+      ]
+    },
+    {
+      "scenario": "tasks-request-headers",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-server-rejects-mismatched-mcp-name-on-tasks-get",
+      "message": "routing-task fixture from Check 2 unavailable; cannot drive negative-path probe",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2243-http-standardization",
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-request-state-removal",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-request-state-removal-setup",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-required-task-error",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "sep-2663-server-returns-missing-capability-when-required",
+      "message": "tools/call for failing_job returned error code -32602; spec requires -32021.",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2575-stateless-mcp",
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-status-notifications",
+      "scored": false,
+      "status": "SKIPPED",
+      "id": "tasks-status-notifications",
+      "message": "Skipped: SEP-2663 delivers notifications/tasks via the SEP-2575 subscriptions/listen stream, not via the tools/call POST SSE response that the prior harness observed. The harness needs a rewrite against the new channel; tracked as a follow-up.",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-wire-fields",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-wire-field-renames",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-wire-fields",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-no-early-ttl-expiry",
+      "message": "Not testable: no task was created by the preceding step, so this check could not be exercised",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tasks-wire-fields",
+      "scored": false,
+      "status": "FAILURE",
+      "id": "tasks-no-related-task-meta-on-inlined-result",
+      "message": "Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/seps/2663-tasks-extension"
+      ]
+    },
+    {
+      "scenario": "tools-call-with-progress",
+      "scored": true,
+      "status": "FAILURE",
+      "id": "tools-call-with-progress",
+      "message": "Failed: Unknown tool",
+      "specReferences": [
+        "https://modelcontextprotocol.io/specification/2025-06-18/server/utilities/progress"
+      ]
+    }
+  ]
+}
