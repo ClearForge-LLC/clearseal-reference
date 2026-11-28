@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { detect, detectRepo, parseCheckIds, parseSection8, titlesIn } from "./deletion-coverage.mjs";
+import { detect, detectRepo, parseCheckIds, parseLock, parseSection8, titlesIn } from "./deletion-coverage.mjs";
 
 const ARCH = [
   "## 8. Traceability",
@@ -24,7 +24,7 @@ const ARCH = [
 ].join("\n");
 const CHECKS = ["| # | Check | Source |", "|---|---|---|", "| H1 | one | RFC |", "| H3a | two | RFC |", "| K2 | three | RFC |"].join("\n");
 
-/** @returns {Parameters<typeof detect>[0] & { rows: { id: string, section8?: string, tests: string[], mustFail: string[], checks: string[] }[], testFiles: string[], unlisted: { path: string, reason: string }[], exempt: { section8?: string, check?: string, control?: string, reason: string }[], titlesOf: (f: string) => { text: string, prefix: boolean }[] }} */
+/** @returns {Parameters<typeof detect>[0] & { rows: { id: string, section8?: string, tests: string[], mustFail: string[], checks: string[] }[], testFiles: string[], unlisted: { path: string, reason: string }[], exempt: { section8?: string, check?: string, control?: string, reason: string }[], titlesOf: (f: string) => { text: string, prefix: boolean }[], lock: string[] }} */
 const good = () => ({
   rows: [
     { id: "r1", section8: "Alpha control", tests: ["packages/x/test/a.test.ts"], mustFail: ["a refuses"], checks: ["H1", "H3a"] },
@@ -38,6 +38,7 @@ const good = () => ({
   exists: () => true,
   /** @param {string} f */
   titlesOf: (f) => (f.endsWith("a.test.ts") ? [{ text: "a refuses", prefix: false }] : [{ text: "refused: ", prefix: true }]),
+  lock: ["r1", "r2"],
 });
 
 void describe("deletion coverage detector: parsing", () => {
@@ -90,6 +91,7 @@ void describe("deletion coverage detector: planted inputs", () => {
   void it("(b) a row naming no §8 title, and a stale exemption, are red", () => {
     const input = good();
     input.rows.push({ id: "r3", section8: "No such title", tests: [], mustFail: [], checks: [] });
+    input.lock.push("r3");
     input.exempt.push({ section8: "Gamma control", reason: "x" }); // not built
     input.exempt.push({ section8: "Alpha control", reason: "x" }); // has a row
     input.exempt.push({ section8: "Nowhere", reason: "x" });
@@ -209,5 +211,18 @@ void describe("deletion coverage detector: what it must not skip (CSR-WO-2008c a
     const f = detect(input).failures;
     assert.ok(f.some((m) => /"Another" has an empty reason/.test(m)));
     assert.ok(f.some((m) => /must name exactly one of section8, check or control/.test(m)));
+  });
+
+  void it("(d) a row dropped from controls.json while the lock still names it is red, and so is a row missing from the lock", () => {
+    const input = good();
+    input.rows.splice(1, 1);
+    input.checksMd = input.checksMd.replace("| K2 | three | RFC |\n", "").replace("\n| K2 | three | RFC |", "");
+    input.testFiles = input.testFiles.filter((f) => !f.endsWith("b.test.ts"));
+    const f = detect(input).failures;
+    assert.ok(f.some((m) => /rows\.lock names row r2, which controls\.json no longer has/.test(m)), f.join("\n"));
+    const added = good();
+    added.lock = ["r1"];
+    assert.ok(detect(added).failures.some((m) => /row r2 is not in test\/deletion\/rows\.lock/.test(m)));
+    assert.deepEqual(parseLock("# a comment\n\nr1\n  r2  \n"), ["r1", "r2"]);
   });
 });

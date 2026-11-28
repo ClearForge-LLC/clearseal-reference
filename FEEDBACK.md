@@ -21,7 +21,8 @@ the same input the same way, and that check is itself another control or out of 
 | **H5's and C1's JSON-object guard** (`verifier.ts`, `json()`) | A layer by construction: an array or a scalar has no `alg`, `kid`, `iss` or `aud`, so H6 refuses the header and C2 the payload with the same `invalid_token` | the H6 and C2 rows; the strict-UTF-8 and duplicate-key clauses have their own rows |
 
 Each is in `test/deletion/exempt.json` (`{control, reason}`, H8 as `{check, reason}`), which the
-detector reads.
+detector reads. **Operator ruling (2026-11-28): accepted as exemptions**, covered by their own tests
+and the records above.
 
 **Four I first called layers have honest rows.** Their decision is made in two places, so the stub
 deletes both, the smallest edit that removes the control:
@@ -114,8 +115,9 @@ Schema: *finding · where · type · recommendation · decision-needed*.
    edited after pinning* from the teaching `manifest.test.ts`, which its stub turns red. Its stub is
    unchanged. · *decision-needed: no* (ratify or revert)
 7. **`adversary-windows.test.ts` proves a control the Linux runners cannot turn red.** · allowlist ·
-   On Linux its one test asserts the platform and returns. Recommendation: a Windows control-deletion
-   shard if the Windows cage needs N5. · *decision-needed: yes*
+   On Linux its one test asserts the platform and returns. **Operator ruling (2026-11-28): recorded for
+   a later WO**, a Windows control-deletion shard (it needs `.github/**`, which this WO protects). ·
+   *decision-needed: no* (ruled)
 
 ## The detector (§1.5)
 
@@ -138,6 +140,9 @@ both CI `test` jobs). It is pure functions over their inputs, plus one test over
     nothing). Titles are read from the source; a template literal matches by its text before `${`;
   - (c) a `CHECKS.md` id is named by no row's `checks` or by two, unless exempt by `{check, reason}`
     (H8), which goes stale when a row names it;
+  - (d) a row id in `test/deletion/rows.lock` has no row in `controls.json`, or a row is not in the
+    lock (operator ruling: a ratchet, labelled `belt-and-suspenders`), so a control cannot drop out
+    with only the manifest edited;
   - and it refuses to skip: an empty glob, no built §8 row, no `CHECKS.md` id, a §8 status that
     mentions *built* without leading with it (`partly built`, `✅ built`), and a `CHECKS.md` line whose
     first cell looks like an id in another form (`**G6**`, `G7 (layer)`) are each a failure.
@@ -147,11 +152,14 @@ both CI `test` jobs). It is pure functions over their inputs, plus one test over
   - a planted `| Planted control | … | **built** — planted |` row in §8 → exit 1,
     `(b) docs/architecture.md §8 row "Planted control" is marked built and has no deletion row`;
   - reverted: exit 0, 13 of 13.
-  - The same failures, the stale cases and every refuse-to-skip case are permanent planted-input tests
-    in the file (19 of its 20 tests; the 20th runs over the repository).
-- **What it cannot see:** a sub-control inside a bundled §8 row (say, batches within *Transport
-  hardening*) losing its row while a sibling row keeps the title, since only the `CHECKS.md` ids are
-  tracked finer than the §8 title; whether a row's stub really deletes what its `control` line and
+  - The same failures, the stale cases, every refuse-to-skip case and the ratchet are permanent
+    planted-input tests in the file (20 of its 21 tests; the 21st runs over the repository).
+- **The ratchet's red-proof, on the real tree:** `content-type-415` removed from `controls.json` only →
+  exit 1, `(d) test/deletion/rows.lock names row content-type-415, which controls.json no longer
+  has`; restored, 21 of 21. Before the ratchet that removal was invisible, because sibling rows keep
+  the *Transport hardening* title.
+- **What it cannot see:** a row removed from both `controls.json` and `rows.lock` in one change (two
+  visible edits, for review to catch); whether a row's stub really deletes what its `control` line and
   `checks` claim (that is the stub's review); and a title built some other way than a literal or a
   template.
 - **The exemptions** (`exempt.json`): the four §8 rows outside the stub mechanism (*Leak gate*,
@@ -327,7 +335,7 @@ layers `CHECKS.md` already lists); `request-state-integrity`, `-expiry`, the `ma
 
 - `npm run check` on Node v24.21.0, on Furnace, at `6c9c764`:
   - lint, typecheck and build green;
-  - the detector 20 of 20;
+  - the detector 21 of 21 (with the ratchet);
   - core and teaching 945 of 946, the one failure being the canary (`warm=824ms` against its 900 ms:
     `-2008b` finding 3, `-2008d`'s);
   - `check` stops there, so the later stages were run by hand: spike 0102 69, spike 0101 8,

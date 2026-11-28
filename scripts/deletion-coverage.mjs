@@ -11,6 +11,8 @@
 //   (c) a CHECKS.md id is named by no row's `checks`, or by more than one (and when a `checks` entry
 //       names an id not in CHECKS.md). An id no stub can delete, such as an absence, is exempt only by
 //       an exempt.json entry {check, reason}, which goes stale when a row names the id.
+//   (d) a row id in test/deletion/rows.lock has no row, or a row is not in the lock
+//       (belt-and-suspenders: the lock makes a row's removal a second, visible edit).
 // A table line it cannot read, and an empty input, are failures too: a parse that skips silently
 // would let a control drop out with the detector still green.
 
@@ -94,10 +96,11 @@ export function titlesIn(source) {
 /**
  * @param {{ rows: readonly Row[], testFiles: readonly string[], unlisted: readonly Unlisted[],
  *   exempt: readonly Exempt[], architecture: string, checksMd: string,
- *   exists?: (p: string) => boolean, titlesOf?: (p: string) => { text: string, prefix: boolean }[] }} input
+ *   exists?: (p: string) => boolean, titlesOf?: (p: string) => { text: string, prefix: boolean }[],
+ *   lock?: readonly string[] }} input
  * @returns {{ failures: string[], section8: Section8Row[], checkIds: string[] }}
  */
-export function detect({ rows, testFiles, unlisted, exempt, architecture, checksMd, exists = (p) => existsSync(path.join(ROOT, p)), titlesOf }) {
+export function detect({ rows, testFiles, unlisted, exempt, architecture, checksMd, exists = (p) => existsSync(path.join(ROOT, p)), titlesOf, lock }) {
   /** @type {string[]} */
   const failures = [];
   if (testFiles.length === 0) failures.push("(a) no test files were found: the glob matched nothing, so nothing was checked.");
@@ -214,7 +217,21 @@ export function detect({ rows, testFiles, unlisted, exempt, architecture, checks
     }
   }
 
+  // (d) the row-id ratchet
+  if (lock !== undefined) {
+    const ids = new Set(rows.map((r) => r.id));
+    const locked = new Set(lock);
+    for (const id of locked) if (!ids.has(id)) failures.push(`(d) test/deletion/rows.lock names row ${id}, which controls.json no longer has. A control dropped out of the deletion job: restore its row, or remove it from the lock in the same pull request with the reason.`);
+    for (const id of ids) if (!locked.has(id)) failures.push(`(d) controls.json row ${id} is not in test/deletion/rows.lock. Add its id to the lock.`);
+  }
+
   return { failures, section8, checkIds };
+}
+
+/** The ids in a rows.lock text: one per line, `#` lines and blank lines ignored.
+ *  @param {string} text */
+export function parseLock(text) {
+  return text.split("\n").map((l) => l.trim()).filter((l) => l !== "" && !l.startsWith("#"));
 }
 
 /** The detector over the real repository. */
@@ -235,5 +252,6 @@ export function detectRepo() {
     architecture: read("docs/architecture.md"),
     checksMd: read("packages/core/src/auth/CHECKS.md"),
     titlesOf: (p) => titlesIn(read(p)),
+    lock: parseLock(read("test/deletion/rows.lock")),
   });
 }
