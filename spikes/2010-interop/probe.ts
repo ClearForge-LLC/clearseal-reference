@@ -4,11 +4,12 @@
 // edition has no input_required tool). Every HTTP exchange is recorded verbatim, through a fetch
 // wrapper, into results/probe.json. Nothing here changes what it measures.
 //
-//   node probe.ts            (after `npm install` in this directory; the fixture server must be
-//                             listening on FIXTURE_URL, default http://127.0.0.1:3999/mcp)
+//   node probe.ts            (after `npm install` in this directory; starts the fixture server on
+//                             FIXTURE_PORT, default 3999)
 
 import { writeFileSync, mkdirSync } from "node:fs";
 
+import { startFixture } from "./fixture.ts";
 import { AUDIENCE, cleanup, definitionsFor, notesRoot, pin, restoreEnv, startNode, TestIssuer } from "../../packages/teaching/test/node.ts";
 
 /** The slice of the client this probe uses, declared here: the spike is not a workspace, so the
@@ -43,9 +44,29 @@ const headersOf = (h: HeadersInit | undefined): Record<string, string> => {
   return out;
 };
 
-/** A fetch that records every exchange the client makes, request and response, verbatim. */
+/** Where the node's own advertised origin (AUDIENCE's) is actually served: set once the node starts. */
+let nodeOrigin = "";
+const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
+const ISSUER = "https://issuer.example.invalid";
+let asMetadata = false;
+
+/** A fetch that records every exchange the client makes, request and response, verbatim. Nothing
+ *  leaves the machine: a request to the node's advertised origin goes to the node on loopback, and
+ *  any other non-loopback host is recorded and refused without a network call (WO §7). */
 const recordingFetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
   const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const target = new URL(url);
+  if (target.origin === new URL(AUDIENCE).origin && nodeOrigin !== "") input = `${nodeOrigin}${target.pathname}${target.search}`;
+  else if (target.href === `${ISSUER}/.well-known/oauth-authorization-server` && asMetadata) {
+    // The test issuer serves only a key set. For the one probe that asks, the probe answers the
+    // issuer's authorization-server metadata itself, so the flow reaches the authorization request.
+    const res = Response.json({ issuer: ISSUER, authorization_endpoint: `${ISSUER}/authorize`, token_endpoint: `${ISSUER}/token`, response_types_supported: ["code"], code_challenge_methods_supported: ["S256"], authorization_response_iss_parameter_supported: true });
+    exchanges.push({ probe: current, request: { method: init?.method ?? "GET", url, headers: headersOf(init?.headers) }, response: { status: 200, headers: { "content-type": "application/json", "x-probe": "answered by the probe for the local test issuer" }, body: await res.clone().text() } });
+    return res;
+  } else if (!LOOPBACK.has(target.hostname)) {
+    exchanges.push({ probe: current, request: { method: init?.method ?? "GET", url, headers: headersOf(init?.headers) }, error: "refused by the probe: not a local host" });
+    throw new TypeError(`probe refused a non-local host: ${target.host}`);
+  }
   let body: unknown;
   if (typeof init?.body === "string") {
     try {
@@ -86,15 +107,17 @@ const manifest = pin(definitionsFor(root), root);
 const node = await startNode(issuer, root, manifest);
 // The core's types come from its build, which CI's lint runs before: read the port as the probe uses it.
 const { port } = node.t as unknown as { port: number };
-const url = new URL(`http://127.0.0.1:${String(port)}/mcp`);
+nodeOrigin = `http://127.0.0.1:${String(port)}`;
+const url = new URL(`${nodeOrigin}/mcp`);
 
 type Mode = "legacy" | "auto" | { pin: string };
 const MODERN: Mode = { pin: "2026-07-28" };
 
-const connect = async (opts: { token?: () => string | undefined; mode?: Mode } = {}): Promise<ClientLike> => {
-  const transport = new StreamableHTTPClientTransport(url, {
+const connect = async (opts: { token?: () => string | undefined; mode?: Mode; authProvider?: unknown; at?: URL } = {}): Promise<ClientLike> => {
+  const transport = new StreamableHTTPClientTransport(opts.at ?? url, {
     fetch: recordingFetch,
     ...(opts.token === undefined ? {} : { authProvider: { token: () => Promise.resolve(opts.token?.()) } }),
+    ...(opts.authProvider === undefined ? {} : { authProvider: opts.authProvider }),
   });
   // The client's own default is 'legacy' (no server/discover probe): each probe names its mode.
   const client = new Client({ name: "clearseal-interop-spike", version: "0.0.0" }, { capabilities: {}, versionNegotiation: { mode: opts.mode ?? MODERN } });
@@ -155,6 +178,36 @@ try {
     return r;
   });
   outcomes["0.3 audience"] = AUDIENCE;
+
+  // §0.3 what the client does with our 401's resource_metadata when it holds an OAuth provider and no
+  // token: which metadata it fetches, and the authorization URL it would send the user to (RFC 8707's
+  // `resource`). No authorization server exists: the flow stops at the redirect, which is recorded.
+  let authorizationUrl: string | undefined;
+  await step("0.3 OAuth provider, no token (metadata discovery and the authorization request)", async () => {
+    const provider = {
+      redirectUrl: "http://127.0.0.1:1/callback",
+      clientMetadata: { client_name: "clearseal-interop-spike", redirect_uris: ["http://127.0.0.1:1/callback"] },
+      clientInformation: () => ({ client_id: "interop-spike" }),
+      tokens: () => undefined,
+      saveTokens: () => undefined,
+      redirectToAuthorization: (u: URL) => {
+        authorizationUrl = u.href;
+      },
+      saveCodeVerifier: () => undefined,
+      codeVerifier: () => "unused",
+    };
+    asMetadata = true;
+    try {
+      // At the node's advertised URL (routed to loopback by recordingFetch), so the client's check that
+      // the metadata's `resource` names the server it connected to sees what a deployment would.
+      const c = await connect({ authProvider: provider, at: new URL(AUDIENCE) });
+      await c.close();
+    } finally {
+      asMetadata = false;
+      outcomes["0.3 authorization URL the client built"] = authorizationUrl ?? null;
+    }
+    return { authorizationUrl };
+  });
 } finally {
   await node.close();
   await issuer.close();
@@ -163,9 +216,9 @@ try {
 }
 
 // §0.1 the MRTR round trip, against the conformance fixture server (admit-all verifier; no token).
-const fixture = new URL(process.env["FIXTURE_URL"] ?? "http://127.0.0.1:3999/mcp");
+const fixture = await startFixture(process.env["FIXTURE_PORT"] ?? "3999");
 await step("0.1 MRTR input_required round trip (fixture server)", async () => {
-  const transport = new StreamableHTTPClientTransport(fixture, { fetch: recordingFetch });
+  const transport = new StreamableHTTPClientTransport(new URL(fixture.url), { fetch: recordingFetch });
   const client = new Client({ name: "clearseal-interop-spike", version: "0.0.0" }, { capabilities: { elicitation: {} }, versionNegotiation: { mode: MODERN } });
   client.setRequestHandler("elicitation/create", () => Promise.resolve({ action: "accept", content: { username: "spike", name: "spike", value: "spike" } }));
   await client.connect(transport);
@@ -173,6 +226,7 @@ await step("0.1 MRTR input_required round trip (fixture server)", async () => {
   await client.close();
   return r;
 });
+fixture.stop();
 
 mkdirSync(new URL("./results/", import.meta.url), { recursive: true });
 writeFileSync(new URL("./results/probe.json", import.meta.url), JSON.stringify({ client: "@modelcontextprotocol/client 2.4.0", ran: new Date().toISOString(), outcomes, exchanges }, null, 2) + "\n");

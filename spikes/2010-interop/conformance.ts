@@ -7,32 +7,24 @@
 //
 //   node conformance.ts      (after `npm install` in this directory)
 
-import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { startFixture } from "./fixture.ts";
+
 const here = new URL(".", import.meta.url).pathname;
-const repo = join(here, "..", "..");
 const cli = join(here, "node_modules/@modelcontextprotocol/conformance/dist/index.js");
 const port = process.env["CONFORMANCE_PORT"] ?? "3999";
 
-const server = spawn(process.execPath, [join(repo, "packages/core/test/conformance/fixture-server.ts"), port], { stdio: ["ignore", "pipe", "inherit"] });
-await new Promise<void>((resolve, reject) => {
-  server.stdout.on("data", (d: Buffer) => {
-    if (d.toString().includes("listening")) resolve();
-  });
-  server.once("exit", (code) => {
-    reject(new Error(`fixture server exited ${String(code)}`));
-  });
-});
-
+const fixture = await startFixture(port);
+const out = mkdtempSync(join(tmpdir(), "csr-2010-conformance-"));
 try {
   const listed = spawnSync(process.execPath, [cli, "list", "--requirements", "2026-07-28"], { encoding: "utf8" });
   const block = listed.stdout.split("Server scenarios")[1]?.split("Client scenarios")[0] ?? "";
   const required = new Set([...block.matchAll(/^\s+- ([a-z0-9-]+)/gm)].map((m) => m[1]));
-  const out = mkdtempSync(join(tmpdir(), "csr-2010-conformance-"));
-  const run = spawnSync(process.execPath, [cli, "server", "--url", `http://127.0.0.1:${port}/mcp`, "--requirements", "2026-07-28", "-o", out], { encoding: "utf8" });
+  const run = spawnSync(process.execPath, [cli, "server", "--url", fixture.url, "--requirements", "2026-07-28", "-o", out], { encoding: "utf8" });
   const total = /Total: (\d+) passed, (\d+) failed/.exec(run.stdout);
   const tally: Record<string, Record<string, number>> = { required: {}, unscored: {} };
   const scenarios: Record<string, { scored: boolean; counts: Record<string, number> }> = {};
@@ -56,5 +48,6 @@ try {
   writeFileSync(join(here, "results/conformance-summary.json"), JSON.stringify(summary, null, 2) + "\n");
   console.log(`CONFORMANCE suite total ${JSON.stringify(summary.suiteTotal)}; required ${JSON.stringify(tally.required)}; unscored ${JSON.stringify(tally.unscored)}`);
 } finally {
-  server.kill();
+  fixture.stop();
+  rmSync(out, { recursive: true, force: true });
 }

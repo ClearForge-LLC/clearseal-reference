@@ -12,7 +12,7 @@ address. Parked as one unmerged pull request.
   401; the 401 carries `WWW-Authenticate: Bearer resource_metadata="…"` (RFC 9728); arguments that fail
   the pinned schema are refused 400 before the handler. Nothing ours accepts was refused by the
   specification text quoted below.
-- **The v2 client agrees with our server on every probe that ran** (§0.1, §0.2, §0.3 in part), once it
+- **The v2 client agrees with our server on every probe that ran** (§0.1, §0.2, §0.3), once it
   is told to speak `2026-07-28`. **Its own default is the legacy era**: `versionNegotiation.mode`
   defaults to `'legacy'`, so a client built with no option sends `initialize` at `2025-11-25` and
   never probes `server/discover`. With `'auto'` it concludes `2026-07-28` from our `server/discover`;
@@ -24,9 +24,16 @@ address. Parked as one unmerged pull request.
   prompts and what rides on them (class (b), planned as `-2009`); two are classified (c) with the
   specification sentence: the suite fails a server for not serving `completion`, which the text makes
   optional, and for not sending progress, which the text makes a MAY.
-- **Two probes are blocked, never estimated:** RFC 8707 resource indicators and RFC 9207 `iss`
-  validation are client-side OAuth-flow behaviour; observing them needs an authorization server, and
-  the local test issuer serves only a key set (WO §4 and §7 forbid a real or hosted one).
+- **§0.3 reached the authorization request, and stopped there by construction.** Given an OAuth
+  provider and no token, the client fetched our 401's `resource_metadata` URL, checked that its
+  `resource` names the server it connected to, and built an authorization request carrying
+  `resource=https://mcp.example.invalid/mcp` (RFC 8707) with PKCE S256. The token request and RFC 9207
+  (the client validating `iss` in an authorization *response*) were **not built**: they need an
+  authorization server that issues codes. WO §4 forbids a real or hosted one; a local one is a build
+  this spike did not take on (B1).
+- **CI went red twice on lint before it was green** (F1): the repository's lint covers the spike, but
+  CI runs it after a root `npm ci` (which never installs this non-workspace spike) and before the build
+  (so the core's types do not resolve). Fixed in the spike only.
 
 ## How it ran
 
@@ -36,14 +43,18 @@ address. Parked as one unmerged pull request.
   lockfile and every `packages/*/package.json` are untouched.
 - `probe.ts`: a real teaching node through the core's `startNodeFromEnv` with the local `TestIssuer`
   and a JSON-lines audit (the teaching test harness, imported, unchanged); the client's `fetch` is
-  wrapped so every exchange is recorded verbatim in `results/probe.json` (bearer tokens redacted). The
-  MRTR round trip runs against the core's conformance fixture server, since the teaching edition has
-  no `input_required` tool.
+  wrapped so every exchange is recorded verbatim in `results/probe.json` (bearer tokens redacted).
+  **Nothing leaves the machine:** the wrapper routes the node's advertised origin
+  (`https://mcp.example.invalid`) to the node on loopback, refuses every other non-loopback host
+  without a network call, and, for the one OAuth probe only, answers the test issuer's
+  authorization-server metadata itself (a six-field document, marked `x-probe` in the record), since
+  the test issuer serves only a key set. The MRTR round trip runs against the core's conformance
+  fixture server (started by `fixture.ts`), since the teaching edition has no `input_required` tool.
 - `conformance.ts`: the suite's `server --requirements 2026-07-28` against
   `packages/core/test/conformance/fixture-server.ts` (the real transport with the fixture tools the
   suite's scenarios call, admit-all verifier because the suite sends no `Authorization`; the same
   target as the run §2.1 records). On the teaching node the scenarios would only measure "tool not
-  found". Summary in `results/conformance-summary.json`; run twice, identical counts.
+  found". Summary in `results/conformance-summary.json`; run three times, identical counts.
 
 ## Answers to §0
 
@@ -56,10 +67,10 @@ address. Parked as one unmerged pull request.
 | 0.1 | a tool error | 200 with `isError: true` (*There is no note named missing.md.*); arguments failing the schema: 400 -32602, surfaced as `ProtocolError` (D10) |
 | 0.1 | `Mcp-Method`, `Mcp-Name` | the client sends `mcp-method: tools/call` and `mcp-name: notes.read` with `mcp-protocol-version: 2026-07-28`, matching the body and `_meta` |
 | 0.2 | the `2025-11-25` fallback | completes in the client's default mode: `initialize`, `notifications/initialized` 202, `GET` 405 (no stream), `tools/list`, `tools/call` |
-| 0.3 | 401 + protected-resource metadata | 401 with `WWW-Authenticate: Bearer resource_metadata="https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp"`; with a token-only `AuthProvider` the client surfaces the 401 and does not fetch the metadata |
-| 0.3 | wrong audience | 401, `UnauthorizedError` |
-| 0.3 | `iss` | another issuer's token: 401. RFC 9207 (the client validating `iss` in an authorization response) **blocked**: needs an OAuth flow |
-| 0.3 | resource indicators (RFC 8707) | **blocked**: the client sends `resource` only in an OAuth authorization/token request, which needs an authorization server |
+| 0.3 | 401 + protected-resource metadata | 401 with `WWW-Authenticate: Bearer resource_metadata="https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp"` and a JSON-RPC body `-32600 Unauthorized` (the authorization page says nothing of the body). With a token-only `AuthProvider` the client surfaces the 401; with an OAuth provider it fetches that URL (200: `resource`, `authorization_servers ["https://issuer.example.invalid"]`), as basic/authorization/authorization-server-discovery, *Protected Resource Metadata Discovery Requirements*, requires: "MCP clients **MUST** support both discovery mechanisms and use the resource metadata URL from the parsed `WWW-Authenticate` headers when present". It then refuses metadata whose `resource` is not the URL it connected to (seen when connected on loopback) |
+| 0.3 | wrong audience | 401, `UnauthorizedError`. basic/authorization, *Token Handling*: "MCP servers **MUST** validate that access tokens were issued specifically for them as the intended audience"; "Invalid or expired tokens **MUST** receive an HTTP 401 response." |
+| 0.3 | `iss` | another issuer's token: 401 (the page defers token validation to OAuth 2.1 §5.2 and states no `iss` MUST of its own). RFC 9207 on the client, "MCP clients **MUST** apply the validation in RFC9207 Section 2.4 before transmitting the authorization code to any token endpoint", is **not built**: it needs an authorization response (B1) |
+| 0.3 | resource indicators (RFC 8707) | the authorization request carries `resource=https://mcp.example.invalid/mcp`, our metadata's `resource`, as *Resource Parameter Implementation* requires ("**MUST** be included in both authorization requests and token requests"). The token request is **not built** (B1) |
 | 0.4 | conformance, by scenario and check | above and in the findings |
 | 0.5 | security-relevant | none found. The probes exercised authentication; the suite exercised Origin validation (`dns-rebinding-protection`, 2 of 2) and the header rules (`http-header-validation` 14 of 14, `http-custom-header-server-validation` 10 of 10, both unscored as *pending*). MRTR on the teaching node itself was not exercised by the client (no MRTR tool) |
 
@@ -79,10 +90,11 @@ than the specification. Specification text from `https://modelcontextprotocol.io
 | D6 | `completion-complete` (1): *Method not found* | conformance | (c) | server/utilities/completion, *Capabilities*: "Servers that support completions **MUST** declare the `completions` capability"; *Error Handling*: "Servers **SHOULD** return standard JSON-RPC errors for common failure cases: … Method not found: `-32601` (Capability not supported)". Ours does not declare `completions` and answers -32601: what the text prescribes. The suite requires a primitive the text makes conditional | none in ours (the roadmap keeps `completion` out until a tool needs it); report to the suite that a server without the capability is scored as failing |
 | D7 | `tools-call-with-progress` (1): *Unknown tool*: the scenario assumes a fixture tool with progress, which our fixture server deliberately lacks | conformance | (c) | basic/utilities/progress, *Behavior Requirements*: "Servers receiving a request with a progress token **MAY**: Choose not to send any progress notifications". The fixture server has no progress tool, by design (no SSE progress); the suite requires progress notifications the text makes optional | none in ours (SSE progress stays out until a tool needs it, roadmap); report to the suite |
 | D8 | `server-stateless`: 5 checks skipped (`subscriptions/listen`) | conformance | none: skipped, not failed | basic/patterns/subscriptions, *Acknowledgment*: "Notification types the server does not support are omitted." No capability key makes it mandatory | none |
-| D9 | the Tasks extension (10 scenarios, unscored for `2026-07-28`): 30 failing checks | conformance | not scored: an extension `2026-07-28` does not require | the suite itself lists them as *extension*, not scored | the roadmap's `-0101` line keeps the Tasks extension conditional; no action from this spike |
+| D9 | the Tasks extension (10 scenarios, unscored for `2026-07-28`): 30 failing checks. Every one is *Unknown tool* (the scenarios' fixture tools, such as `failing_job`, are absent), `-32601` for an undeclared `tasks/*` method, *capabilities.extensions MUST be advertised*, or *not testable* after one of those; none is a behaviour mismatch in anything ours serves | conformance | (b), with the plan in `-0101`, not `-2009` (the roadmap: "the Tasks extension if implementable from its text") | no 2026-07-28 page defines extensions (`/specification/2026-07-28/basic/extensions` is 404; Tasks lives under the unversioned `/extensions/tasks/`), so the revision carries no sentence requiring it. Ours advertises no extension, and streamable-http's "If the server does not implement the requested RPC method, it **MUST** respond with `404 Not Found` and a JSON-RPC error with code `-32601`" is what it does | the architect confirms `-0101` as the Tasks extension's home; no action from this spike |
 | D10 | arguments that fail the pinned input schema: ours answers 400 with a JSON-RPC error -32602 (the client surfaces `ProtocolError: Invalid arguments for tool notes.read`), not a result with `isError: true` | probe 0.1 (refused arguments) | (d) | server/tools, *Error Handling*: tool execution errors include "Input validation errors (e.g., date in wrong format, value out of range)", reported "with `isError: true`", which "contain actionable feedback that language models can use to self-correct"; "Clients **SHOULD** provide tool execution errors to language models to enable self-correction." The same section's protocol errors cover "Malformed requests (requests that fail to satisfy [CallToolRequest schema]…)", so the text does not settle a tool's own `inputSchema`. Ours refuses before the handler as a control: architecture §8 *Runtime input validation against the pinned schema* | a ruling: keep the refusal (a model then sees a protocol error, which clients only MAY pass on) or carry the same refusal as an `isError: true` result, still before the handler. Not security-relevant: it refuses more, never less |
 | N1 | the v2 client defaults to `versionNegotiation.mode: 'legacy'` | client | not a disagreement with our server | (the client's own documented default; our server serves both eras) | deployment notes for ClearSeal nodes say to configure `'auto'` or `{ pin: "2026-07-28" }` |
-| B1 | RFC 8707 resource indicators, RFC 9207 `iss` in authorization responses | client | blocked | (needs an authorization server) | a later probe with a local OAuth test authorization server, if the architect wants it; it is not this spike's (WO §4) |
+| B1 | RFC 8707 on the token request; RFC 9207 `iss` in authorization responses | client | not built (not a disagreement) | (needs an authorization server that issues codes; WO §4 forbids a real or hosted one) | a later probe with a local OAuth test authorization server, if the architect wants it |
+| F1 | the repository's lint covers `spikes/2010-interop/*.ts`, but CI lints after a root `npm ci` (no spike `node_modules`) and before the build (no `packages/*/dist`); heads `6c3802a` and `cc3816f` went red on it | CI | not a disagreement: this spike's own defect | none | fixed in the spike: the client is imported through a variable specifier with the slice it uses declared locally, and the node's port read without the core's built types. Checked by linting with both directories moved aside. A later spike that adds an SDK will hit the same thing |
 
 There is no (a): no defect in ours turned up. The one (d) is D10, found by the adversarial pass.
 
@@ -92,9 +104,11 @@ There is no (a): no defect in ours turned up. The one (d) is D10, found by the a
 > 2026-07-28`, run 2026-11-28 against the core's fixture server: 37 required server scenarios, 24 with
 > no failure, 13 with a failure; checks 96 pass, 15 fail, 6 skip, 2 warn. Every failure is resources,
 > prompts and their caching hints (`-2009`), or `completion` and progress, which the text makes
-> optional (CSR-WO-2010 D6, D7). The official v2 client, `@modelcontextprotocol/client` 2.4.0, completes
-> discover, list, call, MRTR, tool errors, mirrored headers and the legacy fallback against a teaching
-> node, once configured for `2026-07-28` (its default is the legacy era).
+> optional (CSR-WO-2010 D6, D7). The suite's own total, which counts the unscored Tasks extension and
+> *pending* scenarios too, is 140 passed / 45 failed (the figure the current row records); the 30
+> unscored failures are the Tasks extension (D9). The official v2 client, `@modelcontextprotocol/client` 2.4.0, completes
+> discover, list, call, MRTR, tool errors, mirrored headers, the legacy fallback and protected-resource
+> discovery against a teaching node, once configured for `2026-07-28` (its default is the legacy era).
 
 ## -2008d's findings, promoted
 
@@ -131,14 +145,20 @@ added, and what was done:
 
 ## Gates
 
-- `npm run check` is not affected (nothing outside the spike changed); the spike lints clean under the
-  root ESLint.
+- `npm run check` is not affected (nothing outside the spike changed). `npm run lint` passes locally,
+  and the spike lints clean with every `packages/*/dist` and its own `node_modules` moved aside, as CI
+  runs it (F1).
 - Leak gate: `--self-test`, `--tree` and `--history` exit 0 before each push.
 - Protected surfaces, against `eab5890`: only `spikes/2010-interop/` and this file differ;
   `packages/*/package.json` and the root lockfile diff to empty.
-- Reduction pass (diff): nothing to remove.
+- Reduction pass (diff), the four questions over `git diff eab5890..HEAD`: +11 net · 1 duplicate
+  mechanism removed (the fixture server's start-up lived inline in `conformance.ts` and as a manual
+  prerequisite of `probe.ts`; both now use `fixture.ts`: one copy, and the probe runs unattended, at 11
+  lines more) · 0 dead paths · 0 protected kept · 0 findings below.
+  `conformance.ts` also removes its raw output directory now.
 
 ## Deliberately not built
 
-- A fix for any finding; resources and prompts (`-2009`); a local OAuth authorization server for B1.
+- A fix for any finding; resources and prompts (`-2009`); a local OAuth authorization server for B1
+  (the probe answers the issuer's metadata only, never an authorization or token endpoint).
 - The spike as a CI check (a later ruling).

@@ -1,6 +1,6 @@
 {
   "client": "@modelcontextprotocol/client 2.4.0",
-  "ran": "2026-11-28T07:23:12.916Z",
+  "ran": "2026-11-28T07:48:41.739Z",
   "outcomes": {
     "0.1 connect, mode auto (what the client concludes from our server/discover)": {
       "ok": true,
@@ -198,6 +198,11 @@
       "error": "UnauthorizedError: Unauthorized"
     },
     "0.3 audience": "https://mcp.example.invalid/mcp",
+    "0.3 authorization URL the client built": "https://issuer.example.invalid/authorize?response_type=code&client_id=interop-spike&code_challenge=Qpgf09mHWGFALZ6ou1DgUwSGfegKrYXkgVciBxqwQ4Y&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%3A1%2Fcallback&resource=https%3A%2F%2Fmcp.example.invalid%2Fmcp",
+    "0.3 OAuth provider, no token (metadata discovery and the authorization request)": {
+      "ok": false,
+      "error": "UnauthorizedError: Unauthorized"
+    },
     "0.1 MRTR input_required round trip (fixture server)": {
       "ok": true,
       "value": {
@@ -221,7 +226,7 @@
       "probe": "0.1 connect, mode auto (what the client concludes from our server/discover)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -252,7 +257,7 @@
           "connection": "keep-alive",
           "content-length": "372",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -263,7 +268,7 @@
       "probe": "0.1 connect, pinned to 2026-07-28",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -294,7 +299,7 @@
           "connection": "keep-alive",
           "content-length": "372",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -305,7 +310,7 @@
       "probe": "0.1 server/discover",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -336,7 +341,7 @@
           "connection": "keep-alive",
           "content-length": "348",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -347,7 +352,7 @@
       "probe": "0.1 tools/list",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -378,7 +383,7 @@
           "connection": "keep-alive",
           "content-length": "596",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -389,7 +394,7 @@
       "probe": "0.1 tools/call read_only (notes.read today.md)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -425,7 +430,7 @@
           "connection": "keep-alive",
           "content-length": "218",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -436,7 +441,7 @@
       "probe": "0.1 tool error (notes.read of a missing note)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -472,7 +477,7 @@
           "connection": "keep-alive",
           "content-length": "237",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -483,7 +488,7 @@
       "probe": "0.1 refused arguments (notes.read climbing out)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -519,7 +524,7 @@
           "connection": "keep-alive",
           "content-length": "98",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -530,7 +535,7 @@
       "probe": "0.2 connect in the client's default legacy mode",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -557,7 +562,7 @@
           "connection": "keep-alive",
           "content-length": "237",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -568,7 +573,7 @@
       "probe": "0.2 connect in the client's default legacy mode",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -586,7 +591,7 @@
           "cache-control": "no-store",
           "connection": "keep-alive",
           "content-length": "0",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -597,7 +602,7 @@
       "probe": "0.2 connect in the client's default legacy mode",
       "request": {
         "method": "GET",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -611,7 +616,7 @@
           "cache-control": "no-store",
           "connection": "keep-alive",
           "content-length": "0",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -622,7 +627,7 @@
       "probe": "0.2 connect in the client's default legacy mode",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -642,7 +647,7 @@
           "connection": "keep-alive",
           "content-length": "444",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -653,7 +658,7 @@
       "probe": "0.2 connect in the client's default legacy mode",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -679,7 +684,7 @@
           "connection": "keep-alive",
           "content-length": "103",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -690,7 +695,7 @@
       "probe": "0.3 no token",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "content-type": "application/json",
@@ -720,7 +725,7 @@
           "connection": "keep-alive",
           "content-length": "66",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "www-authenticate": "Bearer resource_metadata=\"https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp\"",
           "x-content-type-options": "nosniff"
@@ -732,7 +737,7 @@
       "probe": "0.3 wrong-audience token",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -763,7 +768,7 @@
           "connection": "keep-alive",
           "content-length": "66",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "www-authenticate": "Bearer resource_metadata=\"https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp\", error=\"invalid_token\"",
           "x-content-type-options": "nosniff"
@@ -775,7 +780,7 @@
       "probe": "0.3 token from another issuer (iss)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:45987/mcp",
+        "url": "http://127.0.0.1:44171/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -806,12 +811,96 @@
           "connection": "keep-alive",
           "content-length": "66",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "www-authenticate": "Bearer resource_metadata=\"https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp\", error=\"invalid_token\"",
           "x-content-type-options": "nosniff"
         },
         "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32600,\"message\":\"Unauthorized\"}}"
+      }
+    },
+    {
+      "probe": "0.3 OAuth provider, no token (metadata discovery and the authorization request)",
+      "request": {
+        "method": "POST",
+        "url": "https://mcp.example.invalid/mcp",
+        "headers": {
+          "accept": "application/json, text/event-stream",
+          "content-type": "application/json",
+          "mcp-method": "server/discover",
+          "mcp-protocol-version": "2026-07-28"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "id": "server-discover-probe-1",
+          "method": "server/discover",
+          "params": {
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "clearseal-interop-spike",
+                "version": "0.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {}
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "cache-control": "no-store",
+          "connection": "keep-alive",
+          "content-length": "66",
+          "content-type": "application/json",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "keep-alive": "timeout=5",
+          "www-authenticate": "Bearer resource_metadata=\"https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp\"",
+          "x-content-type-options": "nosniff"
+        },
+        "body": "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32600,\"message\":\"Unauthorized\"}}"
+      }
+    },
+    {
+      "probe": "0.3 OAuth provider, no token (metadata discovery and the authorization request)",
+      "request": {
+        "method": "GET",
+        "url": "https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp",
+        "headers": {
+          "mcp-protocol-version": "2025-11-25"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "no-store",
+          "connection": "keep-alive",
+          "content-length": "165",
+          "content-type": "application/json",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "keep-alive": "timeout=5",
+          "x-content-type-options": "nosniff"
+        },
+        "body": "{\"resource\":\"https://mcp.example.invalid/mcp\",\"authorization_servers\":[\"https://issuer.example.invalid\"],\"bearer_methods_supported\":[\"header\"],\"scopes_supported\":[]}"
+      }
+    },
+    {
+      "probe": "0.3 OAuth provider, no token (metadata discovery and the authorization request)",
+      "request": {
+        "method": "GET",
+        "url": "https://issuer.example.invalid/.well-known/oauth-authorization-server",
+        "headers": {
+          "accept": "application/json",
+          "mcp-protocol-version": "2025-11-25"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json",
+          "x-probe": "answered by the probe for the local test issuer"
+        },
+        "body": "{\"issuer\":\"https://issuer.example.invalid\",\"authorization_endpoint\":\"https://issuer.example.invalid/authorize\",\"token_endpoint\":\"https://issuer.example.invalid/token\",\"response_types_supported\":[\"code\"],\"code_challenge_methods_supported\":[\"S256\"],\"authorization_response_iss_parameter_supported\":true}"
       }
     },
     {
@@ -850,7 +939,7 @@
           "connection": "keep-alive",
           "content-length": "373",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -896,7 +985,7 @@
           "connection": "keep-alive",
           "content-length": "357",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -952,7 +1041,7 @@
           "connection": "keep-alive",
           "content-length": "202",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:23:12 GMT",
+          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
