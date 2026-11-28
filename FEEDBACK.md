@@ -391,8 +391,9 @@ layers `CHECKS.md` already lists); `request-state-integrity`, `-expiry`, the `ma
 
 ## Push
 
-Three S25-minted tokens for `clearforgekey:clearseal-reference`, each spent only through
+Four S25-minted tokens for `clearforgekey:clearseal-reference`, each spent only through
 `~/bin/gh-write`: the first pushed `9cb1930` and was revoked straight after (`revoked (HTTP 204)`); the
 second pushed `3b109a5` and `5688906`, opened the pull request, and was revoked; the third pushed
-`6c9c764` and this commit, and was revoked after. Every
+`6c9c764` and `2dc3167` and was revoked; the fourth pushed `25fa162` and this commit, and was revoked
+after. Every
 commit's author and committer is `clearforgekey[bot]`'s noreply address.
