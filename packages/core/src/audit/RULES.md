@@ -68,6 +68,7 @@ Kinds of field:
 | `transport-error` | `transport/server.ts` | caller, else unauthenticated | reason (errname) |
 | `result-over-cap` | `transport/dispatch.ts` | caller | method (method), limit (int) |
 | `validation-timeout` | `transport/dispatch.ts` | caller | tool (tool), limitMs (int) |
+| `validation-worker-not-ready` | `transport/schema-pool.ts` | node | limitMs (int) |
 | `validation-error` | `transport/dispatch.ts` | caller | tool (tool) |
 | `containment-refused` | `transport/dispatch.ts` | caller | tool (tool), kind (code), sink (**digest**), fileType (code) |
 | `handler-timeout`, `client-disconnect` | `transport/dispatch.ts` | caller | tool (tool), limitMs (int) |
