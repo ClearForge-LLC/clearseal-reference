@@ -187,11 +187,12 @@ void describe("CSR-WO-2004 structure: refused before any gate (PV-3)", () => {
     refused(rig().v.verify(await signed({ origin_class: "user" }), CHANNEL, NOW), "structure", "origin-class");
   });
 
-  void it("issued-at: a negative, a string, and past 2^53-1", async () => {
+  void it("issued-at: a negative and a string (past 2^53-1 is integer-range)", async () => {
     // -5, validly signed and verified at 100 s with a key valid from 0, would be fresh: only issued-at refuses it.
     refused(rig([entry({ notBefore: 0 })]).v.verify(await signedFields({ issued_at: -5 }), CHANNEL, 100), "structure", "issued-at");
     const w = await signed();
-    for (const t of ["-5", `"${String(NOW)}"`, "9007199254740992"]) refused(rig().v.verify(edit(w, `"issued_at":${String(NOW)}`, `"issued_at":${t}`), CHANNEL, NOW), "structure", "issued-at");
+    for (const t of ["-5", `"${String(NOW)}"`]) refused(rig().v.verify(edit(w, `"issued_at":${String(NOW)}`, `"issued_at":${t}`), CHANNEL, NOW), "structure", "issued-at");
+    refused(rig().v.verify(edit(w, `"issued_at":${String(NOW)}`, '"issued_at":9007199254740992'), CHANNEL, NOW), "structure", "integer-range");
   });
 
   void it("nonce: too short, too long, and outside the alphabet", async () => {
@@ -214,6 +215,21 @@ void describe("CSR-WO-2004 structure: refused before any gate (PV-3)", () => {
     const noncanonical = `${sig.slice(0, -3)}${last === "A" ? "B" : String.fromCharCode(last.charCodeAt(0) ^ 1)}==`;
     for (const s of [noncanonical, sig.slice(0, -4), `${sig}AAAA`, sig.replaceAll("=", "")]) refused(rig().v.verify(edit(w, sig, s), CHANNEL, NOW), "structure", "signature-encoding");
     refused(rig().v.verify(edit(w, `"${sig}"`, "64"), CHANNEL, NOW), "structure", "signature-encoding");
+  });
+
+  void it("integer-range: an integer past 2^53-1 is refused, since it reads as a different integer than it spells", async () => {
+    // A pluggable payload with an integer field: signed as 9007199254740992, edited to ...993, which
+    // JSON.parse reads as the same number. Only integer-range tells them apart.
+    const counter: PayloadSchema<{ n: number }> = {
+      key: "count",
+      context: "ClearSeal/test-count-envelope/v1\x00",
+      canonicalFields: (p) => [String(p.n)],
+      parse: (v) => (typeof v === "object" && v !== null && typeof (v as { n?: unknown }).n === "number" ? { ok: true, payload: { n: (v as { n: number }).n } } : { ok: false, check: "count" }),
+      effect: () => "info",
+    };
+    const w = await signMessage({ sender_id: SENDER, issued_at: NOW, nonce: "AAAABBBBCCCCDDDD", payload: { n: 2 ** 53 } }, fixtureSigner, counter);
+    const v = new ProvenanceVerifier({ allowlist: [entry()], audit: () => undefined, schema: counter });
+    refused(v.verify(edit(w, '"n":9007199254740992', '"n":9007199254740993'), CHANNEL, NOW), "structure", "integer-range");
   });
 
   void it("uint32 length edges: an empty text and a near-cap text are framed and accepted", async () => {
@@ -289,6 +305,21 @@ void describe("CSR-WO-2004 gate 1, signature (PV-4)", () => {
     refused(r.v.verify(first, CHANNEL, NOW + 10), "signature", "stale");
   });
 
+  void it("replay is per sender: one author sending another's nonce first never blocks the other's message", async () => {
+    const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+    const other = entry({ kid: OTHER_KID, sender_id: OTHER_SENDER, publicKey: publicKey.export({ format: "pem", type: "spki" }).toString() });
+    const r = rig([entry(), other]);
+    const both = { ...CHANNEL, authors: [SENDER, OTHER_SENDER] };
+    accepted(r.v.verify(await signMessage(input({ sender_id: OTHER_SENDER }), keySigner(OTHER_KID, privateKey)), both, NOW));
+    accepted(r.v.verify(await signed(), both, NOW));
+  });
+
+  void it("the clock moves only on accept: a valid message checked at a wrong future now does not lock out the present", async () => {
+    const r = rig([entry({ notAfter: NOW + 200_000 })]);
+    refused(r.v.verify(await signed({ nonce: "AAAABBBBCCCCDDD7" }), CHANNEL, NOW + 80_000), "signature", "stale");
+    accepted(r.v.verify(await signed(), CHANNEL, NOW));
+  });
+
   void it("nonce-cache-full: at capacity a new message is refused, never evicted for; room returns as nonces expire", async () => {
     const r = rig([entry()], 2);
     const a = await signed({ nonce: "AAAABBBBCCCCDDD1" });
@@ -354,6 +385,14 @@ void describe("CSR-WO-2004 the allowlist (PV-6)", () => {
     assert.throws(() => loadAllowlist([entry({ publicKey: generateKeyPairSync("rsa", { modulusLength: 2048 }).publicKey })]), /not Ed25519/, "a KeyObject too");
   });
 
+  void it("refuses a key-shaped plain object and a private key's PEM: only public PEM text or a real KeyObject loads", () => {
+    const rsa = generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const shaped = JSON.parse(JSON.stringify({ type: "public", asymmetricKeyType: "ed25519", format: "jwk", key: rsa.publicKey.export({ format: "jwk" }) })) as unknown as string;
+    assert.throws(() => loadAllowlist([entry({ publicKey: shaped })]), /neither PEM text nor a KeyObject/);
+    const { privateKey } = generateKeyPairSync("ed25519");
+    assert.throws(() => loadAllowlist([entry({ publicKey: privateKey.export({ format: "pem", type: "pkcs8" }).toString() })]), /not SPKI PEM text/);
+  });
+
   void it("refuses a kid or sender outside the pattern, and a window that is not epoch seconds", () => {
     assert.throws(() => loadAllowlist([entry({ kid: "Bad Kid" })]), AllowlistError);
     assert.throws(() => loadAllowlist([entry({ sender_id: "x" })]), AllowlistError);
@@ -362,6 +401,7 @@ void describe("CSR-WO-2004 the allowlist (PV-6)", () => {
 
   void it("a channel with an unknown floor is refused at verify, never ranked", async () => {
     const w = await signed();
+    assert.throws(() => rig().v.verify(w, { ...CHANNEL, authors: undefined } as unknown as Channel, NOW), /authors is not a list/);
     assert.throws(() => rig().v.verify(w, { ...CHANNEL, floor: "launch" } as unknown as Channel, NOW), AllowlistError);
   });
 });

@@ -2,11 +2,11 @@
 // window (architecture §5, Key identity and rotation); rotation is adding an entry with a new window,
 // never editing one. Loading refuses what would make a verdict ambiguous or a key unfit.
 
-import { createPublicKey, type KeyObject } from "node:crypto";
+import { createPublicKey, KeyObject } from "node:crypto";
 
 import { type Effect, EFFECT_ORDER, ID_RE, isTime } from "./envelope.ts";
 
-/** One allowlist entry as configured: the public key is SPKI, PEM text or a KeyObject. */
+/** One allowlist entry as configured: the public key is SPKI PEM text or a genuine KeyObject. */
 export interface ProvenanceKeyData {
   readonly kid: string;
   readonly sender_id: string;
@@ -40,6 +40,11 @@ export class AllowlistError extends Error {
 export type ProvenanceAllowlist = ReadonlyMap<string, ProvenanceKey>;
 
 function keyOf(data: string | KeyObject, kid: string): KeyObject {
+  // A key-shaped plain object is not a key: its `type` fields are only properties, and node:crypto
+  // would take it as a key spec in any format (CSR-WO-2004 adversarial pass).
+  if (typeof data !== "string" && !(data instanceof KeyObject)) throw new AllowlistError(`kid "${kid}": the public key is neither PEM text nor a KeyObject`);
+  // A private key's PEM would load as its public half: the allowlist never holds private material (PV-2).
+  if (typeof data === "string" && !data.trimStart().startsWith("-----BEGIN PUBLIC KEY-----")) throw new AllowlistError(`kid "${kid}": the public key is not SPKI PEM text`);
   let key: KeyObject;
   try {
     key = typeof data === "string" ? createPublicKey(data) : data;
@@ -67,7 +72,8 @@ export function loadAllowlist(entries: readonly ProvenanceKeyData[]): Provenance
 /** A channel as configured, checked: a known floor and authors that match the contract's pattern. */
 export function checkChannel(channel: Channel): Channel {
   if (typeof channel.name !== "string" || channel.name.length === 0) throw new AllowlistError("a channel needs a name");
+  if (!Array.isArray(channel.authors)) throw new AllowlistError(`channel "${channel.name}": authors is not a list`);
   if (!EFFECT_ORDER.includes(channel.floor)) throw new AllowlistError(`channel "${channel.name}": the floor is not a known effect`);
   for (const a of channel.authors) if (typeof a !== "string" || !ID_RE.test(a)) throw new AllowlistError(`channel "${channel.name}": an author does not match the contract's pattern`);
-  return Object.freeze({ name: channel.name, authors: Object.freeze([...channel.authors]), floor: channel.floor });
+  return Object.freeze({ name: channel.name, authors: Object.freeze([...(channel.authors as readonly string[])]), floor: channel.floor });
 }

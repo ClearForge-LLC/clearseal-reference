@@ -9,7 +9,7 @@
 // A nonce is remembered only when a message is accepted, for the freshness window; at capacity a new
 // message is refused, never evicted for (PV-7). Carried over from spikes/0102-envelope/option-a.ts.
 
-import { verify as edVerify } from "node:crypto";
+import { verify as edVerify, KeyObject } from "node:crypto";
 
 import { JsonParseError, parseJsonStrict } from "../transport/json.ts";
 import { type Channel, checkChannel, loadAllowlist, type ProvenanceAllowlist, type ProvenanceKeyData } from "./allowlist.ts";
@@ -38,6 +38,9 @@ export interface VerifierOptions<P> {
 /** Seen nonces, each with the last second its message can be fresh. The memory keeps the latest clock
  *  reading it has seen and never runs behind it: pruning at a later time and checking at an earlier one
  *  would forget a nonce whose message is fresh again at that earlier time (CSR-WO-0102 adversarial). */
+/*  The reading advances only when a message is accepted, so a refused message checked at a wrong
+ *  `now` cannot move it (CSR-WO-2004 adversarial pass). A nonce is held per sender: an author can
+ *  never block another author's message by sending its nonce first. */
 class NonceMemory {
   readonly #seen = new Map<string, number>();
   readonly #max: number;
@@ -46,11 +49,13 @@ class NonceMemory {
     this.#max = max;
   }
   clock(now: number): number {
-    this.#highWater = Math.max(this.#highWater, now);
-    return this.#highWater;
+    return Math.max(this.#highWater, now);
   }
-  seen(nonce: string, t: number): boolean {
-    const until = this.#seen.get(nonce);
+  advance(now: number): void {
+    this.#highWater = Math.max(this.#highWater, now);
+  }
+  seen(key: string, t: number): boolean {
+    const until = this.#seen.get(key);
     return until !== undefined && until >= t;
   }
   /** True when a new nonce cannot be stored even after the expired ones are forgotten. */
@@ -59,8 +64,8 @@ class NonceMemory {
     for (const [n, until] of this.#seen) if (until < t) this.#seen.delete(n);
     return this.#seen.size >= this.#max;
   }
-  remember(nonce: string, until: number): void {
-    this.#seen.set(nonce, until);
+  remember(key: string, until: number): void {
+    this.#seen.set(key, until);
   }
 }
 
@@ -72,7 +77,7 @@ const NUMBER = /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/y;
  *  an integer in shortest form (no fraction, no exponent), and `-0` is refused by name; a negative
  *  integer is left to the field that refuses it. Run on text the strict parser
  *  accepted, so every number token is well formed; strings are skipped with their escapes. */
-function numberForm(text: string): "negative-zero" | "non-shortest-number" | null {
+function numberForm(text: string): "negative-zero" | "non-shortest-number" | "integer-range" | null {
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
     if (c === 0x22) {
@@ -82,6 +87,8 @@ function numberForm(text: string): "negative-zero" | "non-shortest-number" | nul
       const token = NUMBER.exec(text)?.[0] ?? "";
       if (Object.is(Number(token), -0)) return "negative-zero";
       if (!INTEGER.test(token)) return "non-shortest-number";
+      // Past 2^53-1 a token reads as a different integer than it spells, and two parsers may disagree.
+      if (!Number.isSafeInteger(Number(token))) return "integer-range";
       i += token.length - 1;
     }
   }
@@ -164,13 +171,14 @@ export class ProvenanceVerifier<P = Alert> {
     const entry = this.#keys.get(key_id);
     if (entry === undefined) return refuse("signature", "unknown-key");
     if (now < entry.notBefore || now > entry.notAfter) return refuse("signature", "key-window");
-    // belt-and-suspenders: loadAllowlist admits only Ed25519 keys (PV-6); the algorithm is never taken from the message.
-    if (entry.publicKey.asymmetricKeyType !== "ed25519") return refuse("signature", "key-type");
+    // belt-and-suspenders: loadAllowlist admits only Ed25519 KeyObjects (PV-6); the algorithm is never taken from the message.
+    if (!(entry.publicKey instanceof KeyObject) || entry.publicKey.asymmetricKeyType !== "ed25519") return refuse("signature", "key-type");
     if (!edVerify(null, canonicalBytes(fields, this.#schema), entry.publicKey, sig)) return refuse("signature", "bad-signature");
     const t = this.#nonces.clock(now);
     if (issued_at < t - PAST_WINDOW_S) return refuse("signature", "stale");
     if (issued_at > now + FUTURE_SKEW_S) return refuse("signature", "future");
-    if (this.#nonces.seen(nonce, t)) return refuse("signature", "replay");
+    const held = `${sender_id}\n${nonce}`;
+    if (this.#nonces.seen(held, t)) return refuse("signature", "replay");
     if (this.#nonces.full(t)) return refuse("signature", "nonce-cache-full");
 
     // ---- gate 2: author ----
@@ -183,7 +191,8 @@ export class ProvenanceVerifier<P = Alert> {
     if (rank === -1) return refuse("effect", "unknown-effect");
     if (rank > EFFECT_ORDER.indexOf(ch.floor)) return refuse("effect", "above-floor");
 
-    this.#nonces.remember(nonce, issued_at + PAST_WINDOW_S);
+    this.#nonces.remember(held, issued_at + PAST_WINDOW_S);
+    this.#nonces.advance(now);
     this.#audit("provenance-accepted", { sender: sender_id, kid: key_id, effect });
     return { accepted: true, message: fields };
   }
