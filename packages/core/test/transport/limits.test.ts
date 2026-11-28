@@ -112,26 +112,48 @@ void describe("result cap and handler timeout at their edges", () => {
   });
 });
 
-void describe("WO §5.7 statelessness: 1,000 sequential requests retain nothing per request", () => {
+/** The statelessness red-proof's shape (CSR-WO-2008d): requests after a warm-up, and the heap after a
+ *  real collection before and after them. The helper's audit lines are cleared as it goes, since they
+ *  are the test's own retention, not the transport's. Bound and distribution: that WO's FEEDBACK. */
+const WARM_REQUESTS = 1_000;
+const MEASURED_REQUESTS = 4_000;
+const GROWTH_BOUND_BYTES = 128 * 1024;
+
+void describe("WO §5.7 statelessness: 4,000 sequential requests after a warm-up retain nothing per request", () => {
   void it("in-flight returns to 0 and heap growth stays small", async () => {
-    // A stress pattern, not an honest client: 1,100 calls from one principal in about a third of a
-    // second. It passes its own rate-limit budget; the default (300) is not raised to fit it (CSR-WO-2007).
-    const s = await start({ rateLimit: { burst: 2_000, refillPerMinute: 600, maxPrincipals: 10 } });
+    // A stress pattern, not an honest client: 5,000 calls from one principal in a few seconds. It has
+    // its own rate-limit budget; the default (300) is not raised to fit it (CSR-WO-2007).
+    const s = await start({ rateLimit: { burst: WARM_REQUESTS + MEASURED_REQUESTS + 100, refillPerMinute: 600, maxPrincipals: 10 } });
     try {
-      for (let i = 0; i < 100; i++) await modern(s.t, "tools/call", { name: "echo", arguments: { text: "warm" } });
-      const gc = collector();
+      const once = collector();
+      // Three passes: one leaves the heap in a state the next would still change (measured).
+      const gc = (): void => {
+        once();
+        once();
+        once();
+      };
+      for (let i = 0; i < WARM_REQUESTS; i++) await modern(s.t, "tools/call", { name: "echo", arguments: { text: "warm" } });
+      s.audits.length = 0;
+      s.lines.length = 0;
       gc();
       const before = process.memoryUsage().heapUsed;
-      for (let i = 0; i < 1000; i++) {
+      for (let i = 0; i < MEASURED_REQUESTS; i++) {
         const r = await modern(s.t, "tools/call", { name: "echo", arguments: { text: `n${String(i)}` } }, { headers: { "mcp-session-id": `s${String(i)}` } });
         assert.equal(r.status, 200);
         assert.equal(r.headers["mcp-session-id"], undefined);
+        if (i % 2_000 === 1_999) {
+          // Halfway and at the end: the helper's lines cleared, and a collection between the halves,
+          // which keeps the reading inside about ±30 KiB where one pass over all 4,000 spreads ±130 KiB.
+          s.audits.length = 0;
+          s.lines.length = 0;
+          gc();
+        }
       }
       gc();
       const growth = process.memoryUsage().heapUsed - before;
-      console.log(`MEMORY 1000 sequential requests: heap growth ${String(Math.round(growth / 1024))} KiB, in-flight after ${String(s.t.inFlight())}`);
+      console.log(`MEMORY ${String(MEASURED_REQUESTS)} sequential requests after ${String(WARM_REQUESTS)} warm: heap growth ${String(Math.round(growth / 1024))} KiB (${(growth / MEASURED_REQUESTS).toFixed(1)} B per request), in-flight after ${String(s.t.inFlight())}`);
       assert.equal(s.t.inFlight(), 0);
-      assert.ok(growth < 16 * 1024 * 1024, `heap grew ${String(growth)} bytes`);
+      assert.ok(growth < GROWTH_BOUND_BYTES, `heap grew ${String(growth)} bytes over ${String(MEASURED_REQUESTS)} requests, past ${String(GROWTH_BOUND_BYTES)}`);
     } finally {
       await s.close();
     }
