@@ -4,6 +4,13 @@
 // with a timer; a validation that overruns is abandoned by terminating its worker, which is
 // replaced and re-primed with every registered schema. The event loop is never blocked by a
 // validation, and no validation outlives `validationTimeoutMs`.
+//
+// A job is timed only against a ready worker (CSR-WO-1005c). A slot is ready once its worker is
+// online and has acknowledged every schema it was sent; until then `#pump` passes it by, so a
+// replacement's start-up never counts against the next call's deadline. Readiness has its own bound,
+// READY_TIMEOUT_MS: a worker that does not become ready within it is replaced again, and a job that
+// finds no ready worker within it is refused as a timeout is. So no call waits past its deadline plus
+// that bound, and none is ever answered without validation.
 
 import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,18 +23,28 @@ export class ValidationTimeout extends Error {
   override name = "ValidationTimeout";
 }
 
+/** How long a worker may take to come online and acknowledge its schemas (CSR-WO-1005c). Measured on
+ *  Furnace with the fixture's 13 schemas: 71–85 ms idle, at most 453 ms on 2 cores under load. */
+export const READY_TIMEOUT_MS = 5_000;
+
 interface Job {
   id: number;
   key: string;
   value: unknown;
   resolve: (valid: boolean) => void;
   reject: (err: Error) => void;
+  /** Bounds the wait for a ready worker; cleared once the job is assigned. */
+  wait?: NodeJS.Timeout;
 }
 
 interface Slot {
   worker: Worker;
   job?: Job;
   timer?: NodeJS.Timeout;
+  online: boolean;
+  /** Ids of the compile messages this worker has not yet acknowledged. */
+  priming: Set<number>;
+  readyTimer?: NodeJS.Timeout;
 }
 
 type Reply = { id: number; ok: true; valid: boolean } | { id: number; ok: false; error: string };
@@ -35,7 +52,12 @@ type Reply = { id: number; ok: true; valid: boolean } | { id: number; ok: false;
 export interface ValidationPoolOptions {
   workers: number;
   timeoutMs: number;
+  /** Hears the pool's own events: `validation-worker-not-ready` when a worker is replaced for not
+   *  becoming ready within READY_TIMEOUT_MS. */
+  onEvent?: (event: string, fields: Record<string, string | number>) => void;
 }
+
+const ready = (slot: Slot): boolean => slot.online && slot.priming.size === 0;
 
 export class ValidationPool {
   readonly #options: ValidationPoolOptions;
@@ -44,6 +66,8 @@ export class ValidationPool {
   readonly #schemas = new Map<string, Record<string, unknown>>();
   #nextId = 1;
   #nextKey = 1;
+  /** Priming compiles carry negative ids, so a reply is told apart from a validation's. */
+  #nextPrimeId = -1;
   #closed = false;
 
   constructor(options: ValidationPoolOptions) {
@@ -56,16 +80,20 @@ export class ValidationPool {
     compileSchema(schema); // throws here, at registration, on an invalid schema
     const key = String(this.#nextKey++);
     this.#schemas.set(key, schema);
-    for (const slot of this.#slots) slot.worker.postMessage({ id: 0, op: "compile", key, schema });
+    for (const slot of this.#slots) this.#prime(slot, key, schema);
     return (value: unknown) => this.#run(key, value);
   };
 
   async close(): Promise<void> {
     this.#closed = true;
-    for (const job of this.#queue.splice(0)) job.reject(new Error("validation pool closed"));
+    for (const job of this.#queue.splice(0)) {
+      clearTimeout(job.wait);
+      job.reject(new Error("validation pool closed"));
+    }
     await Promise.all(
       this.#slots.map((slot) => {
         clearTimeout(slot.timer);
+        clearTimeout(slot.readyTimer);
         slot.job?.reject(new Error("validation pool closed"));
         return slot.worker.terminate();
       }),
@@ -77,30 +105,80 @@ export class ValidationPool {
     const url = new URL(`./schema-worker${extname(fileURLToPath(import.meta.url))}`, import.meta.url);
     const worker = new Worker(url);
     worker.unref();
-    const slot: Slot = { worker };
+    const slot: Slot = { worker, online: false, priming: new Set() };
+    worker.on("online", () => {
+      slot.online = true;
+      this.#readied(slot);
+    });
     worker.on("message", (reply: Reply) => {
-      this.#settle(slot, reply);
+      if (reply.id < 0) this.#primed(slot, reply);
+      else this.#settle(slot, reply);
     });
     worker.on("error", () => {
       this.#replace(slot, new Error("validation worker failed"));
     });
-    for (const [key, schema] of this.#schemas) worker.postMessage({ id: 0, op: "compile", key, schema });
+    slot.readyTimer = setTimeout(() => {
+      if (ready(slot) || this.#closed) return;
+      this.#options.onEvent?.("validation-worker-not-ready", { limitMs: READY_TIMEOUT_MS });
+      this.#replace(slot, new Error("validation worker did not become ready"));
+    }, READY_TIMEOUT_MS);
+    slot.readyTimer.unref();
+    for (const [key, schema] of this.#schemas) this.#prime(slot, key, schema);
     return slot;
+  }
+
+  #prime(slot: Slot, key: string, schema: Record<string, unknown>): void {
+    const id = this.#nextPrimeId--;
+    slot.priming.add(id);
+    slot.worker.postMessage({ id, op: "compile", key, schema });
+  }
+
+  #primed(slot: Slot, reply: Reply): void {
+    if (!slot.priming.delete(reply.id)) return;
+    // A schema the main thread compiled but this worker could not: the worker is not fit to serve.
+    if (!reply.ok) {
+      this.#replace(slot, new Error("validation worker failed"));
+      return;
+    }
+    this.#readied(slot);
+  }
+
+  #readied(slot: Slot): void {
+    if (!ready(slot)) return;
+    clearTimeout(slot.readyTimer);
+    this.#pump();
   }
 
   #run(key: string, value: unknown): Promise<boolean> {
     if (this.#closed) return Promise.reject(new Error("validation pool closed"));
     return new Promise((resolve, reject) => {
-      this.#queue.push({ id: this.#nextId++, key, value, resolve, reject });
+      const job: Job = { id: this.#nextId++, key, value, resolve, reject };
+      // Refused only when no worker has been ready for the whole bound: a job queued behind ready
+      // workers that are busy waits for them, as it always has.
+      const arm = (): void => {
+        job.wait = setTimeout(() => {
+          const i = this.#queue.indexOf(job);
+          if (i === -1) return;
+          if (this.#slots.some(ready)) {
+            arm();
+            return;
+          }
+          this.#queue.splice(i, 1);
+          reject(new ValidationTimeout(`no validation worker became ready within ${String(READY_TIMEOUT_MS)} ms`));
+        }, READY_TIMEOUT_MS);
+      };
+      arm();
+      this.#queue.push(job);
       this.#pump();
     });
   }
 
   #pump(): void {
     for (const slot of this.#slots) {
-      if (slot.job !== undefined) continue;
+      if (slot.job !== undefined || !ready(slot)) continue;
       const job = this.#queue.shift();
       if (job === undefined) return;
+      clearTimeout(job.wait);
       slot.job = job;
       slot.timer = setTimeout(() => {
         this.#replace(slot, new ValidationTimeout(`validation exceeded ${String(this.#options.timeoutMs)} ms`));
@@ -110,7 +188,7 @@ export class ValidationPool {
   }
 
   #settle(slot: Slot, reply: Reply): void {
-    if (reply.id === 0 || slot.job?.id !== reply.id) return;
+    if (slot.job?.id !== reply.id) return;
     clearTimeout(slot.timer);
     const job = slot.job;
     slot.job = undefined;
@@ -122,6 +200,7 @@ export class ValidationPool {
   /** Abandons the slot's job (terminating its worker) and puts a fresh worker in its place. */
   #replace(slot: Slot, err: Error): void {
     clearTimeout(slot.timer);
+    clearTimeout(slot.readyTimer);
     const job = slot.job;
     slot.job = undefined;
     void slot.worker.terminate();
