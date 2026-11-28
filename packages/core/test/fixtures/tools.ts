@@ -42,9 +42,11 @@ const text = (t: string): { content: { type: "text"; text: string }[] } => ({ co
  *  fast server), and the one the canary in test/transport/costly-schema.test.ts measures against. */
 export const COSTLY_DEADLINE_MS = 300;
 
-/** The arguments every validation-deadline test sends costly_schema: 20,000 valid items. */
+/** The arguments every validation-deadline test sends costly_schema: 50,000 valid items, about 575 KiB
+ *  (CSR-WO-2008d: warm, 1,885-2,816 ms on Furnace under load against the canary's 3 x 300 ms, where
+ *  20,000 read 770-1,104 ms). */
 export function costlyArguments(): { tags: { k: number }[] } {
-  return { tags: Array.from({ length: 20_000 }, (_, i) => ({ k: i })) };
+  return { tags: Array.from({ length: 50_000 }, (_, i) => ({ k: i })) };
 }
 
 /** Fixture tools, served only by tests. */
