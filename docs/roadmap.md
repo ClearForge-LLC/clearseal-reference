@@ -244,14 +244,16 @@ red-proof, and the teaching edition demonstrates every rung except exec.
 - `CSR-WO-2008b` — (built, merged `81a7d5d` 2026-11-27) the validation deadline gets its control-deletion row, F2 bounds the call near
   `validationTimeoutMs`, the heap-growth measurement stops reading unswept heap, and the shard count
   is re-sized to the five-minute rule; from `-0002b`'s FEEDBACK.
-- `CSR-WO-2008c` — every built §8 control fails its own row: the two missing red-proofs (the 408
+- `CSR-WO-2008c` — (built, merged `f6080e9` 2026-11-28) every built §8 control fails its own row: the two missing red-proofs (the 408
   request timeout, the approval listener's receive timeout), rows for the controls `-2008b`'s sweep
   found without one (including each `CHECKS.md` check), every test file in some row's baseline, and a
   detector that fails CI when a control or a test file drops out of the job.
-- `CSR-WO-1005c` — the validation pool never times a job against a worker that is not ready; `-2008b`'s
-  test-side workaround reverted.
+- `CSR-WO-1005c` — the validation pool never times a job against a worker that is not ready (`-2008b`'s
+  test-side workaround reverted), and the receive timeouts fire at their setting (`-2008c`).
 - `CSR-WO-2008d` — the heap test measures a slope and catches a per-request argument leak; the deadline
   fixture keeps its margin on a loaded builder.
+- `CSR-WO-2008e` — (intent) a Windows control-deletion shard, for the controls only a Windows runner can
+  turn red (`adversary-windows.test.ts`); after `-2008d`.
 - `CSR-WO-2010` — spike, then STOP: interop against the official `2026-07-28` implementations — the
   SDK v2 client (`@modelcontextprotocol/client`) and the conformance suite's `2026-07-28` scenarios,
   test-side only, never a runtime dependency. Answers whether an independent implementation of the
@@ -420,6 +422,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | 2026-09-26 | P1 exit gate clause on the supply-boundary test reworded to claim what it proves: red on each planted control in its corpus, best-effort against a hostile author, with the committed-manifest assembly path (`-1007`) as the guarantee. | The P1 exit red-team planted an edition whose aliasing passed the checker; a clause that says "a planted control" without a corpus claims more than static reading of JavaScript can deliver. |
 | 2026-11-27 | `-2008b` and `-2010` added to P2. P2's remaining order, ruled by the architect under the gate's standing delegation: `-2008b` → `-2010` → `-2003` → `-2004` → `-2009` → `-2005` → `-2006`. The list's previous order put `-2009` first although its own amendment sequences it after the controls; the amendment governs. Two facts in the 2026-09-25 rows are corrected in `architecture.md` §2.2 rather than here: SDK v2 *was* published (2026-07-27, new package names), and `2026-07-28` does not deprecate elicitation. Those rows are left as written. | `-0002b`'s FEEDBACK (an N5 gap: no deletion row for the validation deadline) and the same-day ground-truth measurement. `-2010` comes before the next control so an independent implementation checks the transport every later control sits on. |
 | 2026-11-27 | `-2008c`, `-1005c` and `-2008d` added from `-2008b`'s FEEDBACK. P2's remaining order, by the architect under the gate's standing delegation: `-2008c` → `-1005c` → `-2008d` → `-2010` → `-2003` (once the gate rules its three calls) → `-2004` → `-2009` → `-2005` → `-2006`. | The exit gate's "every stub made the suite fail" covers fewer controls than §8 claims until `-2008c` lands; the next control should not be built on a job that cannot yet see all of the last ones. |
+| 2026-11-28 | `-2008c` built; `-1005c` widened to the receive-timeout fix; `-2008e` added as intent. Order unchanged: `-1005c` → `-2008d` → `-2010` → `-2003` (once ruled) → `-2004` → `-2009` → `-2005` → `-2006`, with `-2008e` after `-2008d`. | `-2008c`'s FEEDBACK. |
 
 ## Provenance
 
