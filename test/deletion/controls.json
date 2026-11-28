@@ -3826,7 +3826,8 @@
         "packages/core/test/transport/refusal-audit.test.ts"
       ],
       "mustFail": [
-        "405 POST /health"
+        "405 POST /health",
+        "405 POST the metadata document"
       ]
     },
     {
@@ -3972,7 +3973,8 @@
       "mustFail": [
         "MR-5 WO §5.6 a state captured from one tool's call is refused on another tool",
         "another principal is refused",
-        "F7 a requestState issued for one set of arguments is refused on another"
+        "F7 a requestState issued for one set of arguments is refused on another",
+        "another method or tool is refused (CSR-WO-2008c: dispatch binds tools/call, so only openState can show the method clause)"
       ]
     },
     {
@@ -3993,7 +3995,7 @@
     {
       "id": "auth-h2-missing",
       "section8": "401 + protected-resource metadata; audience-bound verify",
-      "control": "CSR-WO-2008c §1.3, H2: no Authorization header is a 401 with the challenge, audited as missing (layered: with the line gone H3's scheme check refuses the same request the same way, so the tests go red on the audit reason)",
+      "control": "CSR-WO-2008c §1.3, H2: no Authorization header is a 401 with the challenge and no error code (the decision is made twice, by H2 and by H3's scheme branch, so the stub deletes both: a missing header then reaches the Bearer parse and is answered 400 invalid_request)",
       "touches": [
         "packages/core/src/auth/verifier.ts"
       ],
@@ -4109,7 +4111,7 @@
     {
       "id": "auth-h9-kid",
       "section8": "401 + protected-resource metadata; audience-bound verify",
-      "control": "CSR-WO-2008c §1.3, H9: kid is required, 1 to 128 characters of [A-Za-z0-9._-], refused before any fetch (layered: with the check gone the kid goes to the key set and is refused unknown-kid, so the tests go red on the reason)",
+      "control": "CSR-WO-2008c §1.3, H9: kid is required, 1 to 128 characters of [A-Za-z0-9._-], and a bad one is refused before any key is fetched (the stub sends any kid to the key set, which fetches for it)",
       "touches": [
         "packages/core/src/auth/verifier.ts"
       ],
@@ -4118,10 +4120,7 @@
         "packages/core/test/auth/verifier.test.ts"
       ],
       "mustFail": [
-        "H9 no kid → invalid_token / kid",
-        "H9 WO §5.4: path-shaped kid → invalid_token / kid",
-        "H9 kid of 129 characters → invalid_token / kid",
-        "H9 kid a number → invalid_token / kid"
+        "H9 a missing or malformed kid is refused before any key is fetched (CSR-WO-2008c)"
       ],
       "checks": [
         "H9"
@@ -4510,7 +4509,8 @@
         "packages/core/test/pinning/manifest.test.ts"
       ],
       "mustFail": [
-        "an extra build slot, a non-null hash-shaped mistake, or a bad generated_at is refused"
+        "an extra build slot, a non-null hash-shaped mistake, or a bad generated_at is refused",
+        "a generated_at the RFC 3339 pattern admits but the calendar does not (month 13) is refused (CSR-WO-2008c)"
       ]
     },
     {
@@ -4974,6 +4974,66 @@
       "mustFail": [
         "LG-8 ST-2 legacy tools/call to an MRTR tool → 200 (the legacy era's convention, CSR-WO-1005b), application/json, -32601, and the tool is logged at the seam",
         "ST input_required on the legacy era (LG-8)"
+      ]
+    },
+    {
+      "id": "auth-g1-resource-url",
+      "section8": "401 + protected-resource metadata; audience-bound verify",
+      "control": "CSR-WO-2008c §5, G1 (its resource-URL clause): with the core's verifier, a transport with no resource URL refuses to start (the stub deletes the check, and the transport starts)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/auth-g1-resource-url.patch",
+      "tests": [
+        "packages/core/test/auth/transport.test.ts"
+      ],
+      "mustFail": [
+        "with the core's verifier and no resource URL, the transport refuses to start"
+      ]
+    },
+    {
+      "id": "manifest-unknown-field",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §5: a manifest with an unknown top-level field is refused at load (the decision is made twice, by the explicit check and by manifest.schema.json, so the stub deletes the check and skips the schema call)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-unknown-field.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "an unknown top-level field is refused"
+      ]
+    },
+    {
+      "id": "manifest-versions",
+      "section8": "Verify-before-register; drift and unpinned refused",
+      "control": "CSR-WO-2008c §5: a manifest_version or canonical_form_version this implementation does not implement is refused at load (made twice, by the explicit checks and by the schema; the stub deletes both)",
+      "touches": [
+        "packages/core/src/pinning/manifest.ts"
+      ],
+      "stub": "stubs/manifest-versions.patch",
+      "tests": [
+        "packages/core/test/pinning/manifest.test.ts"
+      ],
+      "mustFail": [
+        "canonical_form_version 2, or manifest_version 2, is refused"
+      ]
+    },
+    {
+      "id": "cage-symlink-leaf",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, A2: a symlink leaf is never followed, so nothing is created outside the root through one (the decision is made twice, by the pre-open lstat and by O_NOFOLLOW, so the stub deletes both)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-symlink-leaf.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A2: a dangling symlink leaf is refused, and nothing is created outside the root on write"
       ]
     }
   ]

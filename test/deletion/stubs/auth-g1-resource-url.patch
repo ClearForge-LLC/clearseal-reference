@@ -1,0 +1,10 @@
+--- a/packages/core/src/transport/server.ts
++++ b/packages/core/src/transport/server.ts
+@@ -307,7 +307,6 @@ export async function startTransport(options: TransportOptions): Promise<Running
+   // code ran (CSR-WO-1007b §1.2), and test/node/cli.test.ts names this read in its inventory.
+   verifier = options.verifier ?? jwtVerifierFromEnv();
+     // G1: with the core's verifier, the resource URL comes from configuration, never inferred.
+-    if (verifier instanceof JwtVerifier && config.resourceUrl === "") throw new Error("the resource URL is not configured: the node does not start without it");
+   } catch (err) {
+     await options.validationPool?.close();
+     throw err;

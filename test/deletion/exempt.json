@@ -28,19 +28,11 @@
     "reason": "an absence: no code sets the header, so a stub would have to add one; eras.test.ts LG-1 and refusals.test.ts SH-43 assert it"
   },
   {
-    "control": "The manifest's unknown-field and version checks (pinning/manifest.ts, parseManifest)",
-    "reason": "a layer behind manifest.schema.json: with either deleted the schema check refuses the same manifest; manifest.test.ts goes red only on its message validator"
-  },
-  {
     "control": "startNode's port range (node/start.ts)",
-    "reason": "a layer behind Node's own listen, which refuses a port over 65535"
+    "reason": "a layer: with the check deleted the transport's own port check refuses the same configuration (ConfigError: port must be 0–65535), and behind both Node's listen refuses a port over 65535, which no stub can reach; config.test.ts goes red only on its message"
   },
   {
-    "control": "The transport's resource URL is required (G1, transport/server.ts)",
-    "reason": "a layer: with the check deleted the transport still refuses to start; auth/transport.test.ts goes red only on its message regex"
-  },
-  {
-    "control": "The cage refuses a symlink leaf before the open (A2, containment/cage.ts)",
-    "reason": "a layer behind O_NOFOLLOW: with the check deleted the kernel refuses the same open, and no test goes red"
+    "control": "H5 and C1: the JOSE header and the payload must be JSON objects (auth/verifier.ts, json())",
+    "reason": "a layer by construction: an array or a scalar has no alg, kid, iss or aud, so with the guard deleted H6 refuses the header and C2 the payload, with the same invalid_token; the strict-UTF-8 and duplicate-key clauses have rows (auth-jose-utf8, json-duplicate-key)"
   }
 ]

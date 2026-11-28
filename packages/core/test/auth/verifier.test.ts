@@ -169,6 +169,15 @@ void describe("the refusal matrix: one row per check (CHECKS.md, WO §3.3)", () 
     });
   }
 
+  void it("H9 a missing or malformed kid is refused before any key is fetched (CSR-WO-2008c)", async () => {
+    for (const kid of [undefined, "../../jwks", "k".repeat(129), 7]) {
+      const v = mk();
+      const verdict = await v.verify(bearer(issuer.mint(claims(), { header: { kid } })));
+      assert.equal(verdict.ok, false, String(kid));
+      assert.equal(v.jwks.fetches, 0, `kid ${JSON.stringify(kid)}: a key set was fetched for it`);
+    }
+  });
+
   void it("every row's check id is one CHECKS.md defines", () => {
     const ids = new Set(ROWS.map((r) => r.id));
     for (const id of ["H2", "H3", "H4", "H5", "H6", "H7", "H9", "H10", "K1", "K2", "K3", "C1", "C2", "C3", "C4", "C5", "C6", "C7"]) assert.ok(ids.has(id), id);

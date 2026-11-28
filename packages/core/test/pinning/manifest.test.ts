@@ -65,6 +65,10 @@ void describe("the manifest format (manifest_version 1)", () => {
     assert.throws(() => parseManifest("not json"), ManifestError);
   });
 
+  void it("a generated_at the RFC 3339 pattern admits but the calendar does not (month 13) is refused (CSR-WO-2008c)", () => {
+    refusedWith({ ...approved(), generated_at: "2026-13-01T00:00:00Z" }, /RFC 3339/);
+  });
+
   void it("WO §3.6 N3: generated_at and build are outside the hash: changing them leaves manifest_hash unchanged and the load valid", () => {
     const m = approved();
     const changed = { ...m, generated_at: "2031-01-01T12:34:56.789+02:00", build: { commit: "c", distribution_digest: "d", signature: null, kid: null, key_valid_from: "2026-01-01T00:00:00Z", key_valid_to: null } };
