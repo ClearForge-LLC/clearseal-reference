@@ -27,3 +27,5 @@ export { humanOnly } from "./approval/policy.ts";
 export { ApprovalService, type ApprovalServiceOptions, type GateOutcome, RETRY_HINT_SECONDS, testApprovalBackend } from "./approval/service.ts";
 export { ApprovalConfigError, approvalFromEnv, type ApprovalSettings, DEFAULT_APPROVAL, MAX_WAIT_SECONDS, webhookUrlProblem } from "./approval/settings.ts";
 export { type Finding as AuditFinding, type FindingKind as AuditFindingKind, verifyAudit, type VerifyReport } from "./audit/verify.ts";
+// CSR-WO-2004: message provenance (class 5), as one namespace.
+export * as provenance from "./provenance/index.ts";
