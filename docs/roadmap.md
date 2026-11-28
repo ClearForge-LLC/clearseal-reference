@@ -250,8 +250,11 @@ red-proof, and the teaching edition demonstrates every rung except exec.
   detector that fails CI when a control or a test file drops out of the job.
 - `CSR-WO-1005c` — (built, merged `97c66c5` 2026-11-28) the validation pool never times a job against a worker that is not ready (`-2008b`'s
   test-side workaround reverted), and the receive timeouts fire at their setting (`-2008c`).
-- `CSR-WO-2008d` — the heap test measures a slope and catches a per-request argument leak; the deadline
-  fixture keeps its margin on a loaded builder.
+- `CSR-WO-2008d` — (built, merged `eab5890` 2026-11-28) the heap test sees about 1 KiB retained per request
+  (it saw 16 KiB) and catches a retained dispatch context; an argument-only leak stays inside CI's honest
+  noise, recorded as ruled. The deadline fixture keeps its margin on a loaded builder; 22 shards.
+- `CSR-WO-2008f` — (intent) the statelessness red-proof by retained-object count (a heap snapshot), so
+  that a leak of the arguments alone turns it red on CI; `-2008d` finding 1. Not on P2's critical path.
 - `CSR-WO-2008e` — (intent) a Windows control-deletion shard, for the controls only a Windows runner can
   turn red (`adversary-windows.test.ts`); after `-2008d`.
 - `CSR-WO-2010` — spike, then STOP: interop against the official `2026-07-28` implementations — the
@@ -408,6 +411,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | `CSR-WO-0002b` | (built, merged `c17e696` 2026-11-27) The bot's npm group (#81) landed from `wo/CSR-WO-0002b`: lint fix re-applied, shard-2 baseline failure measured and fixed | Not planned; inserted 2026-11-27 because a fix pushed onto the bot's branch (`4d84f80a`, 2026-10-07) was lost when the bot superseded its PR, and eight weekly group PRs failed while the build was paused |
 | `CSR-WO-1005c` | The validation pool's start-up race, found by `-2008b`'s CI and adversarial pass | Not planned; inserted under `-1005` because the defect is in that WO's pool (P1's transport hardening), built during P2 |
 | `CSR-WO-2008c`, `-2008d` | The deletion job's coverage gaps and two coarse measurements, from `-2008b`'s sweep | Not planned; inserted under `-2008` as refinements of the control-deletion job |
+| `CSR-WO-2008f` | `-2008d` finding 1: heap size cannot separate an argument-only leak from CI's honest noise | Not planned; recorded as intent under `-2008` |
 
 ## Amendments
 
@@ -423,6 +427,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | 2026-11-27 | `-2008b` and `-2010` added to P2. P2's remaining order, ruled by the architect under the gate's standing delegation: `-2008b` → `-2010` → `-2003` → `-2004` → `-2009` → `-2005` → `-2006`. The list's previous order put `-2009` first although its own amendment sequences it after the controls; the amendment governs. Two facts in the 2026-09-25 rows are corrected in `architecture.md` §2.2 rather than here: SDK v2 *was* published (2026-07-27, new package names), and `2026-07-28` does not deprecate elicitation. Those rows are left as written. | `-0002b`'s FEEDBACK (an N5 gap: no deletion row for the validation deadline) and the same-day ground-truth measurement. `-2010` comes before the next control so an independent implementation checks the transport every later control sits on. |
 | 2026-11-27 | `-2008c`, `-1005c` and `-2008d` added from `-2008b`'s FEEDBACK. P2's remaining order, by the architect under the gate's standing delegation: `-2008c` → `-1005c` → `-2008d` → `-2010` → `-2003` (once the gate rules its three calls) → `-2004` → `-2009` → `-2005` → `-2006`. | The exit gate's "every stub made the suite fail" covers fewer controls than §8 claims until `-2008c` lands; the next control should not be built on a job that cannot yet see all of the last ones. |
 | 2026-11-28 | `-2008c` built; `-1005c` widened to the receive-timeout fix; `-2008e` added as intent. Order unchanged: `-1005c` → `-2008d` → `-2010` → `-2003` (once ruled) → `-2004` → `-2009` → `-2005` → `-2006`, with `-2008e` after `-2008d`. | `-2008c`'s FEEDBACK. |
+| 2026-11-28 | `-2008d` built; `-2008f` added as intent. Order unchanged: `-2010` → `-2003` (once ruled) → `-2004` → `-2009` → `-2005` → `-2006`, with `-2008e` and `-2008f` off the critical path. | `-2008d`'s FEEDBACK; the operator's rulings on its §7 stop. |
 
 ## Provenance
 
