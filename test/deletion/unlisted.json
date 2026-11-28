@@ -18,9 +18,5 @@
   {
     "path": "packages/core/test/transport/costly-schema.test.ts",
     "reason": "a measurement of the costly_schema fixture's margin (CSR-WO-0002b), which keeps the validation-deadline row honest; it is no control's proof"
-  },
-  {
-    "path": "packages/core/test/transport/zz-heap-distribution.test.ts",
-    "reason": "TEMPORARY (CSR-WO-2008d): a measurement that repeats the statelessness test on CI for its distribution; removed before the pull request is parked"
   }
 ]

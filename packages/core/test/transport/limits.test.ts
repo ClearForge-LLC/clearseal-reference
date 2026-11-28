@@ -114,10 +114,13 @@ void describe("result cap and handler timeout at their edges", () => {
 
 /** The statelessness red-proof's shape (CSR-WO-2008d): requests after a warm-up, and the heap after a
  *  real collection before and after them. The helper's audit lines are cleared as it goes, since they
- *  are the test's own retention, not the transport's. Bound and distribution: that WO's FEEDBACK. */
+ *  are the test's own retention, not the transport's. The bound, 4 MiB over 4,000 requests (about 1 KiB
+ *  each), sits above every honest reading on Furnace and both CI runners (at most 848 KiB) and catches
+ *  a retained dispatch context (33 MiB). It cannot catch a leak of the arguments alone (about 80 B
+ *  each, 311-330 KiB here): CI's honest readings reach 848 KiB. Numbers: that WO's FEEDBACK. */
 const WARM_REQUESTS = 1_000;
 const MEASURED_REQUESTS = 4_000;
-const GROWTH_BOUND_BYTES = 128 * 1024;
+const GROWTH_BOUND_BYTES = 4 * 1024 * 1024;
 
 void describe("WO §5.7 statelessness: 4,000 sequential requests after a warm-up retain nothing per request", () => {
   void it("in-flight returns to 0 and heap growth stays small", async () => {
