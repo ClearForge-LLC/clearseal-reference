@@ -271,7 +271,8 @@ export async function startApprovalListener(service: ApprovalService, main: { ho
     else send(res, STATUS[r.reason], { error: r.reason });
   };
 
-  const server: Server = createServer({ requestTimeout: 10_000 }, (req, res) => {
+  // CSR-WO-1005c: swept every second, so the 10 s receive timeout ends a stalled request at 10-11 s, not ~30 s.
+  const server: Server = createServer({ requestTimeout: 10_000, connectionsCheckingInterval: 1_000 }, (req, res) => {
     handle(req, res).catch(() => {
       send(res, 500, { error: "internal" });
     });

@@ -1,9 +1,8 @@
 // The approval listener's request receive time (listener.ts, `requestTimeout`: 10 s), CSR-WO-2008c
 // §1.1. A client that sends a decision's headers and then stalls the body is answered 408 and cut
-// off. Node ends such a request on its connection sweep, every 30 s (connectionsCheckingInterval),
-// so the 408 comes about 30 s after the request starts, not at 10 s. The listener's timeout has no
-// setting, so this waits for the real one. This file holds only this test, so only its own deletion
-// row pays the wait.
+// off. Node ends such a request on its connection sweep, which the listener runs every second
+// (CSR-WO-1005c; Node's default is 30 s), so the 408 comes within a second of the 10 s. The listener's
+// timeout has no setting, so this waits for the real one, in a file of its own.
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
@@ -16,8 +15,11 @@ import { type ApprovalSettings, DEFAULT_APPROVAL } from "../../src/approval/sett
 import { stalledRequest } from "../fixtures/stall.ts";
 import { ApproverVerifier } from "./harness.ts";
 
-/** Longer than Node's 30 s sweep plus slack: past it, no 408 means the timeout is gone. */
-const WAIT_MS = 45_000;
+/** The listener's timeout, one sweep, and slack for a loaded runner. */
+const SETTING_MS = 10_000;
+const TOLERANCE_MS = 1_000 + 500;
+/** Past it, no 408 means the timeout is gone. */
+const WAIT_MS = 20_000;
 
 void describe("CSR-WO-2001 the approval listener's request receive time", () => {
   void it("a decision whose body never finishes is answered 408 after the listener's 10 s, and the connection closes", async () => {
@@ -32,7 +34,8 @@ void describe("CSR-WO-2001 the approval listener's request receive time", () => 
       const r = await stalledRequest(l.port, `POST /approval/link/${o.secret.linkToken} HTTP/1.1\r\nhost: 127.0.0.1:${String(l.port)}\r\ncontent-type: application/json\r\ncontent-length: 100\r\n\r\n{"code"`, WAIT_MS);
       console.log(`LISTENER-TIMEOUT answered "${r.status}" after ${String(r.ms)} ms`);
       assert.equal(r.status, "HTTP/1.1 408 Request Timeout", `no 408 within ${String(WAIT_MS)} ms`);
-      assert.ok(r.ms >= 10_000, `answered at ${String(r.ms)} ms, before the listener's 10 s`);
+      assert.ok(r.ms >= SETTING_MS, `answered at ${String(r.ms)} ms, before the listener's 10 s`);
+      assert.ok(r.ms <= SETTING_MS + TOLERANCE_MS, `answered at ${String(r.ms)} ms, more than ${String(TOLERANCE_MS)} ms past the listener's 10 s`);
     } finally {
       await l.close();
     }
