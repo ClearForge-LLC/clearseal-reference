@@ -260,7 +260,7 @@ red-proof, and the teaching edition demonstrates every rung except exec.
 - `CSR-WO-2010` — (built, merged `e2bf41a` 2026-11-28) spike, then STOP: interop against the official `2026-07-28` implementations — the
   SDK v2 client and the conformance alpha agree with ours on every probe that ran; no security-relevant
   disagreement; one wire-form defect ruled (D10 → `-2011`).
-- `CSR-WO-2011` — a call whose arguments fail the pinned schema is refused before the handler and answered
+- `CSR-WO-2011` — (built, merged `f01801c` 2026-11-28) a call whose arguments fail the pinned schema is refused before the handler and answered
   as a tool execution error (`isError: true`), as the tools page prescribes, with the audit and rate
   accounting unchanged and no argument value echoed (`-2010` D10).
 - `CSR-WO-2008` — (built, merged `290077a` 2026-09-26: 45 controls; pulled forward during the P1 exit red-team, rows for every control built so far) the control-deletion job: each control stubbed out in turn, the suite required to
@@ -432,6 +432,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | 2026-11-28 | `-2008c` built; `-1005c` widened to the receive-timeout fix; `-2008e` added as intent. Order unchanged: `-1005c` → `-2008d` → `-2010` → `-2003` (once ruled) → `-2004` → `-2009` → `-2005` → `-2006`, with `-2008e` after `-2008d`. | `-2008c`'s FEEDBACK. |
 | 2026-11-28 | `-2008d` built; `-2008f` added as intent. Order unchanged: `-2010` → `-2003` (once ruled) → `-2004` → `-2009` → `-2005` → `-2006`, with `-2008e` and `-2008f` off the critical path. | `-2008d`'s FEEDBACK; the operator's rulings on its §7 stop. |
 | 2026-11-28 | `-2010` built; `-2011` added. P2's remaining order: `-2011` → `-2003` (once the gate rules its three calls) → `-2004` → `-2009` → `-2005` → `-2006`, with `-2008e` and `-2008f` off the critical path. | `-2010`'s FEEDBACK. `-2011` goes first because it changes a wire behaviour every fork inherits, and `-2003` waits on the gate. |
+| 2026-11-28 | `-2011` built. P2's remaining order: `-2004` → `-2003` (once the gate rules calls 2 and 3) → `-2009` → `-2005` → `-2006`, with `-2008e` and `-2008f` off the critical path. | `-2011`'s FEEDBACK. `-2004` moves ahead of `-2003` only because `-2003` still waits on the gate. |
 
 ## Provenance
 
