@@ -260,7 +260,9 @@ void describe("the transport can run with no pool at all (the synchronous compil
     const t = await startTransport({ registry, serverInfo: { name: "x", version: "0" }, verifier: { verify: () => Promise.resolve({ ok: true, principal: { id: "p" } }) } });
     try {
       const r = await raw(t, { headers: modernHeaders("tools/call", "e"), body: JSON.stringify(modernBody("tools/call", { name: "e", arguments: { a: 1 } })) });
-      assert.equal(code(r), -32602);
+      // CSR-WO-2011: refused as a tool execution error; the synchronous compiler reports no failures.
+      assert.equal(r.status, 200, r.text);
+      assert.deepEqual((r.json as { result?: unknown }).result, { content: [{ type: "text", text: "Invalid arguments for tool e: they do not match its input schema" }], isError: true, resultType: "complete", _meta: { "io.modelcontextprotocol/serverInfo": { name: "x", version: "0" } } });
     } finally {
       await t.close();
     }

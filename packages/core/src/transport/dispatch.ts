@@ -20,7 +20,7 @@ import {
   type RequestId,
   UNSUPPORTED_PROTOCOL_VERSION,
 } from "./jsonrpc.ts";
-import type { CallContext, RegisteredTool, ToolRegistry, ToolResult } from "./registry.ts";
+import type { CallContext, RegisteredTool, ToolRegistry, ToolResult, ValidationVerdict } from "./registry.ts";
 import { argumentsDigest, openState, sealState, type StateBinding } from "./request-state.ts";
 import { ValidationTimeout } from "./schema-pool.ts";
 import { type Cage, type Reach, RecordingCage } from "../containment/cage.ts";
@@ -271,7 +271,7 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
   // Modern: every annotated header is checked. Legacy (which predates x-mcp-header): checked in
   // full as soon as the client sends any of them, since an intermediary may route on it (F8, D-3).
   if (modern || tool.paramHeaders.some((p) => ctx.headers[p.header] !== undefined)) checkParamHeaders(tool.paramHeaders, args, ctx.headers);
-  let valid: boolean;
+  let valid: ValidationVerdict;
   try {
     valid = await tool.validate(args);
   } catch (err) {
@@ -282,7 +282,7 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
     ctx.audit("validation-error", { tool: name });
     throw audited(new Refusal(500, INTERNAL_ERROR, "Internal error"));
   }
-  if (!valid) throw new Refusal(400, INVALID_PARAMS, `Invalid arguments for tool ${name}`);
+  if (valid !== true) return refusedArguments(era, name, valid, ctx);
   const binding = { principal: ctx.principal.id, method: "tools/call", tool: name, args: argumentsDigest(args) };
 
   // CSR-WO-1002 §1.6: a fresh cage per call, from the tool's pinned domain (empty if none).
@@ -315,6 +315,26 @@ async function callTool(era: Era, params: Record<string, unknown>, caps: Record<
   }
   const result = await runHandler(tool, args, callCtx, ctx);
   return shapeResult(era, binding, result, caps, ctx);
+}
+
+/** The longest text a refused call's result carries (CSR-WO-2011 §1.2): the tool's name and at most
+ *  three pointer-and-keyword pairs, each pointer segment at most 64 characters (schema.ts). */
+const MAX_REFUSED_ARGUMENTS_TEXT = 512;
+
+/**
+ * CSR-WO-2011: arguments the pinned input schema rejects are answered here, before any cage, request
+ * state, approval or handler, as a tool execution error. The tools page, in both served revisions,
+ * puts "Input validation errors" among the errors "reported in tool results with `isError: true`".
+ * The audit line is the one the protocol-error form had server.ts write (a result does not trigger
+ * it), and the text names the tool and schema-declared locations and keywords, never a value from the
+ * arguments (schema.ts SchemaFailure).
+ */
+function refusedArguments(era: Era, name: string, verdict: ValidationVerdict, ctx: DispatchContext): Record<string, unknown> {
+  ctx.audit("rpc-refused", { code: INVALID_PARAMS, method: "tools/call" });
+  const failures = typeof verdict === "object" ? verdict.failures : [];
+  const why = failures.length === 0 ? "they do not match its input schema" : failures.map((f) => `${f.pointer === "" ? "(root)" : f.pointer} fails ${f.keyword}`).join("; ");
+  const out = { content: [{ type: "text", text: `Invalid arguments for tool ${name}: ${why}`.slice(0, MAX_REFUSED_ARGUMENTS_TEXT) }], isError: true };
+  return era === MODERN_VERSION ? { ...out, resultType: "complete", _meta: serverMeta(ctx) } : out;
 }
 
 /**

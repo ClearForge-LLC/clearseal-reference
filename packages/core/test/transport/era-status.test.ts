@@ -164,7 +164,8 @@ const CASES: Case[] = [
   { error: "tools/call without params.name (modern: the Mcp-Name gate answers first)", modern: [400, -32020], legacy: [200, -32602], build: (era) => rpc(era, "tools/call", { arguments: {} }) },
   { error: "unknown tool", ...both([400, -32602], 200), build: (era) => call(era, "no_such_tool") },
   { error: "arguments not an object", ...both([400, -32602], 200), build: (era) => call(era, "echo", []) },
-  { error: "arguments fail the input schema", ...both([400, -32602], 200), build: (era) => call(era, "echo", {}) },
+  // CSR-WO-2011: a tool execution error (isError: true) at 200 in both eras, not a JSON-RPC error.
+  { error: "arguments fail the input schema", ...both([200, null]), build: (era) => call(era, "echo", {}) },
   { error: "validation over validationTimeoutMs", server: "deadline", ...both([400, -32602], 200), build: (era) => call(era, "costly_schema", costlyArguments()) },
   { error: "handler throws", ...both([500, -32603], 200), build: (era) => call(era, "throws_refusal") },
   { error: "handler over handlerTimeoutMs", server: "fast", ...both([500, -32603], 200), build: (era) => call(era, "slow") },

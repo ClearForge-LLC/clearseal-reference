@@ -11,6 +11,7 @@ import { AnnotationError, type ParamHeader, paramHeaders } from "./headers.ts";
 import type { JsonValue } from "./json.ts";
 import { isPlainObject } from "./jsonrpc.ts";
 import { walkSchema } from "./schema-walk.ts";
+import type { SchemaFailure } from "./schema.ts";
 import type { Principal } from "./verifier.ts";
 import type { Cage, Reach } from "../containment/cage.ts";
 
@@ -52,7 +53,7 @@ export interface Tool extends ToolDefinition {
 export interface RegisteredTool {
   definition: ToolDefinition;
   handler: Tool["handler"];
-  validate: (args: unknown) => boolean | Promise<boolean>;
+  validate: (args: unknown) => ValidationVerdict | Promise<ValidationVerdict>;
   paramHeaders: readonly ParamHeader[];
   /** A fresh cage for one call, built from the tool's pinned domain. Absent: an empty domain. */
   newCage?: (onRefused?: (reach: Reach) => void) => Cage;
@@ -80,7 +81,10 @@ export interface ToolRegistry {
 }
 
 /** Compiles a 2020-12 schema into a validator. Must never fetch or read anything. */
-export type SchemaCompiler = (schema: Record<string, unknown>) => (value: unknown) => boolean | Promise<boolean>;
+/** A validator's verdict: true, false, or the failures that make it false (CSR-WO-2011; schema.ts). */
+export type ValidationVerdict = boolean | { readonly failures: readonly SchemaFailure[] };
+
+export type SchemaCompiler = (schema: Record<string, unknown>) => (value: unknown) => ValidationVerdict | Promise<ValidationVerdict>;
 
 export class RegistrationError extends Error {
   override name = "RegistrationError";
@@ -129,7 +133,7 @@ export function prepareTool(tool: Tool, compile: SchemaCompiler, limits: Pick<Li
     if (err instanceof AnnotationError) throw new RegistrationError(`tool "${tool.name}": ${err.message}`);
     throw err;
   }
-  let validate: (v: unknown) => boolean | Promise<boolean>;
+  let validate: (v: unknown) => ValidationVerdict | Promise<ValidationVerdict>;
   try {
     validate = compile(effectiveSchema(schema));
   } catch (err) {
