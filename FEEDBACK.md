@@ -89,7 +89,7 @@ A fresh subagent at `4ffbaab`: the leak floor (finding 1's numbers: 1,024 B red,
 - Dependants re-proven with the new input: `validation-deadline` RED 2/2 (64 s), `validation-ready-slot`
   RED; F2 green (322–376 ms); era-status's and corrections' deadline tests green.
 - CI at 18 shards: every job green on `4ffbaab` and `e6e5c21`, but validation-deadline's shard read
-  230–305 s. At 22: «CI22».
+  230–305 s. At 22: every job green on `3bf0f8b` (runs 46117542085 and 46117545826, push and pull request); shard jobs 90–205 s and 91–250 s.
 - Leak gate: `--self-test`, `--tree` and `--history` exit 0 before each push.
 - Reduction pass (diff): nothing to remove (the temporary probe is gone; the triple collection is
   measured, not ornament).
