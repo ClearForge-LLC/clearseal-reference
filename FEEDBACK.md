@@ -183,7 +183,8 @@ A fresh subagent (Opus, for judgement on a security path) was given the src diff
 - Protected surfaces against `bd99b50`: `docs/`, `scripts/` and `.github/` diff to empty, and no
   existing stub changed. In `packages/*/src`, only `provenance/` and the one `index.ts` export line
   changed. `json.ts` is used, not changed.
-- CI on the final head: «CI».
+- CI: green on `15b4b59` (push run 46142395997, pull_request run 46142399442), with control-deletion
+  shards taking 101–214 s, under five minutes.
 - Reduction pass (diff): the spike's `NonceStore`, `parseJsonBytes`, `wellFormedDeep` and the
   B/C-only helpers were not carried over. The verifier keeps one key-shape helper (`keyProblem`), which
   both levels and the payload use. Nothing left to remove: −0 net · 0 duplicates removed · 0 dead
