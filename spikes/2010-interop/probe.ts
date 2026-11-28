@@ -8,9 +8,27 @@
 //                             listening on FIXTURE_URL, default http://127.0.0.1:3999/mcp)
 
 import { writeFileSync, mkdirSync } from "node:fs";
-import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
 
 import { AUDIENCE, cleanup, definitionsFor, notesRoot, pin, restoreEnv, startNode, TestIssuer } from "../../packages/teaching/test/node.ts";
+
+/** The slice of the client this probe uses, declared here: the spike is not a workspace, so the
+ *  repository's lint runs without its node_modules and cannot resolve the SDK's own types. */
+interface ClientLike {
+  connect(transport: unknown): Promise<void>;
+  close(): Promise<void>;
+  getNegotiatedProtocolVersion(): string | undefined;
+  getServerVersion(): unknown;
+  discover(): Promise<unknown>;
+  listTools(params?: unknown, options?: unknown): Promise<unknown>;
+  callTool(params: { name: string; arguments: Record<string, unknown> }): Promise<unknown>;
+  setRequestHandler(method: string, handler: () => Promise<unknown>): void;
+}
+type Sdk = {
+  Client: new (info: { name: string; version: string }, options: Record<string, unknown>) => ClientLike;
+  StreamableHTTPClientTransport: new (url: URL, options: Record<string, unknown>) => unknown;
+};
+const SDK_MODULE = "@modelcontextprotocol/client";
+const { Client, StreamableHTTPClientTransport } = (await import(SDK_MODULE)) as Sdk;
 
 type Exchange = { probe: string; request: { method: string; url: string; headers: Record<string, string>; body?: unknown }; response?: { status: number; headers: Record<string, string>; body: string }; error?: string };
 const exchanges: Exchange[] = [];
@@ -71,7 +89,7 @@ const url = new URL(`http://127.0.0.1:${String(node.t.port)}/mcp`);
 type Mode = "legacy" | "auto" | { pin: string };
 const MODERN: Mode = { pin: "2026-07-28" };
 
-const connect = async (opts: { token?: () => string | undefined; mode?: Mode } = {}): Promise<Client> => {
+const connect = async (opts: { token?: () => string | undefined; mode?: Mode } = {}): Promise<ClientLike> => {
   const transport = new StreamableHTTPClientTransport(url, {
     fetch: recordingFetch,
     ...(opts.token === undefined ? {} : { authProvider: { token: () => Promise.resolve(opts.token?.()) } }),
@@ -85,7 +103,7 @@ const connect = async (opts: { token?: () => string | undefined; mode?: Mode } =
 try {
   // §0.1 the modern era, with a valid token.
   const good = (): string => issuer.mint(TestIssuer.claims(now()));
-  let client: Client | undefined;
+  let client: ClientLike | undefined;
   await step("0.1 connect, mode auto (what the client concludes from our server/discover)", async () => {
     const auto = await connect({ token: good, mode: "auto" });
     const out = { negotiated: auto.getNegotiatedProtocolVersion() };
