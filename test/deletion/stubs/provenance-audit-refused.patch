@@ -1,0 +1,10 @@
+--- a/packages/core/src/provenance/verify.ts
++++ b/packages/core/src/provenance/verify.ts
+@@ -117,7 +117,6 @@ export class ProvenanceVerifier<P = Alert> {
+     if (!isTime(now)) throw new RangeError("now must be epoch seconds");
+     const who: Record<string, string> = {};
+     const refuse = (gate: Gate, check: string): ProvenanceVerdict<P> => {
+-      this.#audit("provenance-refused", { gate, check, ...who });
+       return { accepted: false, gate, check };
+     };
+ 

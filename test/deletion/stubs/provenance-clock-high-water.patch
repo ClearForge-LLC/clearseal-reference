@@ -1,0 +1,11 @@
+--- a/packages/core/src/provenance/verify.ts
++++ b/packages/core/src/provenance/verify.ts
+@@ -46,7 +46,7 @@ class NonceMemory {
+     this.#max = max;
+   }
+   clock(now: number): number {
+-    this.#highWater = Math.max(this.#highWater, now);
++    this.#highWater = now;
+     return this.#highWater;
+   }
+   seen(nonce: string, t: number): boolean {

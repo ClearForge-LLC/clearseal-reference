@@ -1,0 +1,10 @@
+--- a/packages/core/src/provenance/verify.ts
++++ b/packages/core/src/provenance/verify.ts
+@@ -174,7 +174,6 @@ export class ProvenanceVerifier<P = Alert> {
+     if (this.#nonces.full(t)) return refuse("signature", "nonce-cache-full");
+ 
+     // ---- gate 2: author ----
+-    if (!ch.authors.includes(sender_id)) return refuse("author", "not-listed");
+     if (entry.sender_id !== sender_id) return refuse("author", "key-not-authors");
+ 
+     // ---- gate 3: effect ----

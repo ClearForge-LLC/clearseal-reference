@@ -1,0 +1,11 @@
+--- a/packages/core/src/provenance/verify.ts
++++ b/packages/core/src/provenance/verify.ts
+@@ -151,7 +151,7 @@ export class ProvenanceVerifier<P = Alert> {
+     who["sender"] = sender_id;
+     if (typeof key_id !== "string" || !ID_RE.test(key_id)) return refuse("structure", "key-id");
+     who["kid"] = key_id;
+-    if (typeof origin_class !== "string" || !ORIGIN_CLASSES.includes(origin_class)) return refuse("structure", "origin-class");
++    if (typeof origin_class !== "string") return refuse("structure", "origin-class");
+     if (!isTime(issued_at)) return refuse("structure", "issued-at");
+     if (typeof nonce !== "string" || !NONCE_RE.test(nonce)) return refuse("structure", "nonce");
+     const p = this.#schema.parse(env[this.#schema.key]);

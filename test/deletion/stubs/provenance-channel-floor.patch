@@ -1,0 +1,10 @@
+--- a/packages/core/src/provenance/allowlist.ts
++++ b/packages/core/src/provenance/allowlist.ts
+@@ -67,7 +67,6 @@ export function loadAllowlist(entries: readonly ProvenanceKeyData[]): Provenance
+ /** A channel as configured, checked: a known floor and authors that match the contract's pattern. */
+ export function checkChannel(channel: Channel): Channel {
+   if (typeof channel.name !== "string" || channel.name.length === 0) throw new AllowlistError("a channel needs a name");
+-  if (!EFFECT_ORDER.includes(channel.floor)) throw new AllowlistError(`channel "${channel.name}": the floor is not a known effect`);
+   for (const a of channel.authors) if (typeof a !== "string" || !ID_RE.test(a)) throw new AllowlistError(`channel "${channel.name}": an author does not match the contract's pattern`);
+   return Object.freeze({ name: channel.name, authors: Object.freeze([...channel.authors]), floor: channel.floor });
+ }

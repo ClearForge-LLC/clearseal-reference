@@ -34,5 +34,65 @@
   {
     "control": "H5 and C1: the JOSE header and the payload must be JSON objects (auth/verifier.ts, json())",
     "reason": "a layer by construction: an array or a scalar has no alg, kid, iss or aud, so with the guard deleted H6 refuses the header and C2 the payload, with the same invalid_token; the strict-UTF-8 and duplicate-key clauses have rows (auth-jose-utf8, json-duplicate-key)"
+  },
+  {
+    "control": "Provenance duplicate-key refusal (Option A's first encoding closure; provenance/verify.ts, via transport/json.ts)",
+    "reason": "refused inside the core's strict parser, which CSR-WO-2004 §2 protects; the only honest deletion from provenance/ is removing the strict parse itself, which is row provenance-strict-parse (its mustFail is the duplicate-key test)"
+  },
+  {
+    "control": "Provenance parse depth bound (MAX_WIRE_DEPTH; via transport/json.ts)",
+    "reason": "a layer for the alert schema: with the strict parse removed, a value nested deeper than the alert shape is refused by the payload's own field checks (alert-text). The bound exists for pluggable payloads; json.ts's depth refusal is the parser's own"
+  },
+  {
+    "control": "Provenance lone surrogate on the wire (via transport/json.ts)",
+    "reason": "refused inside the strict parser (protected); with the parse removed, canonical_bytes refuses the string by throwing SerializationRefusal, so the message still fails closed, by exception rather than by name"
+  },
+  {
+    "control": "Provenance malformed: the top level or the envelope is not an object (provenance/verify.ts)",
+    "reason": "a layer: with either line deleted, the exact-keys check and the field checks refuse a non-object (no key matches the contract)"
+  },
+  {
+    "control": "Provenance unsigned and missing-field (provenance/verify.ts)",
+    "reason": "layers: with the missing-key branch deleted, a missing signature is refused as signature-encoding and a missing field by that field's own check"
+  },
+  {
+    "control": "Provenance sender-id and key-id patterns (provenance/verify.ts)",
+    "reason": "layers: loadAllowlist admits only kids and senders matching the contract's pattern (rows provenance-allowlist-kid-pattern, -sender-pattern), so a message outside it is refused at gate 1 (unknown-key) or gate 2 (not-listed); the pattern checks also keep an unmatched string out of the audit line"
+  },
+  {
+    "control": "Provenance alert-shape and alert-missing-field (provenance/envelope.ts)",
+    "reason": "layers: with either deleted, the exact-keys check or alert-text refuses the same payload"
+  },
+  {
+    "control": "Provenance alert-severity (provenance/envelope.ts)",
+    "reason": "a layer: with it deleted, an unknown severity is refused at gate 3 as unknown-effect (row provenance-effect-known)"
+  },
+  {
+    "control": "Provenance alert-text (provenance/envelope.ts)",
+    "reason": "with it deleted, canonical_bytes throws on a non-string text, so the message fails closed by exception rather than by a named refusal"
+  },
+  {
+    "control": "Provenance signature present and 64 bytes (provenance/verify.ts, signatureBytes' pattern)",
+    "reason": "with the presence line deleted, Ed25519 verify throws on a missing signature (fails closed by exception); the canonical-encoding check is row provenance-signature-canonical"
+  },
+  {
+    "control": "Provenance unknown-key (provenance/verify.ts)",
+    "reason": "with it deleted there is no key to check against, and verify throws (fails closed by exception, not by name); the red-proof unknown-key asserts the named refusal"
+  },
+  {
+    "control": "Provenance gate 1 key-type assertion (provenance/verify.ts)",
+    "reason": "belt-and-suspenders, labelled at the site: the verifier loads its own allowlist, and loadAllowlist admits only Ed25519 keys (row provenance-allowlist-ed25519)"
+  },
+  {
+    "control": "Provenance allowlist: the public key parses and is public (provenance/allowlist.ts)",
+    "reason": "layers: with either deleted, the Ed25519 type check refuses the same entry"
+  },
+  {
+    "control": "Provenance channel name and author pattern (provenance/allowlist.ts checkChannel)",
+    "reason": "the name is configuration with no part in a verdict; an author outside the pattern can never match a sender, which structure refuses by pattern"
+  },
+  {
+    "control": "Provenance gate order (PV-9)",
+    "reason": "an ordering, not a line a stub can delete; proven by the test the order is fixed (author before effect, signature before author)"
   }
 ]

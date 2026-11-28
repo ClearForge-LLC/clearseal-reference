@@ -188,6 +188,8 @@ void describe("CSR-WO-2004 structure: refused before any gate (PV-3)", () => {
   });
 
   void it("issued-at: a negative, a string, and past 2^53-1", async () => {
+    // -5, validly signed and verified at 100 s with a key valid from 0, would be fresh: only issued-at refuses it.
+    refused(rig([entry({ notBefore: 0 })]).v.verify(await signedFields({ issued_at: -5 }), CHANNEL, 100), "structure", "issued-at");
     const w = await signed();
     for (const t of ["-5", `"${String(NOW)}"`, "9007199254740992"]) refused(rig().v.verify(edit(w, `"issued_at":${String(NOW)}`, `"issued_at":${t}`), CHANNEL, NOW), "structure", "issued-at");
   });
@@ -355,7 +357,7 @@ void describe("CSR-WO-2004 the allowlist (PV-6)", () => {
   void it("refuses a kid or sender outside the pattern, and a window that is not epoch seconds", () => {
     assert.throws(() => loadAllowlist([entry({ kid: "Bad Kid" })]), AllowlistError);
     assert.throws(() => loadAllowlist([entry({ sender_id: "x" })]), AllowlistError);
-    assert.throws(() => loadAllowlist([entry({ notAfter: 1.5 })]), AllowlistError);
+    assert.throws(() => loadAllowlist([entry({ notAfter: Number.NaN })]), AllowlistError);
   });
 
   void it("a channel with an unknown floor is refused at verify, never ranked", async () => {

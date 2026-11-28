@@ -1,0 +1,10 @@
+--- a/packages/core/src/provenance/verify.ts
++++ b/packages/core/src/provenance/verify.ts
+@@ -163,7 +163,6 @@ export class ProvenanceVerifier<P = Alert> {
+     // ---- gate 1: signature ----
+     const entry = this.#keys.get(key_id);
+     if (entry === undefined) return refuse("signature", "unknown-key");
+-    if (now < entry.notBefore || now > entry.notAfter) return refuse("signature", "key-window");
+     // belt-and-suspenders: loadAllowlist admits only Ed25519 keys (PV-6); the algorithm is never taken from the message.
+     if (entry.publicKey.asymmetricKeyType !== "ed25519") return refuse("signature", "key-type");
+     if (!edVerify(null, canonicalBytes(fields, this.#schema), entry.publicKey, sig)) return refuse("signature", "bad-signature");

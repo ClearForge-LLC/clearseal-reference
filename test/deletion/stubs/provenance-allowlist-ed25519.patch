@@ -1,0 +1,10 @@
+--- a/packages/core/src/provenance/allowlist.ts
++++ b/packages/core/src/provenance/allowlist.ts
+@@ -47,7 +47,6 @@ function keyOf(data: string | KeyObject, kid: string): KeyObject {
+     throw new AllowlistError(`kid "${kid}": the public key does not parse`);
+   }
+   if (key.type !== "public") throw new AllowlistError(`kid "${kid}": not a public key`);
+-  if (key.asymmetricKeyType !== "ed25519") throw new AllowlistError(`kid "${kid}": the key is not Ed25519 (PV-6)`);
+   return key;
+ }
+ 

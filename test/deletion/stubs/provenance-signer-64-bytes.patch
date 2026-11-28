@@ -1,0 +1,10 @@
+--- a/packages/core/src/provenance/signer.ts
++++ b/packages/core/src/provenance/signer.ts
+@@ -57,6 +57,6 @@ export async function signMessage<P = Alert>(input: MessageInput<P>, signer: Pro
+   const envelope = envelopeObject(fields, schema);
+   assertWellFormed(envelope, "envelope");
+   const signature: unknown = await signer.sign(canonicalBytes(fields, schema));
+-  if (!(signature instanceof Uint8Array) || signature.length !== 64) throw new SignerError("the signer did not return a 64-byte signature");
++  if (!(signature instanceof Uint8Array)) throw new SignerError("the signer did not return a 64-byte signature");
+   return utf8.encode(JSON.stringify({ envelope, signature: Buffer.from(signature).toString("base64") }));
+ }
