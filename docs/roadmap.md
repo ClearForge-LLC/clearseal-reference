@@ -257,10 +257,12 @@ red-proof, and the teaching edition demonstrates every rung except exec.
   that a leak of the arguments alone turns it red on CI; `-2008d` finding 1. Not on P2's critical path.
 - `CSR-WO-2008e` — (intent) a Windows control-deletion shard, for the controls only a Windows runner can
   turn red (`adversary-windows.test.ts`); after `-2008d`.
-- `CSR-WO-2010` — spike, then STOP: interop against the official `2026-07-28` implementations — the
-  SDK v2 client (`@modelcontextprotocol/client`) and the conformance suite's `2026-07-28` scenarios,
-  test-side only, never a runtime dependency. Answers whether an independent implementation of the
-  revision agrees with ours, and where it does not.
+- `CSR-WO-2010` — (built, merged `e2bf41a` 2026-11-28) spike, then STOP: interop against the official `2026-07-28` implementations — the
+  SDK v2 client and the conformance alpha agree with ours on every probe that ran; no security-relevant
+  disagreement; one wire-form defect ruled (D10 → `-2011`).
+- `CSR-WO-2011` — a call whose arguments fail the pinned schema is refused before the handler and answered
+  as a tool execution error (`isError: true`), as the tools page prescribes, with the audit and rate
+  accounting unchanged and no argument value echoed (`-2010` D10).
 - `CSR-WO-2008` — (built, merged `290077a` 2026-09-26: 45 controls; pulled forward during the P1 exit red-team, rows for every control built so far) the control-deletion job: each control stubbed out in turn, the suite required to
   fail for each; wired into CI as its own job.
 - `CSR-WO-2009` — the *resources* and *prompts* primitives (`resources/list`, `resources/read`,
@@ -412,6 +414,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | `CSR-WO-1005c` | The validation pool's start-up race, found by `-2008b`'s CI and adversarial pass | Not planned; inserted under `-1005` because the defect is in that WO's pool (P1's transport hardening), built during P2 |
 | `CSR-WO-2008c`, `-2008d` | The deletion job's coverage gaps and two coarse measurements, from `-2008b`'s sweep | Not planned; inserted under `-2008` as refinements of the control-deletion job |
 | `CSR-WO-2008f` | `-2008d` finding 1: heap size cannot separate an argument-only leak from CI's honest noise | Not planned; recorded as intent under `-2008` |
+| `CSR-WO-2011` | `-2010` D10: schema refusals answered as protocol errors where the text prefers tool execution errors | Not planned; inserted after `-2010` as the interop spike's one defect |
 
 ## Amendments
 
@@ -428,6 +431,7 @@ Divergence between what was planned and what was built. **History is left as wri
 | 2026-11-27 | `-2008c`, `-1005c` and `-2008d` added from `-2008b`'s FEEDBACK. P2's remaining order, by the architect under the gate's standing delegation: `-2008c` → `-1005c` → `-2008d` → `-2010` → `-2003` (once the gate rules its three calls) → `-2004` → `-2009` → `-2005` → `-2006`. | The exit gate's "every stub made the suite fail" covers fewer controls than §8 claims until `-2008c` lands; the next control should not be built on a job that cannot yet see all of the last ones. |
 | 2026-11-28 | `-2008c` built; `-1005c` widened to the receive-timeout fix; `-2008e` added as intent. Order unchanged: `-1005c` → `-2008d` → `-2010` → `-2003` (once ruled) → `-2004` → `-2009` → `-2005` → `-2006`, with `-2008e` after `-2008d`. | `-2008c`'s FEEDBACK. |
 | 2026-11-28 | `-2008d` built; `-2008f` added as intent. Order unchanged: `-2010` → `-2003` (once ruled) → `-2004` → `-2009` → `-2005` → `-2006`, with `-2008e` and `-2008f` off the critical path. | `-2008d`'s FEEDBACK; the operator's rulings on its §7 stop. |
+| 2026-11-28 | `-2010` built; `-2011` added. P2's remaining order: `-2011` → `-2003` (once the gate rules its three calls) → `-2004` → `-2009` → `-2005` → `-2006`, with `-2008e` and `-2008f` off the critical path. | `-2010`'s FEEDBACK. `-2011` goes first because it changes a wire behaviour every fork inherits, and `-2003` waits on the gate. |
 
 ## Provenance
 
