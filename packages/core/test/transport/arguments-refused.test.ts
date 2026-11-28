@@ -50,7 +50,7 @@ interface Node {
 async function node(): Promise<Node> {
   const pool = new ValidationPool({ workers: 1, timeoutMs: DEFAULT_LIMITS.validationTimeoutMs });
   // Counts every cage the pinned registry builds for a call (the registry's own seam).
-  const registry = pinForTest([{ ...pick, capability: tag("pick") } as Tool], pool.compile, DEFAULT_LIMITS, true, {
+  const registry = pinForTest([{ ...pick, capability: tag("pick") }], pool.compile, DEFAULT_LIMITS, true, {
     cageFor: () => (onRefused?: (reach: Reach) => void) => {
       counts.cages++;
       return new RecordingCage(undefined, undefined, undefined, onRefused);
@@ -186,7 +186,7 @@ void describe("CSR-WO-2011 arguments that fail the pinned schema → a tool exec
     try {
       const deep: Record<string, unknown> = {};
       let at = deep;
-      for (let i = 0; i < 20; i++) at = (at[`segment${String(i).padStart(2, "0")}_${"s".repeat(40)}`] = { type: "object", properties: {} }).properties as Record<string, unknown>;
+      for (let i = 0; i < 20; i++) at = (at[`segment${String(i).padStart(2, "0")}_${"s".repeat(40)}`] = { type: "object", properties: {} }).properties;
       at["leaf"] = { type: "integer" };
       const schema = { type: "object", properties: { name: { type: "string", pattern: "^PATTERN-SOURCE[a-z]+$" }, mode: { enum: ["ENUM-VALUE-A"] }, ...deep }, unevaluatedProperties: false };
       const replies: unknown[] = [];

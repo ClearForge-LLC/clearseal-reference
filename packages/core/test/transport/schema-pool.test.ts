@@ -41,7 +41,7 @@ void describe("CSR-WO-1005c the validation deadline starts when a worker is read
       const t0 = Date.now();
       const valid = await validate({ t: "x" });
       const ms = Date.now() - t0;
-      console.log(`NOT-READY replaced after ${String(ms)} ms; valid=${String(valid)}; events=${events.join(",")}`);
+      console.log(`NOT-READY replaced after ${String(ms)} ms; valid=${JSON.stringify(valid)}; events=${events.join(",")}`);
       assert.equal(valid, true);
       assert.deepEqual(events, ["validation-worker-not-ready"]);
       assert.ok(ms < 2 * 300 + 2_000, `answered at ${String(ms)} ms, past twice the readiness bound plus the deadline`);
@@ -71,7 +71,7 @@ void describe("CSR-WO-1005c the validation deadline starts when a worker is read
       await new Promise((r) => setTimeout(r, 100)); // the first worker acknowledges SCHEMA and is ready
       const late = pool.compile({ type: "object", properties: { n: { type: "integer" } }, unevaluatedProperties: false });
       const outcome = await Promise.resolve(late({ n: 1 })).catch((err: unknown) => String(err));
-      assert.equal(outcome, true, `the late schema's call answered ${String(outcome)}`);
+      assert.equal(outcome, true, `the late schema's call answered ${JSON.stringify(outcome)}`);
       assert.deepEqual(events, ["validation-worker-not-ready"]);
     } finally {
       await pool.close();
