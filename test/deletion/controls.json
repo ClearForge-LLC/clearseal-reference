@@ -4987,7 +4987,7 @@
         "ST-2 at 200 the SDK client receives the JSON-RPC error: McpError, code -32601, data.requires",
         "ST unknown method",
         "ST unknown tool",
-        "ST arguments fail the input schema",
+        "ST arguments not an object",
         "ST handler throws",
         "ST result over maxResultBytes"
       ]

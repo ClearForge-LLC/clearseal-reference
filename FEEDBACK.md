@@ -98,6 +98,13 @@ work order. Built on Node v24.21.0 on Furnace, 2026-11-28. Every commit's author
    `dispatch.ts`'s `ctx.audit("rpc-refused", …)`, and §1.1's exact audit-row assertion goes red. It
    is in `rows.lock`, as is `arguments-tool-error-form`.
 
+3. **F3: `era-legacy-status-200` named the changed case.** Its stub keeps the modern status for a
+   legacy-era JSON-RPC error, and its `mustFail` listed `ST arguments fail the input schema`, which is
+   now a result (200 in both eras) and stays green under it. CI on `b36f9f5` showed `MISS` on shard
+   22, the only one in 22 shards. Its entry was replaced by `ST arguments not an object`, another
+   legacy JSON-RPC error from the same table, so the row keeps six proofs. Re-proven:
+   `RED  era-legacy-status-200 | … | stub applied; 6/6 named test(s) red by assertion | 3608 ms`.
+
 ## Architect-ruled fence widening (WO §2 named `dispatch.ts` and one helper)
 
 Ruled 2026-11-28: WO §1.2 needs the failing pointer and keyword, and only the validator has them.
