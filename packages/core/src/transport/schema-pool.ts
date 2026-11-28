@@ -26,7 +26,7 @@ export class ValidationTimeout extends Error {
 
 /** How long a worker may take to come online and acknowledge its schemas (CSR-WO-1005c). Measured on
  *  Furnace with the fixture's 13 schemas: 71–85 ms idle, at most 453 ms on 2 cores under load. */
-export const READY_TIMEOUT_MS = 5_000;
+const READY_TIMEOUT_MS = 5_000;
 
 interface Job {
   id: number;
