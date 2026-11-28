@@ -16,10 +16,6 @@
     "reason": "the property tests against the Python oracle; architecture §8 exempts them as tests, not a control (test/deletion/exempt.json)"
   },
   {
-    "path": "packages/core/test/sdk-client/sdk-client.test.ts",
-    "reason": "interop: what the official SDK client receives from the legacy era; it measures the client, and no row's stub turns it red"
-  },
-  {
     "path": "packages/core/test/transport/costly-schema.test.ts",
     "reason": "a measurement of the costly_schema fixture's margin (CSR-WO-0002b), which keeps the validation-deadline row honest; it is no control's proof"
   }

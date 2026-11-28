@@ -1,0 +1,10 @@
+--- a/packages/core/src/containment/harness.ts
++++ b/packages/core/src/containment/harness.ts
+@@ -248,7 +248,6 @@ const drain = async (): Promise<void> => {
+ /** Runs the harness over the tools, one at a time. A second run while one is active is refused:
+  *  the shim is process-wide. */
+ export async function runReachHarness(tools: readonly HarnessTool[], options: HarnessOptions = {}): Promise<ToolVerdict[]> {
+-  if (running) throw new Error("a reach harness run is already active in this process; runs must not overlap");
+   running = true;
+   try {
+     return await runAll(tools, options);

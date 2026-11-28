@@ -1,0 +1,11 @@
+--- a/packages/core/src/containment/harness.ts
++++ b/packages/core/src/containment/harness.ts
+@@ -288,7 +288,7 @@ async function runAll(tools: readonly HarnessTool[], options: HarnessOptions): P
+         reaches.push(o);
+         if (!r.allowed || forbiddenWrite(o)) undeclared.push(o);
+       }
+-      for (const o of shim.log) {
++      for (const o of shim.log.slice(shim.log.length)) {
+         reaches.push(o);
+         if (!declared(o, domain) || forbiddenWrite(o)) undeclared.push(o);
+       }

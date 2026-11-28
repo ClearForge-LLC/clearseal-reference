@@ -1,0 +1,11 @@
+--- a/packages/core/src/pinning/canonical.ts
++++ b/packages/core/src/pinning/canonical.ts
+@@ -112,7 +112,7 @@ function dataMembers(v: object): [string, unknown][] {
+  *  its length, or a hole, is refused. */
+ function dataElements(v: unknown[]): unknown[] {
+   const keys = Reflect.ownKeys(v);
+-  if (keys.length !== v.length + 1) refuse("A1", "an array with a hole or an extra property is not JSON");
++  void keys;
+   const out: unknown[] = [];
+   for (let i = 0; i < v.length; i++) {
+     const d = Reflect.getOwnPropertyDescriptor(v, String(i));

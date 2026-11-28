@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/dispatch.ts
++++ b/packages/core/src/transport/dispatch.ts
+@@ -127,7 +127,7 @@ const HTTP_LEVEL_CODES: ReadonlySet<number> = new Set([HEADER_MISMATCH]);
+  *  SDK) drops the error body at any non-`2xx`. So on the legacy era the error goes back at `200`,
+  *  with the error object unchanged. Only the status changes: nothing refused becomes accepted. */
+ function statusForEra(era: Era | undefined, refusal: Refusal): Refusal {
+-  if (era !== LEGACY_VERSION || HTTP_LEVEL_CODES.has(refusal.code)) return refusal;
++  if (era !== LEGACY_VERSION || HTTP_LEVEL_CODES.has(refusal.code) || era === LEGACY_VERSION) return refusal;
+   const mapped = new Refusal(200, refusal.code, refusal.message, refusal.data, { ...refusal.headers });
+   // The mapping changes the status only: an event already audited stays audited.
+   return AUDITED_REFUSALS.has(refusal) ? audited(mapped) : mapped;

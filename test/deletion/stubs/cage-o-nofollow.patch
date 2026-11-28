@@ -1,0 +1,11 @@
+--- a/packages/core/src/containment/cage.ts
++++ b/packages/core/src/containment/cage.ts
+@@ -111,7 +111,7 @@ function flagsFor(mode: string): number | undefined {
+   if (typeof mode !== "string" || !Object.hasOwn(table, mode)) return undefined;
+   const flags = table[mode];
+   if (flags === undefined) return undefined;
+-  return process.platform === "win32" ? flags : flags | constants.O_NOFOLLOW | constants.O_NONBLOCK;
++  return process.platform === "win32" ? flags : flags | constants.O_NONBLOCK;
+ }
+ 
+ const DEFAULT_EFFECTS: CageEffects = {

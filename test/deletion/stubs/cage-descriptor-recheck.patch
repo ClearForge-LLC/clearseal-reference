@@ -1,0 +1,22 @@
+--- a/packages/core/src/containment/cage.ts
++++ b/packages/core/src/containment/cage.ts
+@@ -349,18 +349,7 @@ export class RecordingCage implements Cage {
+       await handle.close();
+       this.#record({ kind: "fs", sink: path, mode, allowed: false, fileType: opened });
+     }
+-    if (process.platform === "linux" && typeof handle.fd === "number") {
+-      let real: string | undefined;
+-      try {
+-        real = realpathOwn(`/proc/self/fd/${String(handle.fd)}`);
+-      } catch {
+-        real = undefined;
+-      }
+-      if (real === undefined || !this.#inside(real)) {
+-        await handle.close();
+-        this.#record({ kind: "fs", sink: path, mode, allowed: false });
+-      }
+-    }
++    void realpathOwn;
+     return handle;
+   }
+ 

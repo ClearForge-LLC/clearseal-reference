@@ -1,0 +1,10 @@
+--- a/packages/core/src/containment/domain.ts
++++ b/packages/core/src/containment/domain.ts
+@@ -37,7 +37,6 @@ const PORT = /^[1-9][0-9]{0,4}$/;
+ function parseFs(entry: string, path: string): string {
+   if (!path.startsWith("/")) throw new DomainError(`"${entry}": an fs: root must be an absolute path`);
+   if (path === "/") throw new DomainError(`"${entry}": the whole file system is not a containment domain`);
+-  if (path.includes("\u0000") || path.includes("\\")) throw new DomainError(`"${entry}": an fs: root may not contain NUL or a backslash`);
+   for (const segment of path.slice(1).split("/")) {
+     if (segment === "" || segment === "." || segment === "..") throw new DomainError(`"${entry}": an fs: root must be normalized (no empty, "." or ".." segment, no trailing slash)`);
+   }

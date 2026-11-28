@@ -4712,6 +4712,268 @@
       "mustFail": [
         "A6: the numeric settings are plain decimal digits"
       ]
+    },
+    {
+      "id": "cage-o-nofollow",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, R-1: on POSIX the cage opens with O_NOFOLLOW, so a symlink swapped into the leaf between the check and the open is refused by the kernel and recorded (the stub drops the flag)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-o-nofollow.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts",
+        "packages/core/test/containment/corrections.test.ts"
+      ],
+      "mustFail": [
+        "R-1: a symlink swapped into the leaf between check and open cannot create or truncate a file outside the root (O_NOFOLLOW)",
+        "swap-then-open through dispatch in w, a and wx: the victim is byte-identical, the call fails with the containment error, and exactly one audit line names the sink",
+        "the cage records the kernel's refusal and throws ContainmentRefusal, not the raw ELOOP"
+      ]
+    },
+    {
+      "id": "cage-descriptor-recheck",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, A3: on Linux the opened descriptor's real path is checked after the open, and a file swapped in from outside is closed and refused (the stub deletes the recheck)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-descriptor-recheck.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A3: the opened descriptor is checked after the open: a file swapped in from outside is closed and refused"
+      ]
+    },
+    {
+      "id": "cage-backslash-drive",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, A13: a path with a backslash or a drive prefix is refused, never normalized (the stub normalizes any absolute path)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-backslash-drive.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A13: a path with a backslash or a drive prefix is refused"
+      ]
+    },
+    {
+      "id": "cage-port-bounds",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, A15: a port that is not an integer from 1 to 65535 is refused, even on a portless entry (the stub deletes the bound)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-port-bounds.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A15: a port that is not an integer from 1 to 65535 is refused, even on a portless entry"
+      ]
+    },
+    {
+      "id": "cage-frozen",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, A8: the cage and its prototype are frozen, so reached() cannot be replaced (the stub freezes neither)",
+      "touches": [
+        "packages/core/src/containment/cage.ts"
+      ],
+      "stub": "stubs/cage-frozen.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A8: the cage and its prototype are frozen; reached() cannot be replaced"
+      ]
+    },
+    {
+      "id": "domain-fs-nul-backslash",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, an fs: root containing NUL or a backslash is refused at parse (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/containment/domain.ts"
+      ],
+      "stub": "stubs/domain-fs-nul-backslash.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "refuses NUL, a backslash, a port over 65535, hex and numeric-leading host forms"
+      ]
+    },
+    {
+      "id": "domain-host-not-address",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, a host: entry that is an address literal (a hex label, or a last label not starting with a letter) is refused at parse (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/containment/domain.ts"
+      ],
+      "stub": "stubs/domain-host-not-address.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts",
+        "packages/core/test/containment/construction.test.ts"
+      ],
+      "mustFail": [
+        "refuses NUL, a backslash, a port over 65535, hex and numeric-leading host forms",
+        "malformed entries are refused, naming the tool and the entry"
+      ]
+    },
+    {
+      "id": "domain-port-range",
+      "section8": "containment_domain as a sink set; exec refused a domain",
+      "control": "CSR-WO-2008c §5, a host: entry's port is 1 to 65535 with no leading zero, or the entry is refused at parse (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/containment/domain.ts"
+      ],
+      "stub": "stubs/domain-port-range.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts",
+        "packages/core/test/containment/construction.test.ts"
+      ],
+      "mustFail": [
+        "refuses NUL, a backslash, a port over 65535, hex and numeric-leading host forms",
+        "malformed entries are refused, naming the tool and the entry"
+      ]
+    },
+    {
+      "id": "harness-one-run",
+      "section8": "Reach harness",
+      "control": "CSR-WO-2008c §5, A7: a second reach-harness run while one is active is refused, since the shim is process-wide (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/containment/harness.ts"
+      ],
+      "stub": "stubs/harness-one-run.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A7: a second run while one is active is refused; the shim is restored after a run (#38); spawn is blocked (#33)"
+      ]
+    },
+    {
+      "id": "harness-shim-counted",
+      "section8": "Reach harness",
+      "control": "CSR-WO-2008c §5, A5: a reach the shim sees (direct fs, net, DNS, a raw socket, a worker, a spawn) counts against the tool's domain (the stub ignores the shim's log)",
+      "touches": [
+        "packages/core/src/containment/harness.ts"
+      ],
+      "stub": "stubs/harness-shim-counted.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts",
+        "packages/core/test/containment/reach.test.ts",
+        "packages/core/test/containment/corrections.test.ts"
+      ],
+      "mustFail": [
+        "A5: direct net, DNS, a raw socket and a worker are all undeclared",
+        "A4: a direct read through an in-root symlink to outside fails the tool",
+        "three pass with their reaches listed; the misbehaving one fails, naming the tool and the sink",
+        "WO §5.4: a handler that spawns a child process is an undeclared reach, and the harness never runs it",
+        "a read_only tool writing inside its root through fs directly fails (the shim sees the write); reading passes"
+      ]
+    },
+    {
+      "id": "harness-corpus-required",
+      "section8": "Reach harness",
+      "control": "CSR-WO-2008c §5, A12: a registered tool with no harness corpus is an error, so no tool escapes the harness by being left off a list (the stub gives it an empty corpus)",
+      "touches": [
+        "packages/core/src/pinning/registry.ts"
+      ],
+      "stub": "stubs/harness-corpus-required.patch",
+      "tests": [
+        "packages/core/test/containment/adversarial.test.ts"
+      ],
+      "mustFail": [
+        "A12: targets come from the registry's frozen domains, and a registered tool without a corpus is an error"
+      ]
+    },
+    {
+      "id": "canonical-nesting-cap",
+      "section8": "Canonicalizer from a written spec, cross-language vectors",
+      "control": "CSR-WO-2008c §5, A1: input nested deeper than 512 objects and arrays is refused, and a cycle is refused at the cap, not a stack overflow (the stub deletes the cap on the value path)",
+      "touches": [
+        "packages/core/src/pinning/canonical.ts"
+      ],
+      "stub": "stubs/canonical-nesting-cap.patch",
+      "tests": [
+        "packages/core/test/pinning/boundaries.test.ts"
+      ],
+      "mustFail": [
+        "JSON text and a tool's input_schema value, at 512 and 513",
+        "a cycle is refused at the limit, not a stack overflow"
+      ]
+    },
+    {
+      "id": "canonical-data-members",
+      "section8": "Canonicalizer from a written spec, cross-language vectors",
+      "control": "CSR-WO-2008c §5, A1: an accessor, a symbol key or a non-enumerable member is refused, never skipped (the stub skips them)",
+      "touches": [
+        "packages/core/src/pinning/canonical.ts"
+      ],
+      "stub": "stubs/canonical-data-members.patch",
+      "tests": [
+        "packages/core/test/pinning/boundaries.test.ts"
+      ],
+      "mustFail": [
+        "an accessor, a symbol key, a non-enumerable member or an array's extra property is refused, never skipped"
+      ]
+    },
+    {
+      "id": "canonical-array-extra",
+      "section8": "Canonicalizer from a written spec, cross-language vectors",
+      "control": "CSR-WO-2008c §5, A1: an array carrying anything besides its elements and length is refused (the stub deletes the check)",
+      "touches": [
+        "packages/core/src/pinning/canonical.ts"
+      ],
+      "stub": "stubs/canonical-array-extra.patch",
+      "tests": [
+        "packages/core/test/pinning/boundaries.test.ts"
+      ],
+      "mustFail": [
+        "an accessor, a symbol key, a non-enumerable member or an array's extra property is refused, never skipped"
+      ]
+    },
+    {
+      "id": "era-legacy-status-200",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "CSR-WO-2008c §5, ST-2: on the legacy era a JSON-RPC error answering a well-formed request goes back at 200 with the error object unchanged, which the official SDK client needs (the stub keeps the modern status)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/era-legacy-status-200.patch",
+      "tests": [
+        "packages/core/test/sdk-client/sdk-client.test.ts",
+        "packages/core/test/transport/era-status.test.ts"
+      ],
+      "mustFail": [
+        "ST-2 at 200 the SDK client receives the JSON-RPC error: McpError, code -32601, data.requires",
+        "ST unknown method",
+        "ST unknown tool",
+        "ST arguments fail the input schema",
+        "ST handler throws",
+        "ST result over maxResultBytes"
+      ]
+    },
+    {
+      "id": "legacy-input-required",
+      "section8": "Stateless transport, owned, both eras, revision measured",
+      "control": "CSR-WO-2008c §5, LG-8: a handler's input_required result is never carried to a legacy-era request; it is refused -32601 naming 2026-07-28 (the stub lets it through)",
+      "touches": [
+        "packages/core/src/transport/dispatch.ts"
+      ],
+      "stub": "stubs/legacy-input-required.patch",
+      "tests": [
+        "packages/core/test/transport/corrections.test.ts",
+        "packages/core/test/transport/era-status.test.ts"
+      ],
+      "mustFail": [
+        "LG-8 ST-2 legacy tools/call to an MRTR tool → 200 (the legacy era's convention, CSR-WO-1005b), application/json, -32601, and the tool is logged at the seam",
+        "ST input_required on the legacy era (LG-8)"
+      ]
     }
   ]
 }

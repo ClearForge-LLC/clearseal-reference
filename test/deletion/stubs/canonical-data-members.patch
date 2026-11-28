@@ -1,0 +1,11 @@
+--- a/packages/core/src/pinning/canonical.ts
++++ b/packages/core/src/pinning/canonical.ts
+@@ -102,7 +102,7 @@ function dataMembers(v: object): [string, unknown][] {
+   const out: [string, unknown][] = [];
+   for (const key of Reflect.ownKeys(v)) {
+     const d = Reflect.getOwnPropertyDescriptor(v, key);
+-    if (typeof key !== "string" || d === undefined || d.enumerable !== true || !("value" in d)) return refuse("A1", "only enumerable data members with string names are JSON");
++    if (typeof key !== "string" || d === undefined || !("value" in d)) continue;
+     out.push([key, d.value]);
+   }
+   return out;
