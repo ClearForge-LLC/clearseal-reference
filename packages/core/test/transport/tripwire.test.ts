@@ -73,7 +73,8 @@ void describe("CSR-WO-2007 tripwire: one loud row per burst, and no call changed
   void it("TW-1: a read_only call refused for its arguments still counts", async () => {
     const r = await rig({ tripwire: SETTINGS });
     try {
-      for (let i = 0; i < 5; i++) assert.equal((await as(r.t, "alice", "tools/call", { name: "read", arguments: { n: i } })).status, 400);
+      // Refused as a tool execution error (CSR-WO-2011): 200 with isError, never the handler's answer.
+      for (let i = 0; i < 5; i++) assert.match((await as(r.t, "alice", "tools/call", { name: "read", arguments: { n: i } })).text, /"isError":true/);
       assert.equal(r.of("tripwire-read-burst").length, 1, "five refused reads are a sweep too");
     } finally {
       await r.close();

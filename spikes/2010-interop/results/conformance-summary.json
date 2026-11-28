@@ -2,7 +2,7 @@
   "suite": "@modelcontextprotocol/conformance 0.2.0-alpha.12",
   "requirements": "2026-07-28",
   "target": "packages/core/test/conformance/fixture-server.ts",
-  "ran": "2026-11-28T07:48:55.072Z",
+  "ran": "2026-11-28T10:21:07.988Z",
   "suiteTotal": {
     "passed": 140,
     "failed": 45

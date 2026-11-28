@@ -201,12 +201,18 @@ void describe("P1 exit gate: against a real teaching node", () => {
         const origin = await mcp(t, "tools/call", { name: "notes.read", arguments: { name: "today.md" } }, { name: "notes.read", token: token(), headers: { origin: "https://evil.example.invalid" } });
         const extra = await mcp(t, "tools/call", { name: "notes.read", arguments: { name: "today.md", path: "/etc/passwd" } }, { name: "notes.read", token: token() });
         assert.equal(origin.status, 403, label);
-        assert.equal(extra.status, 400, label);
+        assert.equal(extra.status, 200, label);
+        assert.match(extra.text, /"isError":true/, `${label}: a tool execution error (CSR-WO-2011)`);
         if (t === live().t) {
           // Each refusal also writes its audit line (CSR-WO-1007 §1.4).
           const lines = live().lines;
           assert.ok(lines.some((l) => l.startsWith('http-refused {"status":403,"reason":"origin-not-allowed"')), `a forged Origin writes http-refused: ${lines.slice(-4).join(" | ")}`);
           assert.ok(lines.some((l) => l.startsWith('rpc-refused {"code":-32602,"method":"tools/call"')), `an extra property writes rpc-refused: ${lines.slice(-4).join(" | ")}`);
+          // Since CSR-WO-2011 the extra property's line is written by dispatch (its answer is a result),
+          // so a refusal still answered as a JSON-RPC error proves the transport's own rpc-refused line.
+          const unknown = await mcp(t, "tools/nonexistent", {}, { token: token() });
+          assert.equal(unknown.status, 404, unknown.text);
+          assert.ok(live().lines.some((l) => l.startsWith('rpc-refused {"code":-32601,"method":"tools/nonexistent"')), `an unknown method writes rpc-refused: ${live().lines.slice(-4).join(" | ")}`);
         }
         assert.match(extra.text, /Invalid arguments for tool notes\.read/);
         rows.push(`${label}: forged Origin → ${String(origin.status)}, extra property → ${String(extra.status)}`);
@@ -225,9 +231,11 @@ void describe("P1 exit gate: against a real teaching node", () => {
     const rows: string[] = [];
     // A name that climbs out never reaches the cage: the pinned schema's name pattern refuses it first.
     const climb = await call("notes.read", { name: "../outside.md" }, { token: token() });
-    assert.equal(climb.status, 400);
+    // CSR-WO-2011: refused as a tool execution error (200, isError: true), with the same audit line.
+    assert.equal(climb.status, 200);
+    assert.match(climb.text, /"isError":true/);
     assert.ok(live().lines.some((l) => l.startsWith('rpc-refused {"code":-32602,"method":"tools/call"')));
-    rows.push(`"../outside.md" → ${String(climb.status)} (the pinned schema, before the cage; rpc-refused)`);
+    rows.push(`"../outside.md" → ${String(climb.status)} isError (the pinned schema, before the cage; rpc-refused)`);
     // A link planted in the root, to a file outside it: refused at the cage, every platform.
     mkdirSync(`${root}/../outside`, { recursive: true });
     writeFileSync(`${root}/../outside/secret.md`, "SECRET OUTSIDE THE ROOT\n");

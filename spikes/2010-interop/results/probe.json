@@ -1,6 +1,6 @@
 {
   "client": "@modelcontextprotocol/client 2.4.0",
-  "ran": "2026-11-28T07:48:41.739Z",
+  "ran": "2026-11-28T10:20:56.938Z",
   "outcomes": {
     "0.1 connect, mode auto (what the client concludes from our server/discover)": {
       "ok": true,
@@ -141,8 +141,22 @@
       }
     },
     "0.1 refused arguments (notes.read climbing out)": {
-      "ok": false,
-      "error": "ProtocolError: Invalid arguments for tool notes.read"
+      "ok": true,
+      "value": {
+        "_meta": {
+          "io.modelcontextprotocol/serverInfo": {
+            "name": "clearseal-node",
+            "version": "0.0.0"
+          }
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Invalid arguments for tool notes.read: /name fails pattern"
+          }
+        ],
+        "isError": true
+      }
     },
     "0.2 connect in the client's default legacy mode": {
       "ok": true,
@@ -198,7 +212,7 @@
       "error": "UnauthorizedError: Unauthorized"
     },
     "0.3 audience": "https://mcp.example.invalid/mcp",
-    "0.3 authorization URL the client built": "https://issuer.example.invalid/authorize?response_type=code&client_id=interop-spike&code_challenge=Qpgf09mHWGFALZ6ou1DgUwSGfegKrYXkgVciBxqwQ4Y&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%3A1%2Fcallback&resource=https%3A%2F%2Fmcp.example.invalid%2Fmcp",
+    "0.3 authorization URL the client built": "https://issuer.example.invalid/authorize?response_type=code&client_id=interop-spike&code_challenge=m1LIClN_cpEcT1g2Mrc8K6_Wr86KxODXkkeu25Kba3c&code_challenge_method=S256&redirect_uri=http%3A%2F%2F127.0.0.1%3A1%2Fcallback&resource=https%3A%2F%2Fmcp.example.invalid%2Fmcp",
     "0.3 OAuth provider, no token (metadata discovery and the authorization request)": {
       "ok": false,
       "error": "UnauthorizedError: Unauthorized"
@@ -226,7 +240,7 @@
       "probe": "0.1 connect, mode auto (what the client concludes from our server/discover)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -257,7 +271,7 @@
           "connection": "keep-alive",
           "content-length": "372",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -268,7 +282,7 @@
       "probe": "0.1 connect, pinned to 2026-07-28",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -299,7 +313,7 @@
           "connection": "keep-alive",
           "content-length": "372",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -310,7 +324,7 @@
       "probe": "0.1 server/discover",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -341,7 +355,7 @@
           "connection": "keep-alive",
           "content-length": "348",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -352,7 +366,7 @@
       "probe": "0.1 tools/list",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -383,7 +397,7 @@
           "connection": "keep-alive",
           "content-length": "596",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -394,7 +408,7 @@
       "probe": "0.1 tools/call read_only (notes.read today.md)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -430,7 +444,7 @@
           "connection": "keep-alive",
           "content-length": "218",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -441,7 +455,7 @@
       "probe": "0.1 tool error (notes.read of a missing note)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -477,7 +491,7 @@
           "connection": "keep-alive",
           "content-length": "237",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -488,7 +502,7 @@
       "probe": "0.1 refused arguments (notes.read climbing out)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -518,24 +532,24 @@
         }
       },
       "response": {
-        "status": 400,
+        "status": 200,
         "headers": {
           "cache-control": "no-store",
           "connection": "keep-alive",
-          "content-length": "98",
+          "content-length": "261",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
-        "body": "{\"jsonrpc\":\"2.0\",\"id\":4,\"error\":{\"code\":-32602,\"message\":\"Invalid arguments for tool notes.read\"}}"
+        "body": "{\"jsonrpc\":\"2.0\",\"id\":4,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Invalid arguments for tool notes.read: /name fails pattern\"}],\"isError\":true,\"resultType\":\"complete\",\"_meta\":{\"io.modelcontextprotocol/serverInfo\":{\"name\":\"clearseal-node\",\"version\":\"0.0.0\"}}}}"
       }
     },
     {
       "probe": "0.2 connect in the client's default legacy mode",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -562,7 +576,7 @@
           "connection": "keep-alive",
           "content-length": "237",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -573,7 +587,7 @@
       "probe": "0.2 connect in the client's default legacy mode",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -591,7 +605,7 @@
           "cache-control": "no-store",
           "connection": "keep-alive",
           "content-length": "0",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -602,7 +616,7 @@
       "probe": "0.2 connect in the client's default legacy mode",
       "request": {
         "method": "GET",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -616,7 +630,7 @@
           "cache-control": "no-store",
           "connection": "keep-alive",
           "content-length": "0",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -627,7 +641,7 @@
       "probe": "0.2 connect in the client's default legacy mode",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -647,7 +661,7 @@
           "connection": "keep-alive",
           "content-length": "444",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -658,7 +672,7 @@
       "probe": "0.2 connect in the client's default legacy mode",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -684,7 +698,7 @@
           "connection": "keep-alive",
           "content-length": "103",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -695,7 +709,7 @@
       "probe": "0.3 no token",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "content-type": "application/json",
@@ -725,7 +739,7 @@
           "connection": "keep-alive",
           "content-length": "66",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "www-authenticate": "Bearer resource_metadata=\"https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp\"",
           "x-content-type-options": "nosniff"
@@ -737,7 +751,7 @@
       "probe": "0.3 wrong-audience token",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -768,7 +782,7 @@
           "connection": "keep-alive",
           "content-length": "66",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "www-authenticate": "Bearer resource_metadata=\"https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp\", error=\"invalid_token\"",
           "x-content-type-options": "nosniff"
@@ -780,7 +794,7 @@
       "probe": "0.3 token from another issuer (iss)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:44171/mcp",
+        "url": "http://127.0.0.1:36135/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "authorization": "Bearer <test-issuer token>",
@@ -811,7 +825,7 @@
           "connection": "keep-alive",
           "content-length": "66",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "www-authenticate": "Bearer resource_metadata=\"https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp\", error=\"invalid_token\"",
           "x-content-type-options": "nosniff"
@@ -853,7 +867,7 @@
           "connection": "keep-alive",
           "content-length": "66",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "www-authenticate": "Bearer resource_metadata=\"https://mcp.example.invalid/.well-known/oauth-protected-resource/mcp\"",
           "x-content-type-options": "nosniff"
@@ -877,7 +891,7 @@
           "connection": "keep-alive",
           "content-length": "165",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -907,7 +921,7 @@
       "probe": "0.1 MRTR input_required round trip (fixture server)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:3999/mcp",
+        "url": "http://127.0.0.1:3998/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "content-type": "application/json",
@@ -939,7 +953,7 @@
           "connection": "keep-alive",
           "content-length": "373",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -950,7 +964,7 @@
       "probe": "0.1 MRTR input_required round trip (fixture server)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:3999/mcp",
+        "url": "http://127.0.0.1:3998/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "content-type": "application/json",
@@ -985,7 +999,7 @@
           "connection": "keep-alive",
           "content-length": "357",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },
@@ -996,7 +1010,7 @@
       "probe": "0.1 MRTR input_required round trip (fixture server)",
       "request": {
         "method": "POST",
-        "url": "http://127.0.0.1:3999/mcp",
+        "url": "http://127.0.0.1:3998/mcp",
         "headers": {
           "accept": "application/json, text/event-stream",
           "content-type": "application/json",
@@ -1041,7 +1055,7 @@
           "connection": "keep-alive",
           "content-length": "202",
           "content-type": "application/json",
-          "date": "Sat, 28 Nov 2026 07:48:41 GMT",
+          "date": "Sat, 28 Nov 2026 10:20:56 GMT",
           "keep-alive": "timeout=5",
           "x-content-type-options": "nosniff"
         },

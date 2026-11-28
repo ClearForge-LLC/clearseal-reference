@@ -17,8 +17,8 @@ import { extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 
-import type { SchemaCompiler } from "./registry.ts";
-import { compileSchema } from "./schema.ts";
+import type { SchemaCompiler, ValidationVerdict } from "./registry.ts";
+import { compileSchema, type SchemaFailure } from "./schema.ts";
 
 export class ValidationTimeout extends Error {
   override name = "ValidationTimeout";
@@ -32,7 +32,7 @@ interface Job {
   id: number;
   key: string;
   value: unknown;
-  resolve: (valid: boolean) => void;
+  resolve: (verdict: ValidationVerdict) => void;
   reject: (err: Error) => void;
   /** Bounds the wait for a ready worker; cleared once the job is assigned. */
   wait?: NodeJS.Timeout;
@@ -48,7 +48,7 @@ interface Slot {
   readyTimer?: NodeJS.Timeout;
 }
 
-type Reply = { id: number; ok: true; valid: boolean } | { id: number; ok: false; error: string };
+type Reply = { id: number; ok: true; valid: boolean; failures?: readonly SchemaFailure[] } | { id: number; ok: false; error: string };
 
 export interface ValidationPoolOptions {
   workers: number;
@@ -167,7 +167,7 @@ export class ValidationPool {
     this.#pump();
   }
 
-  #run(key: string, value: unknown): Promise<boolean> {
+  #run(key: string, value: unknown): Promise<ValidationVerdict> {
     if (this.#closed) return Promise.reject(new Error("validation pool closed"));
     return new Promise((resolve, reject) => {
       const job: Job = { id: this.#nextId++, key, value, resolve, reject };
@@ -211,7 +211,7 @@ export class ValidationPool {
     clearTimeout(slot.timer);
     const job = slot.job;
     slot.job = undefined;
-    if (reply.ok) job.resolve(reply.valid);
+    if (reply.ok) job.resolve(reply.valid || { failures: reply.failures ?? [] });
     else job.reject(new Error(`validation failed in the worker: ${reply.error}`));
     this.#pump();
   }

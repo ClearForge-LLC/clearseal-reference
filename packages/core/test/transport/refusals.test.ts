@@ -154,9 +154,12 @@ void describe("WO §3.3 refusals", () => {
     assert.equal(r.status, 200);
   });
 
-  void it("TL-10 D-7 extra request property against a tool schema → 400 -32602", async () => {
+  void it("TL-10 D-7 extra request property against a tool schema → refused as a tool execution error (CSR-WO-2011)", async () => {
     const r = await modern(s.t, "tools/call", { name: "echo", arguments: { text: "hi", extra: true } });
-    expectRefusal("extra property vs tool schema", r, 400, -32602);
+    assert.equal(r.status, 200, r.text);
+    const result = (r.json as { result?: { isError?: boolean; content?: { text?: string }[] } }).result;
+    assert.equal(result?.isError, true, r.text);
+    assert.match(result?.content?.[0]?.text ?? "", /^Invalid arguments for tool echo: /);
   });
 
   void it("oversize result → 500 -32603, result not sent", async () => {
