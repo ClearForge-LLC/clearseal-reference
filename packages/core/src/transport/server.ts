@@ -557,7 +557,9 @@ export async function startTransport(options: TransportOptions): Promise<Running
     }
   };
 
-  const server: Server = createServer({ requestTimeout: limits.requestTimeoutMs }, (req, res) => {
+  // CSR-WO-1005c: Node checks requestTimeout only on its connection sweep (30 s by default), so a stalled
+  // request ended 30-60 s in. Swept every min(setting, 1 s), at least every 100 ms: 0.02 % of a core at 200 connections.
+  const server: Server = createServer({ requestTimeout: limits.requestTimeoutMs, connectionsCheckingInterval: Math.max(100, Math.min(limits.requestTimeoutMs, 1_000)) }, (req, res) => {
     handle(req, res).catch(() => {
       audit("transport-error", { reason: "unhandled" });
       if (!res.headersSent) send(res, 500, undefined);

@@ -1,0 +1,10 @@
+--- a/packages/core/src/transport/schema-pool.ts
++++ b/packages/core/src/transport/schema-pool.ts
+@@ -149,7 +149,6 @@ export class ValidationPool {
+   #prime(slot: Slot, key: string, schema: Record<string, unknown>): void {
+     const id = this.#nextPrimeId--;
+     slot.priming.add(id);
+-    this.#armReady(slot);
+     slot.worker.postMessage({ id, op: "compile", key, schema });
+   }
+ 

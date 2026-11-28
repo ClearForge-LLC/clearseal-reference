@@ -1,0 +1,12 @@
+--- a/packages/core/src/transport/schema-pool.ts
++++ b/packages/core/src/transport/schema-pool.ts
+@@ -125,9 +125,6 @@ export class ValidationPool {
+       this.#replace(slot, new Error("validation worker failed"));
+     });
+     // A worker that exits without an error event: replaced now, not at the next job's deadline.
+-    worker.on("exit", () => {
+-      if (!this.#closed && this.#slots.includes(slot)) this.#replace(slot, new Error("validation worker exited"));
+-    });
+     this.#armReady(slot);
+     for (const [key, schema] of this.#schemas) this.#prime(slot, key, schema);
+     return slot;

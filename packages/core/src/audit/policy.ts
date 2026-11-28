@@ -34,6 +34,7 @@ export const EVENTS: Readonly<Record<string, EventRule>> = Object.freeze({
   "transport-error": { principal: "caller-or-unauthenticated", fields: { reason: "errname" } },
   "result-over-cap": { principal: "caller", fields: { method: "method", limit: "int" } },
   "validation-timeout": { principal: "caller", fields: { tool: "tool", limitMs: "int" } },
+  "validation-worker-not-ready": { principal: "node", fields: { limitMs: "int" } },
   "validation-error": { principal: "caller", fields: TOOL_FIELDS },
   "containment-refused": { principal: "caller", fields: { tool: "tool", kind: "code", sink: "digest", fileType: "code" } },
   "handler-timeout": { principal: "caller", fields: { tool: "tool", limitMs: "int" } },

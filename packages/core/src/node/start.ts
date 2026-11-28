@@ -312,7 +312,7 @@ export async function startNode(edition: Edition, prepared: PreparedNode): Promi
   // The edition's own variables, from the snapshot's frozen copy: never from process.env (§1.2).
   const config = readEditionConfig(edition.configSchema, settings.env);
   const limits = DEFAULT_LIMITS;
-  const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs });
+  const pool = new ValidationPool({ workers: limits.validationWorkers, timeoutMs: limits.validationTimeoutMs, onEvent: prepared.audit });
   // CSR-WO-2001: the approval backend, when the operator configured one in the snapshot. Without it the
   // registry refuses every elevated tool, exactly as before (APR-14).
   let approval: ApprovalService | undefined;

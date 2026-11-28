@@ -5035,6 +5035,81 @@
       "mustFail": [
         "A2: a dangling symlink leaf is refused, and nothing is created outside the root on write"
       ]
+    },
+    {
+      "id": "validation-ready-slot",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "CSR-WO-1005c: a validation is timed only against a ready worker, so a call straight after a timeout is validated and answered (the stub lets #pump give a job to a worker still starting and priming, as before this WO)",
+      "touches": [
+        "packages/core/src/transport/schema-pool.ts"
+      ],
+      "stub": "stubs/validation-ready-slot.patch",
+      "tests": [
+        "packages/core/test/transport/schema-pool.test.ts"
+      ],
+      "mustFail": [
+        "at a 40 ms deadline, a call straight after a timeout is validated and answered, 3 of 3"
+      ]
+    },
+    {
+      "id": "request-timeout-sweep",
+      "section8": "Transport hardening (Origin/Host, body cap, timeouts, concurrency, batches, mirrored headers, x-mcp-header)",
+      "control": "CSR-WO-1005c §1.5: the transport sweeps for timed-out requests every min(requestTimeoutMs, 1 s), so a stalled request is ended within a second of its setting (the stub leaves Node's 30 s sweep)",
+      "touches": [
+        "packages/core/src/transport/server.ts"
+      ],
+      "stub": "stubs/request-timeout-sweep.patch",
+      "tests": [
+        "packages/core/test/transport/request-timeout.test.ts"
+      ],
+      "mustFail": [
+        "a request whose body never finishes is answered 408 after requestTimeoutMs, and the connection closes"
+      ]
+    },
+    {
+      "id": "approval-listener-sweep",
+      "section8": "Approval gate; grant ≠ redemption; expiry",
+      "control": "CSR-WO-1005c §1.5: the approval listener sweeps for timed-out requests every second, so its 10 s receive timeout ends a stalled request at 10-11 s (the stub leaves Node's 30 s sweep)",
+      "touches": [
+        "packages/core/src/approval/listener.ts"
+      ],
+      "stub": "stubs/approval-listener-sweep.patch",
+      "tests": [
+        "packages/core/test/approval/listener-timeout.test.ts"
+      ],
+      "mustFail": [
+        "a decision whose body never finishes is answered 408 after the listener's 10 s, and the connection closes"
+      ]
+    },
+    {
+      "id": "validation-ready-rearm",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "CSR-WO-1005c adversarial pass: a ready slot that primes again for a schema registered later is under the readiness bound, so a worker that then hangs is replaced (the stub arms the bound only at spawn)",
+      "touches": [
+        "packages/core/src/transport/schema-pool.ts"
+      ],
+      "stub": "stubs/validation-ready-rearm.patch",
+      "tests": [
+        "packages/core/test/transport/schema-pool.test.ts"
+      ],
+      "mustFail": [
+        "a schema registered later on a ready worker that then hangs: the slot is replaced, audited, and the call answered"
+      ]
+    },
+    {
+      "id": "validation-worker-exit",
+      "section8": "Runtime input validation against the pinned schema; output size cap",
+      "control": "CSR-WO-1005c adversarial pass: a worker that exits without an error event is replaced at once, and its job answered (the stub deletes the exit handler, so the job waits for its deadline)",
+      "touches": [
+        "packages/core/src/transport/schema-pool.ts"
+      ],
+      "stub": "stubs/validation-worker-exit.patch",
+      "tests": [
+        "packages/core/test/transport/schema-pool.test.ts"
+      ],
+      "mustFail": [
+        "a ready worker that exits without an error is replaced, and the call is answered, not timed out"
+      ]
     }
   ]
 }

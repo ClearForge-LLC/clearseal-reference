@@ -118,6 +118,9 @@ void describe("F2 validation runs off the event loop under a deadline", () => {
     const boundMs = 3 * COSTLY_DEADLINE_MS;
     const s = await start({ limits: { validationTimeoutMs: COSTLY_DEADLINE_MS } });
     try {
+      // One answered call first: the bound below times the deadline from a served pool, and a fresh
+      // server's first job waits for its workers to finish priming (CSR-WO-1005c). A call, not a sleep.
+      assert.equal((await modern(s.t, "tools/call", { name: "echo", arguments: { text: "first" } })).status, 200);
       const args = costlyArguments();
       const t0 = Date.now();
       const call = modern(s.t, "tools/call", { name: "costly_schema", arguments: args });
@@ -133,10 +136,8 @@ void describe("F2 validation runs off the event loop under a deadline", () => {
       assert.ok(callMs < boundMs, `the 400 came at ${String(callMs)} ms, past ${String(boundMs)} ms (3 × validationTimeoutMs): the deadline fired late`);
       assert.ok(healthMs < 200, `health took ${String(healthMs)} ms`);
       assert.ok(s.audits.includes("validation-timeout"));
-      // The replacement worker starts and is re-primed with every schema before it validates, and a
-      // validation sent to it at once counts that against the deadline. Let it settle first: this
-      // checks that it validates, not how fast it starts (CSR-WO-2008b, ruled).
-      await new Promise((r) => setTimeout(r, 500));
+      // Straight after the timeout: the pool offers a job only to a ready worker (CSR-WO-1005c), so the
+      // replacement's start-up is not timed against this call.
       const e0 = Date.now();
       const after = await modern(s.t, "tools/call", { name: "echo", arguments: { text: "after" } });
       assert.equal(after.status, 200, `the replaced worker validates (status ${String(after.status)} in ${String(Date.now() - e0)} ms; last audits ${s.audits.slice(-3).join(",")})`);

@@ -1,0 +1,11 @@
+--- a/packages/core/src/transport/schema-pool.ts
++++ b/packages/core/src/transport/schema-pool.ts
+@@ -183,7 +183,7 @@ export class ValidationPool {
+ 
+   #pump(): void {
+     for (const slot of this.#slots) {
+-      if (slot.job !== undefined || !ready(slot)) continue;
++      if (slot.job !== undefined) continue;
+       const job = this.#queue.shift();
+       if (job === undefined) return;
+       clearTimeout(job.wait);
