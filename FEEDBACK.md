@@ -1,137 +1,102 @@
-# FEEDBACK: CSR-WO-1005c (a validation's deadline starts when its worker is ready, and a receive timeout fires when it says)
+# FEEDBACK: CSR-WO-2008d (the heap test catches a per-request leak; the deadline fixture has margin)
 
-Branch `wo/CSR-WO-1005c`, cut from `main` at `011e271` (contains `-2008c`'s merge `f6080e9` and the docs
-PR that widened this WO). Built on Node v24.21.0 on Furnace, as `forge`; every commit's author and
-committer is `clearforgekey[bot]`'s noreply address. Parked as one unmerged pull request.
+Branch `wo/CSR-WO-2008d`, cut from `main` at `97c66c5` (contains `-1005c`'s merge). Built on Node
+v24.21.0 on Furnace, as `forge`; every commit's author and committer is `clearforgekey[bot]`'s noreply
+address. Parked as one unmerged pull request.
 
 ## Read this first
 
-- **The race is fixed in the pool, and no test waits for it.** F2's 500 ms settle is gone: its follow-up
-  call goes straight after the timeout and passes. At a 40 ms deadline a call straight after a timeout
-  answers 200 in every round: 3 of 3 idle, and 18 of 18 (6 copies × 3 rounds) on 2 cores under load,
-  where `-2008b` measured 3 of 3 failing idle at that deadline.
-- **Approach (a), by necessity and by measurement.** A slot is offered to `#pump` only once its worker
-  is online and has acknowledged every schema it was sent; priming compiles carry negative ids. (b),
-  starting the timer when the worker acknowledges a job, needs the worker to acknowledge a job, which
-  it does not, and `schema-worker.ts` is protected. Priming, measured with the fixture's 13 schemas:
-  71–85 ms idle, at most 453 ms on 2 cores under load.
-- **Readiness has its own bound: 5 s** (about 11 times the worst loaded reading). A worker not ready
-  within it is replaced and audited as `validation-worker-not-ready`. A queued job waits up to twice
-  that for a ready worker (so a replacement gets its whole window), then is refused as a timeout is:
-  400 -32602, fail closed. A job queued behind ready workers that are busy waits for them, as before.
-- **Behaviour change, §1.5:** both servers now sweep for timed-out requests every second (the
-  transport every min(setting, 1 s), at least 100 ms apart). Before and after, measured:
+- **WO §7 hit, recorded as ruled: no bound separates an argument-only leak from honest growth on CI.**
 
-  | server | setting | before (Node's 30 s sweep) | after |
+  | reading of the statelessness test (4,000 requests after 1,000 warm) | Furnace | CI Linux | CI Windows |
   |---|---|---|---|
-  | transport (test value) | 1 s | 30,004–30,011 ms | 2,001–2,003 ms |
-  | approval listener | 10 s | 30,006–30,007 ms | 10,010–10,016 ms |
-  | transport (production default) | 30 s | 30–60 s | 30–31 s |
+  | honest, the test itself | −150 to −8 KiB (25 runs) | 340 KiB (once), −8 KiB | −8, −119 KiB |
+  | honest, 10-run probe in one process | — | −5,466 to +848 KiB | −5,269 to +807 KiB |
+  | each request's arguments retained | 311–330 KiB (5 runs) | — | — |
+  | arguments and dispatch context retained | 33,224–33,247 KiB | — | — |
 
-  Cost: 0.020 % of a core at 200 open connections with a 1 s sweep (0.004 % at 30 s, 0.056 % at
-  250 ms, 0.175 % at 100 ms). The tests now assert the 408 lands within the setting plus one sweep
-  plus 500 ms, and wait 10 s and 20 s instead of 45 s.
-- **Fences lifted by operator ruling** for §1.4's audit event, each one line: `node/start.ts` passes
-  its audit sink to the pool, and `audit/policy.ts` and `audit/RULES.md` list the event.
+  The argument-only leak (about 80 B a request) sits inside CI's honest spread, so **the bound is 4 MiB
+  (operator ruling)**: about 1 KiB a request, against the 16 KiB the old test could see. It catches a
+  retained dispatch context with about 5× headroom over CI's worst honest reading. The adversarial pass
+  measured the floor: a 1,024 B pad per request reads 4,877–4,883 KiB (red), 512 B 2,657–2,825 KiB (green).
+- **The full suite is green on Furnace, 5 of 5,** at load average 10.4–13.2. The canary read warm
+  1,962–2,046 ms (at least 6.5 × 300 ms), F2 answered 400 at 322–330 ms, and the heap test −21 to −8 KiB.
+- **The deadline tests still drive a real deadline.** `costlyArguments()` now sends 50,000 items (about
+  575 KiB, under `maxBodyBytes`); the schema, its manifest entry and `maxSchemaNodes` are unchanged.
 
-## -2008c's findings, promoted
+  | `costly_schema` warm validation | Furnace (under load) | CI Linux | CI Windows |
+  |---|---|---|---|
+  | 20,000 items (before) | 770–1,104 ms | 1,147–2,002 ms | 1,147–2,107 ms |
+  | 50,000 items (now) | 1,885–2,904 ms | 3,230–3,314 ms | 4,296–5,109 ms |
 
-| -2008c finding | Durable home |
+- **The cold path scales with it.** `validation-deadline`'s row (which runs cold validations to
+  completion under its stub) takes 64 s on Furnace (25 s before) and 89–118 s on CI (52 s before),
+  under the runner's 240 s. It pushed its shard to 311 s at 16 shards. At 18 its shard (4/18) read
+  230, 267 and 305 s across three runs, so **`CONTROL_DELETION_SHARDS` is 22 (operator rulings;
+  `.github/**` was fenced)**: see *Gates* for the run at 22.
+
+## How the heap test now measures (§1.1)
+
+- 1,000 warm-up requests, then 4,000 measured in two halves; the test helper's own audit lines are
+  cleared at each half, since they are the test's retention, not the transport's; three collection
+  passes before, between and after.
+- Measured, not guessed: one pass over all 4,000 spread −135 to +108 KiB on Furnace; with the
+  collection between the halves, −150 to −23 KiB, always below the leak. Total growth, not the second
+  half alone: the two halves are anticorrelated (one rises when the other falls).
+- The red-proofs, planted by hand at `dispatch.ts`'s `const args = …` and reverted: arguments plus
+  context red by assertion on Furnace; arguments alone 311–330 KiB, green under the ruled bound.
+- To get CI's distribution, one push carried a temporary probe that ran the measurement 10 times per
+  runner (allowlisted, then removed before the pull request was parked).
+
+## -1005c's findings, promoted
+
+| -1005c finding | Durable home |
 |---|---|
-| 1: the sweep missed controls | needs-none: built in `-2008c` |
-| 2: a receive timeout fires on the 30 s sweep | this WO §1.5 |
-| 3: the H9 table cases asserted the reason first | needs-none: fixed in `-2008c` |
-| 4: `CHECKS.md` clause ids | open: the architect's (no ruling yet) |
-| 5: J6's stub stretches | needs-none |
-| 6: `drift-refused` gained a name | needs-none: ratified at merge |
-| 7: the Windows-only containment test | a later WO (ruled 2026-11-28; `-2008e`'s intent) |
-| The five exemptions | needs-none: accepted (ruled 2026-11-28) |
+| 1: a fresh server's first call waits for priming | needs-none (F2 makes one answered call first) |
+| 2: two pool test seams | needs-none |
+| 3: six stubs regenerated | needs-none (merged) |
+| 4: the 100 ms sweep floor | needs-none |
+| 5: era-status keeps its `deadline` server | needs-none |
 
 ## Findings
 
 Schema: *finding · where · type · recommendation · decision-needed*.
 
-1. **A fresh server's first call now waits for priming before its deadline starts.** · `schema-pool.ts`
-   · behaviour · The timer used to start at once and silently included priming. Under 2-core load F2's
-   first call took 857–969 ms with the fix, against its 900 ms bound, so F2 now makes one answered
-   call before timing (a call, not a sleep). Production waits about 80 ms idle. Recommendation: none. ·
+1. **The statelessness test cannot see an argument-only leak on CI** (*Read this first*). · test
+   strength · A measurement with less CI noise (a heap snapshot's object count, or many more requests)
+   would; it is a new design, not a bound. · *decision-needed: yes*
+2. **The canary times the validator on the main thread; the deadline tests time it in a worker**
+   (adversarial pass). A worker-only slowdown or speedup would not show in the canary. · note ·
    *decision-needed: no*
-2. **Two test seams in the pool.** · `ValidationPoolOptions` · `readyTimeoutMs` and `workerUrl`,
-   defaulting to today's values, let the tests plant a worker that never answers, answers once, or
-   exits. · *decision-needed: no*
-3. **Six existing stubs regenerated.** · `validation-deadline` (its timer lines moved; it deletes the
-   same three lines and is RED 2/2), `request-timeout` and `approval-listener-request-timeout` (their
-   option line gained the sweep; each still deletes only `requestTimeout`, as §1.5 requires). And,
-   caught by the first CI run (shards 2, 6 and 10 red, *no longer applies*), three whose context the
-   ruled one-line audit edits moved: `startnode-reads-the-snapshot`, `audit-errname`,
-   `audit-sink-digest`. Each deletes exactly the same lines as before (shown by diffing their `-`/`+`
-   lines) and is RED. I had re-run only the pool and timeout rows locally; every one of the 316 stubs
-   is now checked to apply with `git apply --check`. · *decision-needed: no*
-4. **A setting under 100 ms sweeps every 100 ms.** · `server.ts` · Every limit must be a positive
-   integer, so 0 cannot reach it; the floor keeps a tiny setting from a 1 ms tick. · *decision-needed:
-   no*
-5. **era-status keeps its `deadline` server** (§1.2): it reads better, with the deadline row alone on a
-   300 ms server and `fast` keeping `handlerTimeoutMs` 100. · *decision-needed: no*
-
-## Rows
-
-New: `validation-ready-slot` (the stub lets `#pump` use an unready worker: the 40 ms test answers 400
-in round 1), `validation-ready-rearm`, `validation-worker-exit`, `request-timeout-sweep`,
-`approval-listener-sweep`. All eight pool and timeout rows in one invocation, after a green baseline
-(6 files, 106 tests):
-
-```
-RED  validation-deadline | stub applied; 2/2 named test(s) red by assertion | 25168 ms
-RED  request-timeout | stub applied; 1/1 named test(s) red by assertion | 12122 ms
-RED  approval-listener-request-timeout | stub applied; 1/1 named test(s) red by assertion | 22067 ms
-RED  validation-ready-slot | stub applied; 1/1 named test(s) red by assertion | 3273 ms
-RED  request-timeout-sweep | stub applied; 1/1 named test(s) red by assertion | 12100 ms
-RED  approval-listener-sweep | stub applied; 1/1 named test(s) red by assertion | 22034 ms
-RED  validation-worker-exit | stub applied; 1/1 named test(s) red by assertion | 8653 ms
-RED  validation-ready-rearm | stub applied; 1/1 named test(s) red by assertion | 3928 ms
-```
-
-(`validation-ready-rearm` first failed by a thrown error rather than an assertion; its test now asserts
-the call's outcome, and it was re-run: RED.) The detector is green: 316 rows, all in `rows.lock`.
+3. **A validator that caches by an item's shape would make the fixture cheap**, since `required` never
+   reads `k`'s value (adversarial pass). The canary would then fail as itself, naming the cause
+   (*the deadline tests can no longer drive the deadline*), not leave F2 to fail with a 200. · note ·
+   *decision-needed: no*
+4. **The heap test exercises one tool with a short argument** (adversarial pass); a leak only on large
+   arguments or on an error path is not exercised. · note · *decision-needed: no*
 
 ## Adversarial pass (WO §5)
 
-A fresh subagent, in its own worktree at `a1979f6`, attacked the slot lifecycle with probes. **The
-fail-closed invariant held on every path** (priming acks carry negative ids and cannot settle a job;
-replies and late events from a replaced worker are inert; a job never reaches a worker lacking its
-schema). What it found, and what was done:
-
-1. **should-fix, fixed:** a schema registered after start re-primed a ready slot without re-arming the
-   readiness bound, so a worker that then hung was skipped for ever (probe: every call refused, no
-   event). Now `#armReady` covers both; test *a schema registered later on a ready worker that then
-   hangs …*, red on the pre-fix pool.
-2. **should-fix, fixed:** no `exit` handler, so a worker that exited quietly cost each job its full
-   deadline. Now replaced at once; test *a ready worker that exits without an error …*, red on the
-   pre-fix pool.
-3. **note, fixed:** a worker that cannot compile a schema respawned in a loop; now it stays unready and
-   is replaced once per readiness bound, audited.
-4. **note, fixed:** the sweep floor (finding 4).
-5. Checked and found fine: `close()` during priming; two timeouts back to back on a one-worker pool
-   with a call queued behind them; the moment between ready and assignment (assignment is synchronous).
+A fresh subagent at `4ffbaab`: the leak floor (finding 1's numbers: 1,024 B red, 512 B green; a
+`"x".repeat(K)` pad is a rope and barely registers, so it used real heap arrays), and the fixture
+(findings 2–4). It also reported that `costlyArguments()` builds 20,000 items; at `4ffbaab` it builds
+50,000 (checked), so that point is set aside.
 
 ## Gates
 
-- `npm run check` on Node v24.21.0, on Furnace: lint, typecheck and build green; the detector 21 of 21;
-  core and teaching 950 of 951, the one failure being the canary (`warm=803ms`, `-2008d`'s); later
-  stages by hand: spike 0102 69, spike 0101 8, `test:subset` 4. `control-deletion --self-test` passes.
-- CI: the first run on `3ee3ef4` failed shards 2, 6 and 10 on the three stubs in finding 3, with every
-  other job green and every shard under five minutes (114–245 s). The pull request's later runs are
-  the evidence.
+- `npm run check` on Furnace: green 5 of 5 (detector 21 of 21; core and teaching 951 of 951); spikes 69
+  and 8, `test:subset` 4.
+- Dependants re-proven with the new input: `validation-deadline` RED 2/2 (64 s), `validation-ready-slot`
+  RED; F2 green (322–376 ms); era-status's and corrections' deadline tests green.
+- CI at 18 shards: every job green on `4ffbaab` and `e6e5c21`, but validation-deadline's shard read
+  230–305 s. At 22: every job green on `3bf0f8b` (runs 46117542085 and 46117545826, push and pull request); shard jobs 90–205 s and 91–250 s.
 - Leak gate: `--self-test`, `--tree` and `--history` exit 0 before each push.
-- Reduction pass (diff): −1 export (`READY_TIMEOUT_MS` is module-private) · 0 duplicates · 0 dead
-  paths · 0 protected kept · 0 findings.
-- Protected surfaces, against `011e271`: `src/**` changes only in `schema-pool.ts`, the two
-  `createServer` option lines (with a comment line each) and the three ruled one-line audit edits;
-  `scripts/**`, `.github/**` and the steering documents diff to empty; existing stubs change only as
-  finding 3 says.
+- Reduction pass (diff): nothing to remove (the temporary probe is gone; the triple collection is
+  measured, not ornament).
+- Protected surfaces, against `97c66c5`: `packages/*/src/**`, the steering documents, `scripts/**` and
+  every stub diff to empty; `.github/**` is the shard number and its comment (ruled).
 
 ## Deliberately not built
 
-- Any change to the deadline's value or default, the validator, the pool size, or the canary and heap
-  test (`-2008d`).
-- A worker change for approach (b) (`schema-worker.ts` is protected).
+- A heap measurement other than heap size (finding 1).
+- Any change to the validator, the deadline, the pool or `maxSchemaNodes`.
