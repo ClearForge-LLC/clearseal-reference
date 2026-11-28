@@ -199,9 +199,14 @@ void describe("CSR-WO-2011 arguments that fail the pinned schema → a tool exec
         worker.postMessage({ id: replies.length, op: "validate", key: "k", value: v });
         replies.push(await next());
       }
+      // The adversarial pass's case: a digit-only key the caller chose, under additionalProperties.
+      worker.postMessage({ id: -2, op: "compile", key: "open", schema: { type: "object", additionalProperties: { type: "string" } } });
+      await next();
+      worker.postMessage({ id: replies.length, op: "validate", key: "open", value: { "1234567890": 1 } });
+      replies.push(await next());
       const posted = JSON.stringify(replies.slice(1));
       pastes.push(`WORKER-REPLIES ${posted.slice(0, 700)}`);
-      for (const secret of [INJECTION, "PATTERN-SOURCE", "ENUM-VALUE-A", "not an integer"]) assert.ok(!posted.includes(secret), `the worker posted ${secret}`);
+      for (const secret of [INJECTION, "PATTERN-SOURCE", "ENUM-VALUE-A", "not an integer", "1234567890"]) assert.ok(!posted.includes(secret), `the worker posted ${secret}`);
       for (const reply of replies.slice(1) as { failures?: { pointer: string; keyword: string }[] }[]) {
         assert.deepEqual(Object.keys(reply).sort(), ["failures", "id", "ok", "valid"]);
         assert.ok(reply.failures !== undefined && reply.failures.length >= 1 && reply.failures.length <= 3);
@@ -210,7 +215,7 @@ void describe("CSR-WO-2011 arguments that fail the pinned schema → a tool exec
           assert.ok(f.pointer.length <= 202 && f.keyword.length <= 40, JSON.stringify(f));
         }
       }
-      assert.match(JSON.stringify(replies.at(-1)), /\/…"/, "the 20-deep pointer is cut at the cap");
+      assert.match(JSON.stringify(replies.at(-2)), /\/…"/, "the 20-deep pointer is cut at the cap");
     } finally {
       await worker.terminate();
     }

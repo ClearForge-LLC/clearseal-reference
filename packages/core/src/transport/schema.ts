@@ -37,8 +37,9 @@ export function compileSchema(schema: Record<string, unknown>): (value: unknown)
 }
 
 /** One way a value fails its schema, as the caller may be told it (CSR-WO-2011 §1.2): where, as a JSON
- *  pointer whose every segment the schema itself declares under `properties` or is an array index (any
- *  other segment is `*`), and the failing keyword. Never z-schema's `message` or `params`, nor a
+ *  pointer whose every segment the schema itself declares under `properties` (any other segment is
+ *  `*`, array indices included: a digit-only key under `additionalProperties` would read the same as
+ *  an index, CSR-WO-2011 adversarial pass), and the failing keyword. Never z-schema's `message` or `params`, nor a
  *  segment the caller chose: measured on z-schema 12.8.0, those carry the arguments (the failing
  *  string for `pattern`, the value for `enum`, `const` and `maximum`, the extra property's name for
  *  `unevaluatedProperties`). */
@@ -79,7 +80,7 @@ function failuresOf(err: unknown): SchemaFailure[] {
     const declared = new Set<string>();
     if (Array.isArray(schemaPath)) for (let i = 0; i + 1 < schemaPath.length; i++) if (schemaPath[i] === "properties" && typeof schemaPath[i + 1] === "string") declared.add(schemaPath[i + 1] as string);
     const segments = typeof path === "string" ? path.replace(/^#\/?/, "").split("/").filter((seg) => seg !== "") : [];
-    const pointer = segments.map((seg) => (seg.length <= MAX_SEGMENT && (/^\d{1,10}$/.test(seg) || declared.has(seg)) ? seg : "*")).join("/");
+    const pointer = segments.map((seg) => (seg.length <= MAX_SEGMENT && declared.has(seg) ? seg : "*")).join("/");
     const word = typeof keyword === "string" && /^[A-Za-z$]{1,32}$/.test(keyword) ? keyword : typeof code === "string" && /^[A-Z_]{1,40}$/.test(code) ? code.toLowerCase() : "schema";
     const full = pointer === "" ? "" : `/${pointer}`;
     return { pointer: full.length <= MAX_POINTER ? full : `${full.slice(0, MAX_POINTER).replace(/\/[^/]*$/, "")}/…`, keyword: word };

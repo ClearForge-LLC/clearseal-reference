@@ -226,9 +226,11 @@ void describe("P1 exit gate: against a real teaching node", () => {
     const rows: string[] = [];
     // A name that climbs out never reaches the cage: the pinned schema's name pattern refuses it first.
     const climb = await call("notes.read", { name: "../outside.md" }, { token: token() });
-    assert.equal(climb.status, 400);
+    // CSR-WO-2011: refused as a tool execution error (200, isError: true), with the same audit line.
+    assert.equal(climb.status, 200);
+    assert.match(climb.text, /"isError":true/);
     assert.ok(live().lines.some((l) => l.startsWith('rpc-refused {"code":-32602,"method":"tools/call"')));
-    rows.push(`"../outside.md" → ${String(climb.status)} (the pinned schema, before the cage; rpc-refused)`);
+    rows.push(`"../outside.md" → ${String(climb.status)} isError (the pinned schema, before the cage; rpc-refused)`);
     // A link planted in the root, to a file outside it: refused at the cage, every platform.
     mkdirSync(`${root}/../outside`, { recursive: true });
     writeFileSync(`${root}/../outside/secret.md`, "SECRET OUTSIDE THE ROOT\n");

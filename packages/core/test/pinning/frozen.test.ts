@@ -99,7 +99,10 @@ void describe("CSR-WO-1006 §1.1: admitted tools are immutable (N2)", () => {
     assert.equal(call.status, 200, call.text);
     assert.match(call.text, /original handler/);
     const unvalidated = await modern(t, "tools/call", { name: "a.search", arguments: { region: "eu" } }, { headers: { "mcp-param-region": "eu" } });
-    assert.equal(unvalidated.status, 400, "the admitted validator still runs");
+    // CSR-WO-2011: the admitted validator's refusal is a tool execution error, never the handler's answer.
+    assert.equal(unvalidated.status, 200, unvalidated.text);
+    assert.match(unvalidated.text, /"isError":true/, "the admitted validator still runs");
+    assert.doesNotMatch(unvalidated.text, /original handler/);
     // Frozen all the way down, and the same objects each time.
     for (const tool of registry.list()) {
       assert.ok(Object.isFrozen(tool) && Object.isFrozen(tool.definition) && Object.isFrozen(tool.paramHeaders));
